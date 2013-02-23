@@ -1,0 +1,96 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Tag Editor Mockup</title>
+<style>
+* {
+	margin: 0;
+	padding: 0;
+	-webkit-box-sizing: border-box;
+	-moz-box-sizing: border-box;
+	-ms-box-sizing: border-box;
+	-o-box-sizing: border-box;
+	box-sizing: border-box;
+	font-size: 1em;
+}
+body { background: #eee; }
+.absolute { position: absolute; }
+.scroll { overflow-x: hidden; overflow-y: auto; }
+.center { text-align: center; }
+.outline { outline: 1px solid red; }
+.inlineBlock { display: inline-block; }
+.wrapper > * { width: 100%; height: 100%; }
+.border { border: 0 solid #999; }
+.overflow { overflow: hidden; }
+.fullWidth { left: 0; right: 0; }
+.editor {
+	height: 10em; // TODO: Make customizable.
+	bottom: 0;
+	border-top-width: 1px;
+}
+.editor > .toolbar, .editor > .tagEditor > .toolbar {
+	top: 0;
+	height: 30px;
+	border-bottom-width: 1px;
+}
+.editor > .content, .editor > .tagEditor > .content {
+	top: 30px;
+	bottom: 0;
+}
+.toolbar, .toolbar > .button {
+	background: -webkit-linear-gradient(top, #eee, #ddd);
+	background: -moz-linear-gradient(top, #eee, #ddd);
+	text-shadow: 0 1px 1px #fff;
+}
+.toolbar > .button {
+	height: 100%;
+	padding: 0 1em;
+	border-width: 0 1px;
+	margin-right: -1px;
+}
+.toolbar > .button:active {
+	background: -webkit-linear-gradient(bottom, #eee, #ddd);
+	background: -moz-linear-gradient(bottom, #eee, #ddd);
+}
+.toolbar > .button.selected {
+	background: -webkit-linear-gradient(top, #777, #ddd);
+	background: -moz-linear-gradient(top, #777, #ddd);
+	text-shadow: 0 1px 1px #000;
+	color: white;
+}
+.editor > .tagEditor > .toolbar > .button.submit {
+	right: 0;
+}
+.editor > .tagEditor > .toolbar > .label {
+	margin-left: 2em;
+	text-shadow: 0 1px 1px #fff;
+}
+.editor > .tagEditor > .toolbar > .tag.text {
+	width: 15em;
+}
+.editor > .tagEditor > .toolbar > .search {
+	margin-left: 1em;
+}
+.editor > .tagEditor > .implications.wrapper > textarea {
+	padding: 1em;
+	border: none;
+	outline: none;
+	font-family: monospace;
+}
+</style>
+
+<div id="editor" class="editor absolute fullWidth overflow">
+	<div class="toolbar border absolute fullWidth center">
+		<input data-id="textMode" class="button border" type="button" value="Submit Text"><!--
+		--><input data-id="fileMode" class="button border" type="button" value="Submit File"><!--
+		--><input data-id="tagMode" class="button border selected" type="button" value="Edit Implications">
+	</div>
+	<div id="tagEditor" class="tagEditor content absolute fullWidth">
+		<div class="toolbar border absolute fullWidth">
+			<div data-id="tagLabel" class="label inlineBlock">Tag: </div><!--
+			--><input data-id="tag" class="tag text" type="text" value=""><!--
+			--><input data-id="searchButton" class="search button border" type="button" value="Search">
+			<input data-id="submitButton" class="submit button border absolute" type="button" value="Save">
+		</div>
+		<div data-id="implications" class="implications wrapper content absolute fullWidth"><textarea></textarea></div>
+	</div>
+</div>

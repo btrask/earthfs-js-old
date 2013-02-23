@@ -1,0 +1,163 @@
+/* Copyright Ben Trask and other contributors. All rights reserved.
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to
+deal in the Software without restriction, including without limitation the
+rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
+sell copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
+IN THE SOFTWARE. */
+* {
+	padding: 0;
+	margin: 0;
+	-webkit-box-sizing: border-box;
+	-moz-box-sizing: border-box;
+	-ms-box-sizing: border-box;
+	-o-box-sizing: border-box;
+	box-sizing: border-box;
+	-webkit-tap-highlight-color: rgba(0, 0, 0, 0);
+}
+.absolute { position: absolute; }
+.scroll { overflow-x: hidden; overflow-y: auto; }
+.center { text-align: center; }
+.outline { outline: 1px solid red; } /* DEBUG */
+.inlineBlock { display: inline-block; }
+.wrapper > * { width: 100%; height: 100%; }
+.border { border: 0 solid #999; }
+.overflow { overflow: hidden; }
+.full { top: 0; bottom: 0; left: 0; right: 0; }
+.fullWidth { left: 0; right: 0; }
+
+body {
+	line-height: 1.25em;
+}
+.font {
+	font-family: monospace;
+}
+
+/* Toolbars */
+
+.toolbar {
+	top: 0;
+	height: 30px;
+	border-bottom-width: 1px;
+}
+.toolbar, .toolbar > .button {
+	background: -webkit-linear-gradient(top, #eee, #ddd);
+	background: -moz-linear-gradient(top, #eee, #ddd);
+	text-shadow: 0 1px 1px #fff;
+}
+.toolbar > .button {
+	height: 100%;
+	padding: 0 1em;
+	border-width: 0 1px;
+}
+.toolbar > .button:active {
+	background: -webkit-linear-gradient(bottom, #eee, #ddd);
+	background: -moz-linear-gradient(bottom, #eee, #ddd);
+}
+.toolbar > .button.selected {
+	background: -webkit-linear-gradient(top, #777, #ddd);
+	background: -moz-linear-gradient(top, #777, #ddd);
+	text-shadow: 0 1px 1px #000;
+	color: white;
+}
+
+/* Stream */
+
+.stream > .toolbar {
+	text-align: center;
+}
+.stream > .toolbar > .search.text {
+	border-radius: 12px;
+	padding: 3px 5px;
+	margin: 4px;
+	height: 21px;
+	width: 25em;
+}
+.stream > .content {
+	background: #eee;
+	bottom: 10em;
+	top: 30px;
+}
+
+/* Entry */
+
+.entry {
+	overflow: hidden;
+	text-overflow: ellipsis;
+
+	margin: 1em;
+	border-radius: 3px;
+	background: #fff;
+	box-shadow: 0 1px 3px #000;
+}
+.entry > .hash {
+	padding: 0.5em 1em;
+	background: #eee;
+}
+.entry > .content {
+	padding: 1em;
+}
+
+/* Entry content */
+
+blockquote {
+	margin-left: 0.5em;
+	padding-left: 0.5em;
+	border-left: 2px solid blue;
+}
+a:link {
+	text-decoration: none;
+}
+a:hover {
+	text-decoration: underline;
+}
+
+/* Editor */
+
+.editor {
+	height: 10em; /* TODO: Make customizable. */
+	bottom: 0;
+	border-top-width: 1px;
+}
+.editor > .content, .editor > .tagEditor > .content {
+	top: 30px;
+	bottom: 0;
+}
+.editor > .toolbar > .button {
+	margin-left: -1px;
+}
+
+/* Tag Editor */
+
+.editor > .tagEditor > .toolbar > .search.label {
+	margin-left: 2em;
+	text-shadow: 0 1px 1px #fff;
+}
+.editor > .tagEditor > .toolbar > .search.text {
+	width: 15em;
+}
+.editor > .tagEditor > .toolbar > .search.button {
+	margin-left: 1em;
+}
+.editor > .tagEditor > .toolbar > .submit.button {
+	right: 0;
+	border-right-width: 0;
+}
+.editor > .tagEditor > .implications.wrapper > textarea {
+	padding: 1em;
+	border: none;
+	outline: none;
+	font-family: monospace;
+	vertical-align: top; /* Fixes stupid 4 pixel margin at bottom in Chromium. */
+}

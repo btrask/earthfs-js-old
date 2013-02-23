@@ -1,0 +1,43 @@
+ifndef BUILD_DIR
+	BUILD_DIR := ../build
+endif
+
+CLOSURE_FLAGS := --compilation_level WHITESPACE_ONLY --formatting PRETTY_PRINT
+
+CLIENT_SCRIPTS := \
+	external/json2.js \
+	utilities/DOM.js \
+	utilities/query.js \
+	index.js
+
+CLIENT_FILES := \
+	robots.txt \
+	favicon.ico \
+	index.html \
+	index.css \
+	index.js
+
+CLIENT_GZIPS := $(addsuffix .gz,$(CLIENT_FILES))
+
+client: $(addprefix $(BUILD_DIR)/,$(CLIENT_FILES)) $(addprefix $(BUILD_DIR)/,$(CLIENT_GZIPS))
+
+clean:
+	-rm -rf $(BUILD_DIR)
+
+$(BUILD_DIR)/index.js: utilities/externs.js $(CLIENT_SCRIPTS)
+	-mkdir -p $(dir $@)
+	java -jar ../deps/compiler-latest/compiler.jar $(addprefix --js=,$(filter-out $<,$^)) --js_output_file=$@ --language_in=ECMASCRIPT5 $(CLOSURE_FLAGS) #--compilation_level ADVANCED_OPTIMIZATIONS --externs $<
+
+$(BUILD_DIR)/%.css: %.css
+	-mkdir -p $(dir $@)
+	cat $+ | java -jar ../deps/yuicompressor-2.4.2/build/yuicompressor-2.4.2.jar --type css --charset utf-8 -o $@
+
+$(BUILD_DIR)/%: %
+	-mkdir -p $(dir $@)
+	cp -R $< $@
+
+$(BUILD_DIR)/%.gz: $(BUILD_DIR)/%
+	-mkdir -p $(dir $@)
+	gzip -nc9 $< > $@
+
+.PHONY: client clean

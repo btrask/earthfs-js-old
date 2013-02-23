@@ -1,0 +1,6 @@
+{
+	"text/html": "html",
+	"text/json": "json",
+	"text/x-bad-markup": "badmarkup",
+	"text/markdown": "markdown"
+}

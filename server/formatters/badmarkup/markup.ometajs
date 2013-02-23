@@ -1,0 +1,75 @@
+/* Copyright Ben Trask and other contributors. All rights reserved.
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to
+deal in the Software without restriction, including without limitation the
+rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
+sell copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
+IN THE SOFTWARE. */
+function escapeHTML(HTML) {
+	return (HTML
+		.replace(/&/g, "&amp;")
+		.replace(/\"/g, "&quot;") //"
+		.replace(/</g, "&lt;")
+		.replace(/>/g, "&gt;")
+	);
+}
+
+ometa markup {
+	main = [hash:hash] [content:body end] -> hash+body,
+	hash = htmlEnc*:x end -> "<a href=\"/id/"+x.join("")+"\">#"+x.join("")+"</a>\n\n",
+	content = markup*:x -> x.join(""),
+	markup = blockquote | inlinequote | linequote | tag | anchor | htmlEnc,
+
+	blockquote = br (seq('Quote:') | seq("Reply:")) br br bqcontent:content (bqendquote | bqcite):cite br -> "\n<blockquote>"+content+cite+"</blockquote>",
+	bqcontent = beginninglinequote?:blq (~bqendquote ~bqcite markup)*:x -> (blq || "")+x.join(""),
+	bqendquote = br br (seq("End quote") | seq("End reply")) -> "\n",
+	bqcite = br br (namedAnchor | anchor):anchor bqvia*:via -> "\n\n"+anchor+via.join("")+"\n",
+	bqvia = br (namedAnchor | anchor):anchor -> "\nVia: "+anchor,
+
+	inlinequote = br (~'"' ~br htmlEnc)*:prefix '"' iqcontent:content seq('" -- ') (iqcite | iqname):cite br -> "\n"+prefix.join("")+"<blockquote>Quote: "+cite+content+"</blockquote>",
+	iqcontent = (~seq('" -- ') ~br markup)*:x -> "\n"+x.join(""),
+	iqname = (~seq(" <") ~br ~url htmlEnc)+:x -> x.join("")+"\n",
+	iqcite = (namedAnchor | anchor):anchor -> anchor+"\n",
+
+	linequote = br beginninglinequote:quote -> "\n"+quote,
+	beginninglinequote = seq("> ") (~br markup)+:content br beginninglinequote?:extra -> "<blockquote>"+content.join("")+"</blockquote>"+(extra || ""), // This trailing `br` does not work when the linequote is at the end of a blockquote. [See: Foreign Corrupt Practices Act.txt]
+
+	anchor = url:url -> "<a href=\""+url+"\">"+decodeURI(url)+"</a>",
+	namedAnchor = (~seq(" <") ~br ~url htmlEnc)+:name seq(" <") anchor:anchor '>' -> name.join("")+" &lt;"+anchor+"&gt;",
+	url = fullURL,// | bareDomain,
+//	bareDomain = (letter | digit | '-')+ '.' seq('com' 'net' 'org' 'edu')
+	fullURL = (scheme seq('://') urlChars), // FIXME: http://www.example.com/. includes the trailing period (and comma) in the link.
+	scheme = (letter | digit | '-')+,
+	urlChars = (letter | digit | '.' | ',' | '/' | '-' | '#' | '_' | '(' | ')' | '?' | '=' | htmlEncAmp | ':' | '~' | '%' | '{' | '}' | '+')+,
+	// file:///Users/ben/Desktop/site/dst/sequence-breaking.html
+
+	tag = '#' (letter | digit | '-' | '_')+:x -> "<a href=\"/?q="+x.join("")+"\">#"+x.join("")+"</a>",
+
+	htmlEnc = htmlEncAmp | htmlEncQuot | htmlEncApos | htmlEncLt | htmlEncGt | anything,
+	htmlEncAmp = '&' -> "&amp;",
+	htmlEncQuot = quote -> "&quot;",
+	htmlEncApos = apostrophe -> "&apos;",
+	htmlEncLt = '<' -> "&lt;",
+	htmlEncGt = '>' -> "&gt;",
+
+//	censored = htmlEnc,
+//	phoneNumber = phoneWithCountry | phoneWithArea | phoneBase,
+//	phoneBase = <digit digit digit>:three '-' digit digit digit digit -> "xxx-xxxx",
+//	phoneWithArea = <digit digit digit>:area '-' phoneBase:num -> area+'-'+num,
+//	phoneWithCountry = digit:country '-' phoneWithArea:num -> country+'-'+num,
+
+	quote = '"',
+	apostrophe = '\'',
+	br = '\n' | '\r'
+}
