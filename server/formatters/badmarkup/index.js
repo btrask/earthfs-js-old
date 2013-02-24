@@ -16,10 +16,8 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
 FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE. */
+var cp = require("child_process");
 var fs = require("fs");
-var ometajs = require("ometajs");
-
-var markup = require("./markup.ometajs").markup;
 var bt = require("../../utilities/bt");
 
 exports.negotiateTypes = function(srcType, dstTypes) {
@@ -27,9 +25,10 @@ exports.negotiateTypes = function(srcType, dstTypes) {
 	return bt.negotiateTypes(dstTypes, ["text/html"]);
 };
 exports.format = function(srcPath, srcType, dstPath, dstType, callback/* (err) */) {
-	fs.readFile(srcPath, "utf8", function(err, str) {
-		if(err) return callback(err);
-		fs.writeFile(dstPath, markup.matchAll(str, "content"), "utf8", callback); // TODO: Run in child process.
+	// TODO: Use some sort of pool, possibly shared with other formatters.
+	// Right now, we use as many Node instances simultaneously as needed, at 10MB of RAM a piece.
+	var task = cp.fork(__dirname+"/worker.js", [srcPath, dstPath]);
+	task.on("exit", function(status) {
+		callback(status ? new Error(status) : null);
 	});
-	return true;
 };

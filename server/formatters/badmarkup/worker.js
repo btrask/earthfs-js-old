@@ -16,27 +16,22 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
 FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE. */
-var cp = require("child_process");
-var bt = require("../utilities/bt");
+var fs = require("fs");
+var bt = require("../../utilities/bt");
 
-var TYPE_NAMES = {
-	"text/markdown": "markdown",
-	"text/html": "html",
-};
-var SRC_TYPES = [
-	"text/markdown"
-];
-var DST_TYPES = [
-	"text/html"
-];
+var ometajs = require("ometajs");
+var markup = require("./markup.ometajs").markup;
 
-exports.negotiateTypes = function(srcType, dstTypes) {
-	if(!bt.negotiateTypes(SRC_TYPES, [srcType])) return null;
-	return bt.negotiateTypes(dstTypes, DST_TYPES);
-};
-exports.format = function(srcPath, srcType, dstPath, dstType, callback/* (err) */) {
-	var task = cp.spawn("pandoc", ["-f", TYPE_NAMES[srcType], "-t", TYPE_NAMES[dstType], "-o", dstPath, srcPath]);
-	task.on("exit", function(status) {
-		callback(status ? new Error(status) : null);
+var EXIT_SUCCESS = 0;
+var EXIT_FAILURE = 1;
+
+var srcPath = process.argv[2];
+var dstPath = process.argv[3];
+
+fs.readFile(srcPath, "utf8", function(err, str) {
+	if(err) return process.exit(EXIT_FAILURE);
+	fs.writeFile(dstPath, markup.matchAll(str, "content"), "utf8", function(err) {
+		if(err) return process.exit(EXIT_FAILURE);
+		process.exit(EXIT_SUCCESS);
 	});
-};
+});

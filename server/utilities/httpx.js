@@ -38,7 +38,7 @@ http.ServerResponse.prototype.sendError = function(err) {
 	switch(err.code) {
 		case "ENOENT": return res.sendMessage(404, "Not Found");
 		default:
-			throw new Error(err);
+			throw err;
 //			console.log(err, (new Error()).stack);
 //			return res.sendMessage(500, "Internal Server Error");
 	}
