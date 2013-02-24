@@ -68,25 +68,10 @@ function rest(array) {
 	return array.slice(1);
 }
 
-function defineNames(names, callback/* (err) */) {
-	if(!names.length) return callback(null);
-	db.query(
-		'INSERT INTO "names" ("name")'+
-		' VALUES '+sql.list2D(names, 1), names,
-		function(err, result) { callback(err); }
-	);
-}
 function pathForEntry(hash, type) {
 	var t = type.split(";")[0];
 	if(!bt.has(EXT, t)) throw new Error("Invalid MIME type "+type);
 	return DATA+"/"+hash.slice(0, 2)+"/"+hash+"."+EXT[t];
-}
-function parseTags(str) {
-		return str.split(/\s+/g).map(function(tag) {
-			return tag.toLowerCase();
-		}).unique().filter(function(tag) {
-			return tag.length > 3 && !tag.match(/[^\w\d\-_]/); // TODO: Allow more characters in tags?
-		});
 }
 
 var serve = function(req, res) {
@@ -269,44 +254,66 @@ serve.root.submit = function(req, res, root, submit) {
 		}
 		var file = fileByField.entry, hash = file.hash;
 		var tags = parseTags(fields.tags);
-		// TODO: Make sure a file with the same hash didn't alreay exist?
-		// TODO: Also, uh, refactor this into flatter functions.
-		fs.mkdirRecursive(DATA+"/"+hash.slice(0, 2), function(err) {
-			if(err) throw err;
-			fs.rename(file.path, pathForEntry(hash, file.type), function(err) {
+		importEntryFile(file.path, hash, file.type, function(err) {
+			// TODO: Use transactions?
+			defineNames([hash].concat(tags), function(err) {
 				if(err) throw err;
-				// TODO: Use transactions?
-				defineNames([hash].concat(tags), function(err) {
-					if(err) throw err;
-					db.query(
-						'SELECT "nameID" FROM "names"'+
-						' WHERE "name" = $1', [hash],
-						function(err, nameResult) {
-							if(err) throw err;
-							var nameID = nameResult.rows[0].nameID;
-							db.query(
-								'INSERT INTO "tags" ("nameID", "impliedID", "direct", "indirect")'+
-								' SELECT $1, "nameID", TRUE, 1 FROM "names"'+
-								' WHERE "name" IN ('+sql.list1D(tags, 2)+')', [nameID].concat(tags),
-								function(err, result) {
-									if(err) return fail(err);
-									db.query(
-										'INSERT INTO "entries" ("entryID", "nameID", "MIMEType")'+
-										' VALUES (DEFAULT, $1, $2)', [nameID, file.type],
-										function(err, result) {
-											if(err) return fail(err);
-											res.writeHead(303, {"Location": "/tag/"+hash});
-											res.end();
-										}
-									);
-								}
-							);
-						}
-					);
-				});
+				db.query(
+					'SELECT "nameID" FROM "names"'+
+					' WHERE "name" = $1', [hash],
+					function(err, nameResult) {
+						if(err) throw err;
+						var nameID = nameResult.rows[0].nameID;
+						db.query(
+							'INSERT INTO "tags" ("nameID", "impliedID", "direct", "indirect")'+
+							' SELECT $1, "nameID", TRUE, 1 FROM "names"'+
+							' WHERE "name" IN ('+sql.list1D(tags, 2)+')', [nameID].concat(tags),
+							function(err, result) {
+								if(err) return fail(err);
+								db.query(
+									'INSERT INTO "entries" ("entryID", "nameID", "MIMEType")'+
+									' VALUES (DEFAULT, $1, $2)', [nameID, file.type],
+									function(err, result) {
+										if(err) return fail(err);
+										res.writeHead(303, {"Location": "/tag/"+hash});
+										res.end();
+									}
+								);
+							}
+						);
+					}
+				);
 			});
 		});
 	});
 };
+function parseTags(str) {
+		return str.split(/\s+/g).map(function(tag) {
+			return tag.toLowerCase();
+		}).unique().filter(function(tag) {
+			return tag.length > 3 && !tag.match(/[^\w\d\-_]/); // TODO: Allow more characters in tags?
+		});
+}
+function defineNames(names, callback/* (err) */) {
+	if(!names.length) return callback(null);
+	db.query(
+		'INSERT INTO "names" ("name")'+
+		' VALUES '+sql.list2D(names, 1), names,
+		function(err, result) { callback(err); }
+	);
+}
+function importEntryFile(path, hash, type, callback/* (err) */) {
+	fs.chmod(path, 292 /*=0444*/, function(err) {
+		if(err) return callback(err);
+		var dst = pathForEntry(hash, type);
+		fs.mkdirRecursive(pathModule.dirname(dst), function(err) {
+			if(err) return callback(err);
+			fs.rename(path, dst, function(err) { // TODO: Don't clobber existing files.
+				if(err) return callback(err);
+				callback(null);
+			});
+		});
+	});
+}
 
 http.createServer(serve).listen(8001);

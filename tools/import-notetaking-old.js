@@ -71,7 +71,7 @@ function processEntry(oldHash, callback) {
 			var names = [hash].concat(allTags(data)).unique();
 
 			fs.mkdirRecursive(DATA+"/"+hash.slice(0, 2), function(err) {
-				fs.writeFile(DATA+"/"+hash.slice(0, 2)+"/"+hash+".badmarkup", data, "utf8", function(err) {
+				fs.writeFileReadOnly(DATA+"/"+hash.slice(0, 2)+"/"+hash+".badmarkup", data, "utf8", function(err) {
 					db.query( // TODO: We can use a rule on SELECT instead of INSERT to make this even shorter.
 						'INSERT INTO "names" ("name")'+
 						' VALUES '+sql.list2D(names, 1)+'', names,
