@@ -50,6 +50,9 @@ html { background: #eee; }
 	border-width: 0 1px;
 	margin-right: -1px;
 }
+.toolbar > .text {
+	margin: 3px;
+}
 .toolbar > .select {
 	height: 100%;
 	border: none;
@@ -101,15 +104,11 @@ html { background: #eee; }
 
 <div id="editor" class="editor absolute fullWidth overflow border">
 	<div class="toolbar border absolute fullWidth center">
-		<input data-id="textMode" class="button border toLeft selected" type="button" value="Compose">
-		<input data-id="previewMode" class="button border toLeft" type="button" value="Preview">
-		<input data-id="uploadMode" class="button border toLeft" type="button" value="File Upload">
-		<input data-id="tagMode" class="button border toLeft" type="button" value="Tags">
-		<input data-id="submitButton" class="button border toRight" type="button" value="Submit">
-		<select data-id="type" class="select border toRight">
-			<option>Markdown</option>
-			<option>Bad Markup</option>
-		</select>
+		<input data-id="query" class="query search text toLeft" type="search">
+		<input data-id="queryButton" class="button border toLeft" type="button" value="Search">
+
+		<input data-id="textMode" class="button border toRight selected" type="button" value="New Entry">
+		<input data-id="uploadMode" class="button border toRight" type="button" value="File Upload">
 	</div>
 	<div id="composer" class="composer content absolute fullWidth">
 		<div data-id="text" class="text wrapper content absolute fullWidth"><textarea></textarea></div>
