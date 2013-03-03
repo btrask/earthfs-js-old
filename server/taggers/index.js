@@ -17,6 +17,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
 FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE. */
 var fs = require("fs");
+var bt = require("../utilities/bt");
 
 var files = fs.readdirSync(__dirname).filter(function(name) {
 	return !name.match(/^index\.js$|^\./);
@@ -42,26 +43,33 @@ fallback.parse = function(path, hash, type, callback/* (err, tagsByTarget) */) {
 	var tagsByTarget = {};
 	tagsByTarget[hash] = [hash];
 	if("text/" !== type.slice(0, 5)) return callback(null, tagsByTarget);
-	var stream = fs.createReadStream(path);
+	var stream = fs.createReadStream(path), tags = [], last = null;
 	stream.setEncoding("utf8");
-	var buffer = "", tags = [];
 	stream.on("data", function(chunk) {
-		var re = /(?:^|[\s(])#([\w\d\-_:]{3,40})(?!\B|$)/g;
-		buffer += chunk;
-		for(var x; (x = re.exec(buffer));) tags.push(x[1]);
-		buffer = buffer.slice(re.lastIndex); // TODO: Slice more if possible. No tags = quadratic time and linear space.
+		var re = /(?:^|[\s(])#([\w\d\-_]+:)?([\w\d\-_]{3,40})\b/g;
+		if(last) {
+			chunk = last[0]+chunk;
+			last = null;
+		}
+		for(var x; (x = re.exec(chunk));) {
+			if(re.lastIndex >= chunk.length) last = x;
+			else tags.push(x);
+		}
 	});
 	stream.on("end", function() {
-		var meta = [], regular = [], i;
+		if(last) tags.push(last);
+		var tagsByType = {}, tag, type, i;
 		for(i = 0; i < tags.length; ++i) {
-			if(/^meta:/.exec(tags[i])) meta.push(tags[i]);
-			else regular.push(tags[i]);
+			tag = tags[i];
+			type = (tag[1] || ":").slice(0, -1).toLowerCase();
+			if(!bt.has(tagsByType, type)) tagsByType[type] = [];
+			tagsByType[type].push(tag[2].toLowerCase());
 		}
-		if(meta.length) {
-			for(i = 0; i < meta.length; ++i) tagsByTarget[meta[i]] = regular;
-			tagsByTarget[hash] = ["__meta__"].concat(tagsByTarget[hash]).concat(meta);
+		if(tagsByType.meta) {
+			for(i = 0; i < tagsByType.meta.length; ++i) tagsByTarget[tagsByType.meta[i]] = tagsByType[""];
+			tagsByTarget[hash] = ["__meta__"].concat(tagsByTarget[hash]).concat(tagsByType.meta);
 		} else {
-			tagsByTarget[hash] = tagsByTarget[hash].concat(regular);
+			tagsByTarget[hash] = tagsByTarget[hash].concat(tagsByType[""]);
 		}
 		callback(null, tagsByTarget);
 	});
