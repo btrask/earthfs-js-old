@@ -31,6 +31,7 @@ var http = require("./utilities/httpx");
 var sql = require("./utilities/sql");
 
 var formatters = require("./formatters");
+var taggers = require("./taggers");
 
 var CLIENT = __dirname+"/../build";
 var DATA = __dirname+"/../data";
@@ -253,47 +254,52 @@ serve.root.submit = function(req, res, root, submit) {
 			return;
 		}
 		var file = fileByField.entry, hash = file.hash;
-		var tags = parseTags(fields.tags);
-		importEntryFile(file.path, hash, file.type, function(err) {
-			// TODO: Use transactions?
-			defineNames([hash].concat(tags), function(err) {
+		importEntryFile(file.path, hash, file.type, function(err, path) {
+			if(err) throw err;
+			taggers.parse(path, hash, file.type, function(err, tagsByTarget) {
 				if(err) throw err;
-				db.query(
-					'SELECT "nameID" FROM "names"'+
-					' WHERE "name" = $1', [hash],
-					function(err, nameResult) {
-						if(err) throw err;
-						var nameID = nameResult.rows[0].nameID;
-						db.query(
-							'INSERT INTO "tags" ("nameID", "impliedID", "direct", "indirect")'+
-							' SELECT $1, "nameID", TRUE, 1 FROM "names"'+
-							' WHERE "name" IN ('+sql.list1D(tags, 2)+')', [nameID].concat(tags),
-							function(err, result) {
-								if(err) return fail(err);
-								db.query(
-									'INSERT INTO "entries" ("entryID", "nameID", "MIMEType")'+
-									' VALUES (DEFAULT, $1, $2)', [nameID, file.type],
-									function(err, result) {
-										if(err) return fail(err);
-										res.writeHead(303, {"Location": "/tag/"+hash});
-										res.end();
-									}
-								);
-							}
-						);
-					}
-				);
+				var names = [], tags = [];
+				Object.keys(tagsByTarget).forEach(function(target) {
+					names.push(target);
+					tagsByTarget[target].forEach(function(tag) {
+						names.push(tag);
+						tags.push([target, tag]);
+					});
+				});
+				// TODO: Use transactions?
+				defineNames(names, function(err) {
+					if(err) throw err;
+					db.query(
+						'SELECT "nameID" FROM "names"'+
+						' WHERE "name" = $1', [hash],
+						function(err, nameResult) {
+							if(err) throw err;
+							var nameID = nameResult.rows[0].nameID;
+							db.query(
+								'INSERT INTO "tags" ("nameID", "impliedID", "direct", "indirect")'+
+								'SELECT a."nameID", b."nameID", TRUE, 1 FROM "names" a'+
+								'JOIN "names" b ON (TRUE)'+
+								'WHERE (a."name", b."name") IN '+sql.list2D(tags, 1)+'', sql.flatten(tags),
+								function(err, result) {
+									if(err) return fail(err);
+									db.query(
+										'INSERT INTO "entries" ("entryID", "nameID", "MIMEType")'+
+										' VALUES (DEFAULT, $1, $2)', [nameID, file.type],
+										function(err, result) {
+											if(err) return fail(err);
+											res.writeHead(303, {"Location": "/tag/"+hash});
+											res.end();
+										}
+									);
+								}
+							);
+						}
+					);
+				});
 			});
 		});
 	});
 };
-function parseTags(str) {
-		return str.split(/\s+/g).map(function(tag) {
-			return tag.toLowerCase();
-		}).unique().filter(function(tag) {
-			return tag.length > 3 && !tag.match(/[^\w\d\-_]/); // TODO: Allow more characters in tags?
-		});
-}
 function defineNames(names, callback/* (err) */) {
 	if(!names.length) return callback(null);
 	db.query(
@@ -302,15 +308,16 @@ function defineNames(names, callback/* (err) */) {
 		function(err, result) { callback(err); }
 	);
 }
-function importEntryFile(path, hash, type, callback/* (err) */) {
+function importEntryFile(path, hash, type, callback/* (err, path) */) {
 	fs.chmod(path, 292 /*=0444*/, function(err) {
-		if(err) return callback(err);
+		if(err) return callback(err, null);
 		var dst = pathForEntry(hash, type);
 		fs.mkdirRecursive(pathModule.dirname(dst), function(err) {
-			if(err) return callback(err);
-			fs.rename(path, dst, function(err) { // TODO: Don't clobber existing files.
-				if(err) return callback(err);
-				callback(null);
+			if(err) return callback(err, null);
+			fs.link(path, dst, function(err) { // TODO: Test this carefully to make sure we don't overwrite.
+				fs.unlink(path);
+				if(err) return callback(err, null);
+				callback(null, dst);
 			});
 		});
 	});
