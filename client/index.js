@@ -19,11 +19,14 @@ IN THE SOFTWARE. */
 
 /*global query DOM*/
 
-function union(target, obj) {
-	var has = Object.prototype.hasOwnProperty;
-	for(var prop in obj) if(has.call(obj, prop)) target[prop] = obj[prop];
+var bt = {}; // TODO: Use separate file.
+bt.has = function(obj, prop) {
+	return Object.prototype.hasOwnProperty.call(obj, prop);
+};
+bt.union = function(target, obj) {
+	for(var prop in obj) if(bt.has(obj, prop)) target[prop] = obj[prop];
 	return target;
-}
+};
 
 function Stream(query) {
 	var stream = this;
@@ -59,7 +62,7 @@ Stream.location = function(params) {
 };
 Stream.search = function(params, callback/* (err, results) */) {
 	var req = new XMLHttpRequest();
-	req.open("GET", Stream.location(union({"view": "json"}, params)), true);
+	req.open("GET", Stream.location(bt.union({"view": "json"}, params)), true);
 	req.onreadystatechange = function() {
 		if(4 !== req.readyState) return;
 		if(200 !== req.status) return; // TODO: Return errors.
@@ -109,6 +112,12 @@ function FileEditor(stream) {
 	};
 }
 
+var IMAGE_TYPES = {
+	"image/jpeg": 1,
+	"image/jpg": 1,
+	"image/png": 1,
+	"image/gif": 1,
+};
 function Entry(obj) {
 	var entry = this;
 	entry.elems = {};
@@ -125,11 +134,18 @@ function Entry(obj) {
 }
 Entry.prototype.load = function() {
 	var entry = this;
+	var url = "/entry/"+encodeURIComponent(entry.hash);
+	if(bt.has(IMAGE_TYPES, entry.type)) {
+		var image = new Image();
+		image.src = url;
+		DOM.fill(entry.elems.content, image);
+		return;
+	}
 	var req = new XMLHttpRequest();
-	req.open("GET", "/entry/"+encodeURIComponent(entry.hash), true);
+	req.open("GET", url, true);
 	req.onreadystatechange = function() {
 		if(4 !== req.readyState) return;
-		if(200 !== req.status) return;
+		if(200 !== req.status) return; // TODO: Handle 406 Not Acceptable.
 		entry.elems.content.innerHTML = req.responseText;
 	};
 	req.setRequestHeader("Accept", "text/html");
