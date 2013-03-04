@@ -237,7 +237,7 @@ serve.root.submit = function(req, res, root, submit) {
 		return;
 	}
 	function fail(err) {
-		console.log((new Error(err)).stack);
+		console.log(err);
 		res.sendMessage(500, "Internal Server Error");
 	}
 	var form = new formidable.IncomingForm({
@@ -254,6 +254,7 @@ serve.root.submit = function(req, res, root, submit) {
 			return;
 		}
 		var file = fileByField.entry, hash = file.hash;
+		console.log("Adding entry "+hash);
 		importEntryFile(file.path, hash, file.type, function(err, path) {
 			if(err) throw err;
 			taggers.parse(path, hash, file.type, function(err, tagsByTarget) {
@@ -267,7 +268,7 @@ serve.root.submit = function(req, res, root, submit) {
 					});
 				});
 				// TODO: Use transactions?
-				defineNames(names, function(err) {
+				defineNames(names.unique(), function(err) {
 					if(err) throw err;
 					db.query(
 						'SELECT "nameID" FROM "names"'+
@@ -277,9 +278,9 @@ serve.root.submit = function(req, res, root, submit) {
 							var nameID = nameResult.rows[0].nameID;
 							db.query(
 								'INSERT INTO "tags" ("nameID", "impliedID", "direct", "indirect")'+
-								'SELECT a."nameID", b."nameID", TRUE, 1 FROM "names" a'+
-								'JOIN "names" b ON (TRUE)'+
-								'WHERE (a."name", b."name") IN '+sql.list2D(tags, 1)+'', sql.flatten(tags),
+								' SELECT a."nameID", b."nameID", TRUE, 1 FROM "names" a'+
+								' JOIN "names" b ON (TRUE)'+
+								' WHERE (a."name", b."name") IN ('+sql.list2D(tags, 1)+')', sql.flatten(tags),
 								function(err, result) {
 									if(err) return fail(err);
 									db.query(
