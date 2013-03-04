@@ -91,6 +91,21 @@ function FileEditor(stream) {
 		stream.setEditor(fileEditor);
 	};
 	fileEditor.uploadButton.onclick = function(event) {
+		var form = new FormData();
+		var req = new XMLHttpRequest();
+		if(!fileEditor.uploadInput.files.length) return alert("select something"); // TODO: Disable button.
+		form.append("entry", fileEditor.uploadInput.files[0]);
+		if(req.upload) req.upload.onprogress = function(event) {
+			var complete = event.loaded / event.total;
+			console.log("complete", complete);
+		};
+		req.onreadystatechange = function() {
+			if(4 !== req.readyState) return;
+			// TODO
+			console.log("status", req.status);
+		};
+		req.open("POST", "/submit");
+		req.send(form);
 	};
 }
 

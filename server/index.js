@@ -249,7 +249,7 @@ serve.root.submit = function(req, res, root, submit) {
 	});
 	form.parse(req, function(err, fields, fileByField) {
 		if(err) return fail(err);
-		if(!has(fileByField, "entry") || !has(fields, "tags")) {
+		if(!has(fileByField, "entry")) {
 			res.sendMessage(400, "Bad Request");
 			return;
 		}
