@@ -36,12 +36,20 @@ IN THE SOFTWARE. */
 .overflow { overflow: hidden; }
 .full { top: 0; bottom: 0; left: 0; right: 0; }
 .fullWidth { left: 0; right: 0; }
+.toLeft { float: left; }
+.toRight { float: right; }
 
 body {
 	line-height: 1.25em;
 }
 .font {
 	font-family: monospace;
+}
+.wrapper > textarea {
+	padding: 1em;
+	border: none;
+	outline: none;
+	vertical-align: top; /* Fixes stupid 4 pixel margin at bottom in Chromium. */
 }
 
 /* Toolbars */
@@ -60,6 +68,7 @@ body {
 	height: 100%;
 	padding: 0 1em;
 	border-width: 0 1px;
+	margin-right: -1px;
 }
 .toolbar > .button:active {
 	background: -webkit-linear-gradient(bottom, #eee, #ddd);
@@ -70,6 +79,10 @@ body {
 	background: -moz-linear-gradient(top, #777, #ddd);
 	text-shadow: 0 1px 1px #000;
 	color: white;
+}
+.toolbar > .text {
+	margin: 3px;
+	height: 24px;
 }
 
 /* Stream */
@@ -87,7 +100,7 @@ body {
 .stream > .content {
 	background: #eee;
 	bottom: 10em;
-	top: 30px;
+	top: 0;
 }
 
 /* Entry */
@@ -123,41 +136,18 @@ a:hover {
 	text-decoration: underline;
 }
 
-/* Editor */
+/* Sidebar */
 
-.editor {
+.sidebar {
 	height: 10em; /* TODO: Make customizable. */
 	bottom: 0;
 	border-top-width: 1px;
 }
-.editor > .content, .editor > .tagEditor > .content {
+.sidebar > .content, .sidebar > .tagEditor > .content {
 	top: 30px;
 	bottom: 0;
 }
-.editor > .toolbar > .button {
+.sidebar > .toolbar > .button {
 	margin-left: -1px;
 }
 
-/* Tag Editor */
-
-.editor > .tagEditor > .toolbar > .search.label {
-	margin-left: 2em;
-	text-shadow: 0 1px 1px #fff;
-}
-.editor > .tagEditor > .toolbar > .search.text {
-	width: 15em;
-}
-.editor > .tagEditor > .toolbar > .search.button {
-	margin-left: 1em;
-}
-.editor > .tagEditor > .toolbar > .submit.button {
-	right: 0;
-	border-right-width: 0;
-}
-.editor > .tagEditor > .implications.wrapper > textarea {
-	padding: 1em;
-	border: none;
-	outline: none;
-	font-family: monospace;
-	vertical-align: top; /* Fixes stupid 4 pixel margin at bottom in Chromium. */
-}

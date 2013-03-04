@@ -6,36 +6,27 @@
 
 <div class="storage invisible">
 	<div id="stream" class="stream absolute full">
-		<div class="toolbar absolute fullWidth center border">
-			<input data-id="searchText" class="search text font" type="text" value=""><!--
-			--><input data-id="searchButton" class="search button border" type="button" value="Search">
-		</div>
 		<div data-id="content" class="content absolute fullWidth scroll">
 			<div data-id="entries"></div>
+		</div>
+		<div data-id="sidebar" class="sidebar absolute fullWidth border">
+			<div data-id="toolbar" class="toolbar absolute fullWidth border overflow">
+				<input data-id="searchText" class="search text toLeft" type="search" value="">
+				<input data-id="searchButton" class="search button border toLeft" type="button" value="Search">
+			</div>
 		</div>
 	</div>
 	<div id="entry" class="entry font">
 		<div class="hash"><a data-id="hash"></a> <span data-id="time"></span> <a data-id="raw">Raw</a></div>
 		<div data-id="content" class="content" style="white-space: pre-wrap;"></div>
 	</div>
-	<div id="editor" class="editor absolute fullWidth border">
-		<div class="toolbar border absolute fullWidth">
-			<input data-id="textMode" class="button border" type="button" value="Submit Text"><!--
-			--><input data-id="fileMode" class="button border" type="button" value="Submit File"><!--
-			--><input data-id="tagMode" class="button border selected" type="button" value="Edit Implications">
-		</div>
+	<input id="modeButton" class="button border toRight" type="button" value="">
+	<div id="textEditor" class="textEditor content">
+		
 	</div>
-	<div id="tagEditor" class="tagEditor content absolute fullWidth">
-		<div class="toolbar border absolute fullWidth">
-			<div data-id="searchLabel" class="search label inlineBlock">Tag:</div>
-			<input data-id="searchText" class="search text font" type="text" value=""><!--
-			--><input data-id="searchButton" class="search button border" type="button" value="Search">
-			<input data-id="submitButton" class="submit button border absolute" type="button" value="Save">
-		</div>
-		<div class="implications wrapper content absolute fullWidth"><!--
-			--><textarea data-id="implications" class="font"></textarea><!--
-		--></div>
+	<div id="fileEditor" class="fileEditor content absolute fullWidth">
+		<input data-id="uploadInput" class="file" type="file">
+		<input data-id="uploadButton" class="button" type="button" value="Submit">
 	</div>
-	<!-- TODO: textEditor, fileEditor -->
 </div>
 <script src="/index.js"></script>

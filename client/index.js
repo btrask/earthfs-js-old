@@ -30,7 +30,10 @@ function Stream(query) {
 	stream.element = DOM.clone("stream", this);
 	stream.searchText.value = query;
 	stream.query = query;
-	stream.editor = new Editor();
+	stream.editor = null;
+
+	var editors = [FileEditor].map(function(Editor) { return new Editor(stream); });
+	for(var i = 0; i < editors.length; ++i) stream.toolbar.appendChild(editors[i].button);
 
 	function submitQuery(event) {
 		window.location = Stream.location({"q": stream.searchText.value});
@@ -41,7 +44,6 @@ function Stream(query) {
 		if(13 === keyCode || 10 === keyCode) submitQuery();
 	};
 	stream.searchButton.onclick = submitQuery;
-	stream.element.appendChild(stream.editor.element);
 
 	Stream.search({"q": query}, function(err, results) {
 		var entry; // TODO: Handle errors.
@@ -66,26 +68,29 @@ Stream.search = function(params, callback/* (err, results) */) {
 	req.setRequestHeader("Accept", "text/json");
 	req.send("");
 };
+Stream.prototype.setEditor = function(editor) {
+	var stream = this;
+	if(stream.editor) {
+		DOM.remove(stream.editor.element);
+		DOM.classify(stream.editor.button, "selected", false);
+	}
+	if(stream.editor === editor) stream.editor = null;
+	else stream.editor = editor;
+	if(stream.editor) {
+		stream.sidebar.appendChild(stream.editor.element);
+		DOM.classify(stream.editor.button, "selected", true);
+	}
+};
 
-function Editor() {
-	var editor = this;
-	editor.element = DOM.clone("editor", this);
-	editor.mode = new TagEditor();
-	editor.element.appendChild(editor.mode.element);
-}
-function TagEditor() {
-	var tagEditor = this;
-	tagEditor.element = DOM.clone("tagEditor", this);
-	tagEditor.searchButton.onclick = function(event) {
-		Stream.search({"q": tagEditor.searchText.value, "direct": "0"}, function(err, results) {
-			// TODO: Support "direct" server-side. Handle errors here.
-			// TODO: We actually need a completely different lookup system. Return "name"s, not "hash"es.
-			var tags = [];
-			for(var i = 0; i < results.length; ++i) {
-				tags.push("#"+results[i].hash);
-			}
-			DOM.fill(tagEditor.implications, tags.join(" "));
-		});
+function FileEditor(stream) {
+	var fileEditor = this;
+	fileEditor.element = DOM.clone("fileEditor", this);
+	fileEditor.button = DOM.clone("modeButton");
+	fileEditor.button.setAttribute("value", "Upload File");
+	fileEditor.button.onclick = function(event) {
+		stream.setEditor(fileEditor);
+	};
+	fileEditor.uploadButton.onclick = function(event) {
 	};
 }
 
