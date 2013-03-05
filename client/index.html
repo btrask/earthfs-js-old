@@ -10,7 +10,7 @@
 			<div data-id="entries"></div>
 		</div>
 		<div data-id="sidebar" class="sidebar absolute fullWidth border">
-			<div data-id="toolbar" class="toolbar absolute fullWidth border overflow">
+			<div data-id="toolbar" class="toolbar top absolute fullWidth border overflow">
 				<input data-id="searchText" class="search text toLeft" type="search" value="">
 				<input data-id="searchButton" class="search button border toLeft" type="button" value="Search">
 			</div>
@@ -21,8 +21,11 @@
 		<div data-id="content" class="content" style="white-space: pre-wrap;"></div>
 	</div>
 	<input id="modeButton" class="button border toRight" type="button" value="">
-	<div id="textEditor" class="textEditor content">
-		
+	<div id="textEditor" class="textEditor content absolute fullWidth">
+		<div class="wrapper textarea absolute fullWidth"><textarea data-id="textarea"></textarea></div>
+		<div class="toolbar bottom absolute fullWidth border overflow">
+			<input data-id="submitButton" class="button border toRight" type="button" value="Submit">
+		</div>
 	</div>
 	<div id="fileEditor" class="fileEditor content absolute fullWidth">
 		<input data-id="uploadInput" class="file" type="file">

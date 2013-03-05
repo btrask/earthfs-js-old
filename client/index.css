@@ -61,9 +61,15 @@ a:hover {
 /* Toolbars */
 
 .toolbar {
-	top: 0;
 	height: 30px;
+}
+.toolbar.top {
+	top: 0;
 	border-bottom-width: 1px;
+}
+.toolbar.bottom {
+	bottom: 0;
+	border-top-width: 1px;
 }
 .toolbar, .toolbar > .button {
 	background: -webkit-linear-gradient(top, #eee, #ddd);
@@ -156,3 +162,9 @@ a:hover {
 	margin-left: -1px;
 }
 
+/* Text Editor */
+
+.textEditor > .textarea.wrapper {
+	top: 0;
+	bottom: 30px;
+}

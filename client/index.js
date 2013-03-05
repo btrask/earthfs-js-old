@@ -35,8 +35,16 @@ function Stream(query) {
 	stream.query = query;
 	stream.editor = null;
 
-	var editors = [FileEditor].map(function(Editor) { return new Editor(stream); });
-	for(var i = 0; i < editors.length; ++i) stream.toolbar.appendChild(editors[i].button);
+	var editors = [TextEditor, FileEditor].map(function(Editor) {
+		var editor = new Editor(stream);
+		var button = editor.button = DOM.clone("modeButton");
+		button.setAttribute("value", editor.label);
+		button.onclick = function(event) {
+			stream.setEditor(editor);
+		};
+		stream.toolbar.appendChild(button);
+		return editor;
+	});
 
 	function submitQuery(event) {
 		window.location = Stream.location({"q": stream.searchText.value});
@@ -85,32 +93,45 @@ Stream.prototype.setEditor = function(editor) {
 	}
 };
 
-function FileEditor(stream) {
-	var fileEditor = this;
-	fileEditor.element = DOM.clone("fileEditor", this);
-	fileEditor.button = DOM.clone("modeButton");
-	fileEditor.button.setAttribute("value", "Upload File");
-	fileEditor.button.onclick = function(event) {
-		stream.setEditor(fileEditor);
-	};
-	fileEditor.uploadButton.onclick = function(event) {
-		var form = new FormData();
-		var req = new XMLHttpRequest();
-		if(!fileEditor.uploadInput.files.length) return alert("select something"); // TODO: Disable button.
-		form.append("entry", fileEditor.uploadInput.files[0]);
-		if(req.upload) req.upload.onprogress = function(event) {
-			var complete = event.loaded / event.total;
-			console.log("complete", complete);
-		};
-		req.onreadystatechange = function() {
-			if(4 !== req.readyState) return;
-			// TODO
-			console.log("status", req.status);
-		};
-		req.open("POST", "/submit");
-		req.send(form);
+function TextEditor(stream) {
+	var editor = this;
+	editor.element = DOM.clone("textEditor", this);
+	editor.label = "New Entry";
+	editor.submitButton.onclick = function(event) {
+		editor.upload();
 	};
 }
+TextEditor.prototype.upload = function() {
+	var editor = this;
+	
+};
+
+function FileEditor(stream) {
+	var editor = this;
+	editor.element = DOM.clone("fileEditor", this);
+	editor.label = "Upload File";
+	editor.uploadButton.onclick = function(event) {
+		editor.upload();
+	};
+}
+FileEditor.prototype.upload = function() {
+	var editor = this;
+	var form = new FormData();
+	var req = new XMLHttpRequest();
+	if(!editor.uploadInput.files.length) return alert("select something"); // TODO: Disable button.
+	form.append("entry", editor.uploadInput.files[0]);
+	if(req.upload) req.upload.onprogress = function(event) {
+		var complete = event.loaded / event.total;
+		console.log("complete", complete);
+	};
+	req.onreadystatechange = function() {
+		if(4 !== req.readyState) return;
+		// TODO
+		console.log("status", req.status);
+	};
+	req.open("POST", "/submit");
+	req.send(form);
+};
 
 var IMAGE_TYPES = {
 	"image/jpeg": 1,
