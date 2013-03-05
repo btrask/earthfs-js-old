@@ -35,6 +35,8 @@ exports.negotiateTypes = function(srcType, dstTypes) {
 	return bt.negotiateTypes(dstTypes, DST_TYPES);
 };
 exports.format = function(srcPath, srcType, dstPath, dstType, callback/* (err) */) {
+	srcType = srcType.split(";")[0];
+	dstType = dstType.split(";")[0]; // TODO: Handle charsets?
 	var task = cp.spawn("pandoc", ["-f", TYPE_NAMES[srcType], "-t", TYPE_NAMES[dstType], "-o", dstPath, srcPath]);
 	task.on("exit", function(status) {
 		callback(status ? new Error(status) : null);
