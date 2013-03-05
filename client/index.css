@@ -36,6 +36,7 @@ IN THE SOFTWARE. */
 .overflow { overflow: hidden; }
 .full { top: 0; bottom: 0; left: 0; right: 0; }
 .fullWidth { left: 0; right: 0; }
+.fullHeight { top: 0; bottom: 0; }
 .toLeft { float: left; }
 .toRight { float: right; }
 
@@ -47,9 +48,6 @@ a:link {
 }
 a:hover {
 	text-decoration: underline;
-}
-.font {
-	font-family: monospace;
 }
 .wrapper > textarea {
 	padding: 1em;
@@ -134,14 +132,17 @@ a:hover {
 	padding: 1em;
 }
 
-/* Entry content */
+/* Entry content (including preview) */
 
-.entry > .content blockquote {
+.entryContent {
+	font-family: monospace; /* We probably shouldn't use monospace everywhere, but it's nice for code. */
+}
+.entryContent blockquote {
 	margin-left: 0.5em;
 	padding-left: 0.5em;
 	border-left: 2px solid blue;
 }
-.entry > .content img {
+.entryContent img {
 	max-width: 100%;
 	max-height: 300px;
 	vertical-align: middle;
@@ -164,7 +165,16 @@ a:hover {
 
 /* Text Editor */
 
-.textEditor > .textarea.wrapper {
+.textEditor > .content {
 	top: 0;
 	bottom: 30px;
+}
+.textEditor > .content > .textarea.wrapper {
+	left: 0;
+	width: 50%;
+}
+.textEditor > .content > .preview {
+	right: 0;
+	width: 50%;
+	border-left-width: 1px;
 }

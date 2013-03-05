@@ -16,13 +16,16 @@
 			</div>
 		</div>
 	</div>
-	<div id="entry" class="entry font">
+	<div id="entry" class="entry">
 		<div class="hash"><a data-id="hash"></a> <span data-id="time"></span> <a data-id="raw">Raw</a></div>
-		<div data-id="content" class="content" style="white-space: pre-wrap;"></div>
+		<div data-id="content" class="entryContent content" style="white-space: pre-wrap;"></div>
 	</div>
 	<input id="modeButton" class="button border toRight" type="button" value="">
 	<div id="textEditor" class="textEditor content absolute fullWidth">
-		<div class="wrapper textarea absolute fullWidth"><textarea data-id="textarea"></textarea></div>
+		<div class="content absolute fullWidth">
+			<div class="wrapper textarea absolute fullHeight"><textarea data-id="textarea"></textarea></div>
+			<div data-id="preview" class="entryContent preview absolute fullHeight scroll border"></div>
+		</div>
 		<div class="toolbar bottom absolute fullWidth border overflow">
 			<input data-id="submitButton" class="button border toRight" type="button" value="Submit">
 		</div>

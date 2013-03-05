@@ -16,39 +16,16 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
 FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE. */
-var fs = require("fs");
-
+var cp = require("child_process");
 var bt = require("../utilities/bt");
 
-var EXT = require("../utilities/ext.json");
-var CACHE = __dirname+"/../../cache";
-
-var files = fs.readdirSync(__dirname).filter(function(name) {
-	return !name.match(/^index\.js$|^\./);
-}).sort();
-var formatters = files.map(function(name) {
-	return require("./"+name);
-});
-console.log("Formatters: "+files.join(", "));
-
-exports.select = function(srcPath, srcType, dstTypes, hash) {
-	var dstPath, dstType, formatter;
-	if(bt.negotiateTypes(dstTypes, [srcType])) return {
-		dstPath: srcPath,
-		dstType: srcType,
-		formatter: null,
-	};
-	for(var i = 0; i < formatters.length; ++i) {
-		formatter = formatters[i];
-		dstType = formatter.negotiateTypes(srcType, dstTypes);
-		if(null === dstType) continue;
-		if(!bt.has(EXT, dstType)) continue;
-		dstPath = CACHE+"/"+EXT[dstType]+"/"+hash+"."+EXT[dstType];
-		return {
-			dstPath: dstPath,
-			dstType: dstType,
-			formatter: formatter,
-		};
-	}
-	return null;
+exports.negotiateTypes = function(srcType, dstTypes) {
+	if(!bt.negotiateTypes(["text/markdown"], [srcType])) return null;
+	return bt.negotiateTypes(dstTypes, ["text/html"]);
+};
+exports.format = function(srcPath, srcType, dstPath, dstType, callback/* (err) */) {
+	var task = cp.spawn("marked", ["--gfm", "--sanitize", "-o", dstPath, srcPath]);
+	task.on("exit", function(status) {
+		callback(status ? new Error(status) : null);
+	});
 };

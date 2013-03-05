@@ -115,6 +115,13 @@ function TextEditor(stream) {
 	var editor = this;
 	editor.element = DOM.clone("textEditor", this);
 	editor.label = "New Entry";
+	var refresh = null;
+	editor.textarea.oninput = editor.textarea.onpropertychange = function() {
+		clearTimeout(refresh);
+		refresh = setTimeout(function() {
+			editor.preview.innerHTML = window.marked(editor.textarea.value, {sanitize: true});
+		}, 1000);
+	};
 	editor.submitButton.onclick = function(event) {
 		stream.upload(new Blob([editor.textarea.value.trim()], {"type": "text/markdown"}));
 		// TODO: Selectable MIME types.
