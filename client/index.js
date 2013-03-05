@@ -92,36 +92,12 @@ Stream.prototype.setEditor = function(editor) {
 		DOM.classify(stream.editor.button, "selected", true);
 	}
 };
-
-function TextEditor(stream) {
-	var editor = this;
-	editor.element = DOM.clone("textEditor", this);
-	editor.label = "New Entry";
-	editor.submitButton.onclick = function(event) {
-		editor.upload();
-	};
-}
-TextEditor.prototype.upload = function() {
-	var editor = this;
-	//new Blob(editor.textarea.something, {"type": "text/markdown"});
-	// TODO: Do something with this blob (hopefully reusing the upload code below).
-	// TODO: Selectable MIME types.
-};
-
-function FileEditor(stream) {
-	var editor = this;
-	editor.element = DOM.clone("fileEditor", this);
-	editor.label = "Upload File";
-	editor.uploadButton.onclick = function(event) {
-		editor.upload();
-	};
-}
-FileEditor.prototype.upload = function() {
-	var editor = this;
+Stream.prototype.upload = function(blob) {
+	if(!blob) throw new Error("Bad upload");
+	var stream = this;
 	var form = new FormData();
 	var req = new XMLHttpRequest();
-	if(!editor.uploadInput.files.length) return alert("select something"); // TODO: Disable button.
-	form.append("entry", editor.uploadInput.files[0]);
+	form.append("entry", blob);
 	if(req.upload) req.upload.onprogress = function(event) {
 		var complete = event.loaded / event.total;
 		console.log("complete", complete);
@@ -134,6 +110,24 @@ FileEditor.prototype.upload = function() {
 	req.open("POST", "/submit");
 	req.send(form);
 };
+
+function TextEditor(stream) {
+	var editor = this;
+	editor.element = DOM.clone("textEditor", this);
+	editor.label = "New Entry";
+	editor.submitButton.onclick = function(event) {
+		stream.upload(new Blob([editor.textarea.value], {"type": "text/markdown"}));
+		// TODO: Selectable MIME types.
+	};
+}
+function FileEditor(stream) {
+	var editor = this;
+	editor.element = DOM.clone("fileEditor", this);
+	editor.label = "Upload File";
+	editor.uploadButton.onclick = function(event) {
+		stream.upload(editor.uploadInput.files[0]); // TODO: Disable button when no file selected.
+	};
+}
 
 var IMAGE_TYPES = {
 	"image/jpeg": 1,
