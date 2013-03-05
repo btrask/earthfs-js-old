@@ -40,9 +40,6 @@ IN THE SOFTWARE. */
 .toLeft { float: left; }
 .toRight { float: right; }
 
-body {
-	line-height: 1.25em;
-}
 a:link {
 	text-decoration: none;
 }
@@ -50,7 +47,6 @@ a:hover {
 	text-decoration: underline;
 }
 .wrapper > textarea {
-	padding: 1em;
 	border: none;
 	outline: none;
 	vertical-align: top; /* Fixes stupid 4 pixel margin at bottom in Chromium. */
@@ -128,14 +124,14 @@ a:hover {
 	padding: 0.5em 1em;
 	background: #eee;
 }
-.entry > .content {
-	padding: 1em;
-}
 
 /* Entry content (including preview) */
 
 .entryContent {
+	padding: 1em;
 	font-family: monospace; /* We probably shouldn't use monospace everywhere, but it's nice for code. */
+	font-size: 14px;
+	line-height: 1.25em;
 }
 .entryContent blockquote {
 	margin-left: 0.5em;
@@ -169,7 +165,7 @@ a:hover {
 	top: 0;
 	bottom: 30px;
 }
-.textEditor > .content > .textarea.wrapper {
+.textEditor > .content > .wrapper {
 	left: 0;
 	width: 50%;
 }
