@@ -116,7 +116,7 @@ function TextEditor(stream) {
 	editor.element = DOM.clone("textEditor", this);
 	editor.label = "New Entry";
 	editor.submitButton.onclick = function(event) {
-		stream.upload(new Blob([editor.textarea.value], {"type": "text/markdown"}));
+		stream.upload(new Blob([editor.textarea.value.trim()], {"type": "text/markdown"}));
 		// TODO: Selectable MIME types.
 	};
 }
