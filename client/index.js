@@ -103,7 +103,9 @@ function TextEditor(stream) {
 }
 TextEditor.prototype.upload = function() {
 	var editor = this;
-	
+	//new Blob(editor.textarea.something, {"type": "text/markdown"});
+	// TODO: Do something with this blob (hopefully reusing the upload code below).
+	// TODO: Selectable MIME types.
 };
 
 function FileEditor(stream) {
