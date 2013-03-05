@@ -46,7 +46,7 @@ fallback.parse = function(path, hash, type, callback/* (err, tagsByTarget) */) {
 	var stream = fs.createReadStream(path), tags = [], last = null;
 	stream.setEncoding("utf8");
 	stream.on("data", function(chunk) {
-		var re = /(?:^|[\s(])#([\w\d\-_]+:)?([\w\d\-_]{3,40})\b/g;
+		var re = /(?:^|[\s(\\])#([\w\d\-_]+:)?([\w\d\-_]{3,40})\b/g;
 		if(last) {
 			chunk = last[0]+chunk;
 			last = null;
