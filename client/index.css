@@ -143,6 +143,9 @@ a:hover {
 	max-height: 300px;
 	vertical-align: middle;
 }
+.entryContent ul, .entryContent ol {
+	margin-left: 40px;
+}
 
 /* Sidebar */
 
