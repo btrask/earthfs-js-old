@@ -87,7 +87,7 @@ exports.select = function(srcPath, srcType, dstTypes, hash) {
 		return {
 			dstPath: dstPath,
 			dstType: dstType,
-			format: function(callback/* (err, tags) */) {
+			format: function(dstPath, callback/* (err, tags) */) {
 				enqueue([formatter.path, srcPath, srcType, dstPath, dstType], callback);
 			},
 		};
@@ -97,7 +97,7 @@ exports.select = function(srcPath, srcType, dstTypes, hash) {
 exports.parseTags = function(path, type, hash, callback/* (names, tagMap) */) {
 	var obj = formatters.select(path, type, ["text/html", "*/*"], hash);
 	if(!obj) return callback([hash], []);
-	obj.format(function(err, tags) {
+	obj.format(obj.dstPath, function(err, tags) {
 		if(err) return callback([hash], []);
 		var names = tags.map(function(tag) {
 			return tag[1];

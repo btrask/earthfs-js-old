@@ -215,7 +215,7 @@ function sendFormatted(req, res, srcPath, srcType, dstTypes, hash) {
 			if(!format) return res.sendError(err);
 			fs.mkdirRecursive(pathModule.dirname(dstPath), function(err) {
 				if(err) return res.sendError(err);
-				format(function(err, tags) {
+				format(dstPath, function(err, tags) {
 					if(err) return res.sendError(err);
 					fs.stat(dstPath, function(err, stats) {
 						if(err) return res.sendError(err);
