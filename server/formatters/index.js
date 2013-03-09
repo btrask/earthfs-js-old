@@ -111,7 +111,10 @@ formatters.parseTags = function(path, srcType, hash, callback/* (names, tagMap) 
 			if(!bt.has(tagsByNamespace, tag[0])) tagsByNamespace[tag[0]] = [];
 			tagsByNamespace[tag[0]].push(tag[1]);
 		});
-		var tagMap = [], generalTags = tagsByNamespace[""].unique();
+		var generalTags;
+		if(bt.has(tagsByNamespace, "")) generalTags = tagsByNamespace[""].unique();
+		else generalTags = [];
+		var tagMap = [[hash, hash]];
 		if(bt.has(tagsByNamespace, "meta")) {
 			tagsByNamespace["meta"].unique().forEach(function(meta) {
 				if(hash !== meta) tagMap.push([hash, meta]);
