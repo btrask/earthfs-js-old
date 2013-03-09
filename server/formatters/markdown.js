@@ -38,8 +38,9 @@ function fixTags(ast, tags) {
 }
 
 exports.negotiateTypes = function(srcType, dstTypes) {
-	if(!bt.negotiateTypes(["text/markdown"], [srcType])) return null;
-	return bt.negotiateTypes(dstTypes, ["text/html"]);
+	return null; // Temporarily disabled so we can test robotskirt instead.
+//	if(!bt.negotiateTypes(["text/markdown"], [srcType])) return null;
+//	return bt.negotiateTypes(dstTypes, ["text/html"]);
 };
 exports.format = function(srcPath, srcType, dstPath, dstType, callback) {
 	fs.readFile(srcPath, "utf8", function(err, str) {
