@@ -16,16 +16,39 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
 FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE. */
-var cp = require("child_process");
+var fs = require("fs");
+var markdown = require("markdown").markdown;
 var bt = require("../utilities/bt");
+
+function fixTags(ast, tags) {
+	var str, rx, x;
+	for(var i = 1; i < ast.length; ++i) {
+		str = ast[i];
+		if(Array.isArray(str)) { fixTags(str, tags); continue; }
+		if("string" !== typeof str) continue;
+		while((x = /(^|[\s\(\)\[\]])#(([\w\d\-_]+:)?([\w\d\-_]{3,40}))\b/.exec(str))) {
+			ast.splice(i++, 0, str.slice(0, x.index)+x[1]);
+			ast.splice(i++, 0, ["a", {href: "?q="+x[4]}, "#"+x[2]]);
+			str = str.slice(x.index+x[0].length);
+			tags.push([(x[3]||":").slice(0, -1), x[4]]);
+		}
+		if(str.length) ast[i] = str;
+		else ast.splice(i--, 1);
+	}
+}
 
 exports.negotiateTypes = function(srcType, dstTypes) {
 	if(!bt.negotiateTypes(["text/markdown"], [srcType])) return null;
 	return bt.negotiateTypes(dstTypes, ["text/html"]);
 };
-exports.format = function(srcPath, srcType, dstPath, dstType, callback/* (err) */) {
-	var task = cp.spawn("marked", ["--gfm", "--sanitize", "-o", dstPath, srcPath]);
-	task.on("exit", function(status) {
-		callback(status ? new Error(status) : null);
+exports.format = function(srcPath, srcType, dstPath, dstType, callback) {
+	fs.readFile(srcPath, "utf8", function(err, str) {
+		if(err) return callback(err, null);
+		var ast = markdown.toHTMLTree(str), tags = [];
+		fixTags(ast, tags);
+		fs.writeFile(dstPath, markdown.renderJsonML(ast), "utf8", function(err) {
+			if(err) return callback(err, null);
+			callback(null, tags);
+		});
 	});
 };

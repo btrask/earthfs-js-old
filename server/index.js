@@ -31,7 +31,6 @@ var http = require("./utilities/httpx");
 var sql = require("./utilities/sql");
 
 var formatters = require("./formatters");
-var taggers = require("./taggers");
 
 var CLIENT = __dirname+"/../build";
 var DATA = __dirname+"/../data";
@@ -197,31 +196,30 @@ function sendFormatted(req, res, srcPath, srcType, dstTypes, hash) {
 	}
 	var dstPath = obj.dstPath;
 	var dstType = obj.dstType;
-	var formatter = obj.formatter;
+	var format = obj.format;
 	if("text/" === dstType.slice(0, 5)) dstType += "; charset=utf-8";
+
+	function sendFile(path, stats) {
+		var stream = fs.createReadStream(dstPath);
+		res.writeHead(200, {
+			"Content-Type": dstType,
+			"Content-Length": stats.size,
+		});
+		stream.pipe(res);
+	}
 
 	fs.stat(dstPath, function(err, stats) {
 		if(!err) {
-			var stream = fs.createReadStream(dstPath);
-			res.writeHead(200, {
-				"Content-Type": dstType,
-				"Content-Length": stats.size,
-			});
-			stream.pipe(res);
+			sendFile(dstPath, stats);
 		} else if("ENOENT" === err.code) {
-			if(!formatter) return res.sendError(err);
+			if(!format) return res.sendError(err);
 			fs.mkdirRecursive(pathModule.dirname(dstPath), function(err) {
 				if(err) return res.sendError(err);
-				formatter.format(srcPath, srcType, dstPath, dstType, function(err) {
+				format(function(err, tags) {
 					if(err) return res.sendError(err);
 					fs.stat(dstPath, function(err, stats) {
 						if(err) return res.sendError(err);
-						var stream = fs.createReadStream(dstPath);
-						res.writeHead(200, {
-							"Content-Type": dstType,
-							"Content-Length": stats.size,
-						});
-						stream.pipe(res);
+						sendFile(dstPath, stats);
 					});
 				});
 			});
@@ -253,22 +251,16 @@ serve.root.submit = function(req, res, root, submit) {
 			res.sendMessage(400, "Bad Request");
 			return;
 		}
-		var file = fileByField.entry, hash = file.hash;
+		var file = fileByField.entry;
+		var hash = file.hash;
+		var type = file.type;
 		console.log("Adding entry "+hash);
-		importEntryFile(file.path, hash, file.type, function(err, path) {
+		importEntryFile(file.path, hash, type, function(err, path) {
 			if(err) throw err;
-			taggers.parse(path, hash, file.type, function(err, tagsByTarget) {
+			formatters.parseTags(path, type, hash, function(names, tagMap) {
 				if(err) throw err;
-				var names = [], tags = [];
-				Object.keys(tagsByTarget).forEach(function(target) {
-					names.push(target);
-					tagsByTarget[target].forEach(function(tag) {
-						names.push(tag);
-						tags.push([target, tag]);
-					});
-				});
 				// TODO: Use transactions?
-				defineNames(names.unique(), function(err) {
+				defineNames(names, function(err) {
 					if(err) throw err;
 					db.query(
 						'SELECT "nameID" FROM "names"'+
@@ -280,12 +272,12 @@ serve.root.submit = function(req, res, root, submit) {
 								'INSERT INTO "tags" ("nameID", "impliedID", "direct", "indirect")'+
 								' SELECT a."nameID", b."nameID", TRUE, 1 FROM "names" a'+
 								' JOIN "names" b ON (TRUE)'+
-								' WHERE (a."name", b."name") IN ('+sql.list2D(tags, 1)+')', sql.flatten(tags),
+								' WHERE (a."name", b."name") IN ('+sql.list2D(tagMap, 1)+')', sql.flatten(tagMap),
 								function(err, result) {
 									if(err) return fail(err);
 									db.query(
 										'INSERT INTO "entries" ("entryID", "nameID", "MIMEType")'+
-										' VALUES (DEFAULT, $1, $2)', [nameID, file.type],
+										' VALUES (DEFAULT, $1, $2)', [nameID, type],
 										function(err, result) {
 											if(err) return fail(err);
 											res.writeHead(303, {"Location": "/tag/"+hash});

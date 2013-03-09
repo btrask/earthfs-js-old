@@ -20,15 +20,19 @@ var cp = require("child_process");
 var fs = require("fs");
 var bt = require("../../utilities/bt");
 
+var ometajs = require("ometajs");
+var markup = require("./markup.ometajs").markup;
+
 exports.negotiateTypes = function(srcType, dstTypes) {
 	if(!bt.negotiateTypes([srcType], ["text/x-bad-markup"])) return null;
 	return bt.negotiateTypes(dstTypes, ["text/html"]);
 };
-exports.format = function(srcPath, srcType, dstPath, dstType, callback/* (err) */) {
-	// TODO: Use some sort of pool, possibly shared with other formatters.
-	// Right now, we use as many Node instances simultaneously as needed, at 10MB of RAM a piece.
-	var task = cp.fork(__dirname+"/worker.js", [srcPath, dstPath]);
-	task.on("exit", function(status) {
-		callback(status ? new Error(status) : null);
+exports.format = function(srcPath, srcType, dstPath, dstType, callback/* (err, tags) */) {
+	fs.readFile(srcPath, "utf8", function(err, str) {
+		if(err) return callback(err, null);
+		fs.writeFile(dstPath, markup.matchAll(str, "content"), "utf8", function(err) {
+			if(err) return callback(err, null);
+			callback(err, []); // TODO: Determine tags.
+		});
 	});
 };

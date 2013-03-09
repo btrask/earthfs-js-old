@@ -16,7 +16,14 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
 FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE. */
+var cluster = require("cluster");
+
+if(cluster.isMaster) (function() {
+
+
 var fs = require("fs");
+var EventEmitter = require("events").EventEmitter;
+var util = require("util");
 
 var bt = require("../utilities/bt");
 
@@ -27,17 +34,50 @@ var files = fs.readdirSync(__dirname).filter(function(name) {
 	return !name.match(/^index\.js$|^\./);
 }).sort();
 var formatters = files.map(function(name) {
-	return require("./"+name);
+	var formatter = require(__dirname+"/"+name);
+	formatter.path = __dirname+"/"+name;
+	return formatter;
 });
 console.log("Formatters: "+files.join(", "));
 
+
+var waiting = [];
+var queue = [];
+function start(count) {
+	var worker;
+	for(var i = 0; i < count; ++i) {
+		worker = cluster.fork();
+		worker.callback = null;
+		worker.on("message", function(msg) {
+			if(worker.callback) worker.callback.apply(this, msg);
+			worker.callback = null;
+			waiting.push(worker);
+			dequeue();
+		});
+		worker.on("exit", function() {
+			for(var i = 0; i < waiting.length; ++i) if(waiting[i] === worker) waiting.splice(i--, 1);
+			start(1);
+		});
+		waiting.push(worker);
+	}
+}
+function enqueue(msg, callback) {
+	queue.push([msg, callback]);
+	dequeue();
+}
+function dequeue() {
+	if(!waiting.length || !queue.length) return;
+	var worker = waiting.pop();
+	var task = queue.pop();
+	worker.callback = task[1];
+	worker.send(task[0]);
+}
+
+
+start(2); // TODO: Detect number of CPUs.
+
 exports.select = function(srcPath, srcType, dstTypes, hash) {
-	var dstPath, dstType, formatter;
-	if(bt.negotiateTypes(dstTypes, [srcType])) return {
-		dstPath: srcPath,
-		dstType: srcType,
-		formatter: null,
-	};
+	var formatter, dstType, dstPath;
 	for(var i = 0; i < formatters.length; ++i) {
 		formatter = formatters[i];
 		dstType = formatter.negotiateTypes(srcType, dstTypes);
@@ -47,8 +87,55 @@ exports.select = function(srcPath, srcType, dstTypes, hash) {
 		return {
 			dstPath: dstPath,
 			dstType: dstType,
-			formatter: formatter,
+			format: function(callback/* (err, tags) */) {
+				enqueue([formatter.path, srcPath, srcType, dstPath, dstType], callback);
+			},
 		};
 	}
 	return null;
 };
+exports.parseTags = function(path, type, hash, callback/* (names, tagMap) */) {
+	var obj = formatters.select(path, type, ["text/html", "*/*"], hash);
+	if(!obj) return callback([hash], []);
+	obj.format(function(err, tags) {
+		if(err) return callback([hash], []);
+		var names = tags.map(function(tag) {
+			return tag[1];
+		}).concat([hash]).unique();
+		var tagsByNamespace = {};
+		tags.forEach(function(tag) {
+			if(!bt.has(tagsByNamespace, tag[0])) tagsByNamespace[tag[0]] = [];
+			tagsByNamespace[tag[0]].push(tag[1]);
+		});
+		var tagMap = [], generalTags = tagsByNamespace[""].unique();
+		if(bt.has(tagsByNamespace, "meta")) {
+			tagsByNamespace["meta"].unique().forEach(function(meta) {
+				if(hash !== meta) tagMap.push([hash, meta]);
+				generalTags.forEach(function(tag) {
+					if(meta !== tag) tagMap.push([meta, tag]);
+				});
+			});
+		} else {
+			generalTags.forEach(function(tag) {
+				if(hash !== tag) tagMap.push([hash, tag]);
+			});
+		}
+		callback(names, tagMap);
+	});
+};
+
+
+})(); else (function() {
+
+
+process.on("message", function(msg) {
+	(function(module, srcPath, srcType, dstPath, dstType) {
+		var formatter = require(module);
+		formatter.format(srcPath, srcType, dstPath, dstType, function(err, tags) {
+			process.send([err, tags]);
+		});
+	}).apply(this, msg.args);
+});
+
+
+})();
