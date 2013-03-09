@@ -138,7 +138,7 @@ process.on("message", function(msg) {
 		formatter.format(srcPath, srcType, dstPath, dstType, function(err, tags) {
 			process.send([err, tags]);
 		});
-	}).apply(this, msg.args);
+	}).apply(this, msg);
 });
 
 

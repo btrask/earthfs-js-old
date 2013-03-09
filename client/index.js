@@ -115,15 +115,30 @@ function TextEditor(stream) {
 	var editor = this;
 	editor.element = DOM.clone("textEditor", this);
 	editor.label = "New Entry";
-	var refresh = null;
+	var refresh = null, downloading = false;
 	editor.textarea.oninput = editor.textarea.onpropertychange = function() {
 		clearTimeout(refresh);
 		refresh = setTimeout(function() {
-			editor.preview.innerHTML = window.marked(editor.textarea.value, {sanitize: true});
+			if(downloading) {
+				refresh = setTimeout(arguments.callee, 1000);
+				return;
+			}
+			var form = new FormData();
+			var req = new XMLHttpRequest();
+			form.append("entry", new Blob([editor.textarea.value], {"type": "text/markdown"}));
+			req.onreadystatechange = function() {
+				if(4 !== req.readyState) return;
+				downloading = false;
+				editor.preview.innerHTML = req.responseText;
+			};
+			req.open("POST", "/preview");
+			req.setRequestHeader("Accept", "text/html");
+			req.send(form);
+			downloading = true;
 		}, 1000);
 	};
 	editor.submitButton.onclick = function(event) {
-		stream.upload(new Blob([editor.textarea.value.trim()], {"type": "text/markdown"}));
+		stream.upload(new Blob([editor.textarea.value], {"type": "text/markdown"}));
 		// TODO: Selectable MIME types.
 	};
 }

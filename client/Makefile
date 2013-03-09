@@ -5,7 +5,6 @@ endif
 CLOSURE_FLAGS := --compilation_level WHITESPACE_ONLY --formatting PRETTY_PRINT
 
 CLIENT_SCRIPTS := \
-	../node_modules/marked/lib/marked.js \
 	external/json2.js \
 	utilities/DOM.js \
 	utilities/query.js \
