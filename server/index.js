@@ -189,13 +189,13 @@ serve.root.entry = function(req, res, root, entry) {
 	);
 };
 function sendFormatted(req, res, srcPath, srcType, dstTypes, hash) {
-	var obj = formatters.select(srcPath, srcType, dstTypes, hash);
+	var obj = formatters.select(srcType, dstTypes);
 	if(!obj) {
 		res.sendMessage(406, "Not Acceptable");
 		return;
 	}
-	var dstPath = obj.dstPath;
 	var dstType = obj.dstType;
+	var dstPath = formatters.cachePath(hash, dstType);
 	var format = obj.format;
 	if("text/" === dstType.slice(0, 5)) dstType += "; charset=utf-8";
 
@@ -215,7 +215,7 @@ function sendFormatted(req, res, srcPath, srcType, dstTypes, hash) {
 			if(!format) return res.sendError(err);
 			fs.mkdirRecursive(pathModule.dirname(dstPath), function(err) {
 				if(err) return res.sendError(err);
-				format(dstPath, function(err, tags) {
+				format(srcPath, dstPath, function(err, tags) {
 					if(err) return res.sendError(err);
 					fs.stat(dstPath, function(err, stats) {
 						if(err) return res.sendError(err);
@@ -315,5 +315,47 @@ function importEntryFile(path, hash, type, callback/* (err, path) */) {
 		});
 	});
 }
+
+serve.root.preview = function(req, res, root, preview) {
+	if("POST" !== req.method) {
+		res.sendMessage(400, "Bad Request");
+		return;
+	}
+	function fail(err) {
+		console.log(err);
+		res.sendMessage(500, "Internal Server Error");
+	}
+	var form = new formidable.IncomingForm({
+		"keepExtensions": false,
+	});
+	form.addListener("error", function(err) {
+		fail(err);
+	});
+	form.parse(req, function(err, fields, fileByField) {
+		var file = fileByField.entry;
+		var srcPath = file.path;
+		var srcType = file.type;
+		var dstTypes = req.headers.accept.split(",");
+		var obj = formatters.select(srcType, dstTypes);
+		if(!obj) return res.sendMessage(406, "Not Acceptable");
+		var dstPath = srcPath+".out";
+		obj.format(srcPath, dstPath, function(err, tags) {
+			fs.unlink(srcPath);
+			if(err) return res.sendError(err);
+			fs.stat(dstPath, function(err, stats) {
+				if(err) return res.sendError(err);
+				res.writeHead(200, {
+					"Content-Type": obj.dstType,
+					"Content-Length": stats.size,
+				});
+				var stream = fs.createReadStream(dstPath);
+				stream.pipe(res);
+				stream.on("end", function() {
+					fs.unlink(dstPath);
+				});
+			});
+		});
+	});
+};
 
 http.createServer(serve).listen(8001);

@@ -27,13 +27,15 @@ var util = require("util");
 
 var bt = require("../utilities/bt");
 
+var formatters = exports;
+
 var EXT = require("../utilities/ext.json");
 var CACHE = __dirname+"/../../cache";
 
 var files = fs.readdirSync(__dirname).filter(function(name) {
 	return !name.match(/^index\.js$|^\./);
 }).sort();
-var formatters = files.map(function(name) {
+var modules = files.map(function(name) {
 	var formatter = require(__dirname+"/"+name);
 	formatter.path = __dirname+"/"+name;
 	return formatter;
@@ -76,28 +78,30 @@ function dequeue() {
 
 start(2); // TODO: Detect number of CPUs.
 
-exports.select = function(srcPath, srcType, dstTypes, hash) {
+formatters.select = function(srcType, dstTypes) {
 	var formatter, dstType, dstPath;
-	for(var i = 0; i < formatters.length; ++i) {
-		formatter = formatters[i];
+	for(var i = 0; i < modules.length; ++i) {
+		formatter = modules[i];
 		dstType = formatter.negotiateTypes(srcType, dstTypes);
 		if(null === dstType) continue;
 		if(!bt.has(EXT, dstType)) continue;
-		dstPath = CACHE+"/"+EXT[dstType]+"/"+hash+"."+EXT[dstType];
 		return {
-			dstPath: dstPath,
 			dstType: dstType,
-			format: function(dstPath, callback/* (err, tags) */) {
+			format: function(srcPath, dstPath, callback/* (err, tags) */) {
 				enqueue([formatter.path, srcPath, srcType, dstPath, dstType], callback);
 			},
 		};
 	}
 	return null;
 };
-exports.parseTags = function(path, type, hash, callback/* (names, tagMap) */) {
-	var obj = formatters.select(path, type, ["text/html", "*/*"], hash);
+formatters.cachePath = function(hash, type) {
+	return CACHE+"/"+EXT[type]+"/"+hash+"."+EXT[type];
+};
+formatters.parseTags = function(path, srcType, hash, callback/* (names, tagMap) */) {
+	var obj = formatters.select(srcType, ["text/html", "*/*"]);
 	if(!obj) return callback([hash], []);
-	obj.format(obj.dstPath, function(err, tags) {
+	var dstPath = formatters.cachePath(hash, obj.dstType);
+	obj.format(path, dstPath, function(err, tags) {
 		if(err) return callback([hash], []);
 		var names = tags.map(function(tag) {
 			return tag[1];
