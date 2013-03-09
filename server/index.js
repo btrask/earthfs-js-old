@@ -158,8 +158,7 @@ serve.root.json = function(req, res, root, json) {
 			res.write(",", "utf8");
 		}
 		delete row.entryID; // We didn't want this in the first place, but Postgres made us ask for it.
-		row.url = "file://"+pathModule.normalize(pathForEntry(row.hash, row.type));
-		// TODO: Send remote URL for remote clients.
+		row.url = "/entry/"+row.hash;
 		res.write(JSON.stringify(row));
 	});
 	query.on("end", function() {
