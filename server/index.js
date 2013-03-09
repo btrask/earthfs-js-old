@@ -188,13 +188,13 @@ serve.root.entry = function(req, res, root, entry) {
 	);
 };
 function sendFormatted(req, res, srcPath, srcType, dstTypes, hash) {
-	var obj = formatters.select(srcType, dstTypes);
+	var obj = formatters.select(srcType, dstTypes, true);
 	if(!obj) {
 		res.sendMessage(406, "Not Acceptable");
 		return;
 	}
 	var dstType = obj.dstType;
-	var dstPath = formatters.cachePath(hash, dstType);
+	var dstPath = dstType === srcType ? srcPath : formatters.cachePath(hash, dstType);
 	var format = obj.format;
 	if("text/" === dstType.slice(0, 5)) dstType += "; charset=utf-8";
 
@@ -335,7 +335,7 @@ serve.root.preview = function(req, res, root, preview) {
 		var srcPath = file.path;
 		var srcType = file.type;
 		var dstTypes = req.headers.accept.split(",");
-		var obj = formatters.select(srcType, dstTypes);
+		var obj = formatters.select(srcType, dstTypes, true);
 		if(!obj) return res.sendMessage(406, "Not Acceptable");
 		var dstPath = srcPath+".out";
 		obj.format(srcPath, dstPath, function(err, tags) {

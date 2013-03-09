@@ -78,7 +78,11 @@ function dequeue() {
 
 start(2); // TODO: Detect number of CPUs.
 
-formatters.select = function(srcType, dstTypes) {
+formatters.select = function(srcType, dstTypes, allowNative) { // TODO: `allowNative` versus tagging, better distinction?
+	if(allowNative && bt.negotiateTypes(dstTypes, [srcType])) return {
+		dstType: srcType,
+		format: null,
+	};
 	var formatter, dstType, dstPath;
 	for(var i = 0; i < modules.length; ++i) {
 		formatter = modules[i];
@@ -98,7 +102,7 @@ formatters.cachePath = function(hash, type) {
 	return CACHE+"/"+EXT[type]+"/"+hash+"."+EXT[type];
 };
 formatters.parseTags = function(path, srcType, hash, callback/* (names, tagMap) */) {
-	var obj = formatters.select(srcType, ["text/html", "*/*"]);
+	var obj = formatters.select(srcType, ["text/html", "*/*"], false);
 	if(!obj) return callback([hash], []);
 	var dstPath = formatters.cachePath(hash, obj.dstType);
 	obj.format(path, dstPath, function(err, tags) {
