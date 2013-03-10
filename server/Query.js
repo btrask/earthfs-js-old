@@ -87,6 +87,10 @@ IntersectionQuery.prototype.SQL = function(offset, tab) {
 
 
 Query.parse = function(str) {
-	return new IntersectionQuery(null, [new TagQuery(null, "earthfs"), new TagQuery(null, "design")]);
+	var tags = str.split(/\s+/).map(function(tag) { // TODO: Real parsing.
+		return new TagQuery(null, tag);
+	});
+	if(1 === tags.length) return tags[0];
+	return new IntersectionQuery(null, tags);
 };
 module.exports = Query;

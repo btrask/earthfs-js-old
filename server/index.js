@@ -115,20 +115,22 @@ function tagSearch(input) {
 			') x ORDER BY "entryID" ASC'
 		);
 	} else {
-		var tags = input.split("+").map(function(tag) {
+		var query = input.split("+").map(function(tag) {
 			return decodeURIComponent(tag);
-		});
-		// TODO: Parse input properly and perform real query. This doesn't work at all.
+		}).join(" ");
+		var tab = "\t";
+		var obj = Query.parse(query).SQL(0, tab+"\t");
 		return db.query(
-			'SELECT * FROM ('+
-				'SELECT DISTINCT e."entryID", n1."name" AS "hash", e."MIMEType" as "type", e."time" FROM "names" AS "n1"'+
-				' LEFT JOIN "entries" AS "e" ON (n1."nameID" = e."nameID")'+
-				' LEFT JOIN "tags" AS "t" ON (e."nameID" = t."nameID")'+
-				' LEFT JOIN "names" AS "n2" ON (n2."nameID" = t."impliedID")'+
-				' WHERE n2."name" IN ('+sql.list1D(tags, 1)+')'+
-				' ORDER BY e."entryID" DESC LIMIT 50'+
+			'SELECT * FROM (\n'+
+				tab+'SELECT e."entryID", n."name" AS "hash", e."MIMEType" AS "type", e."time"\n'+
+				tab+'FROM\n'+
+					obj.query+
+				tab+'AS q\n'+
+				tab+'LEFT JOIN "entries" AS e ON (e."nameID" = q."nameID")\n'+
+				tab+'LEFT JOIN "names" AS n ON (n."nameID" = q."nameID")\n'+
+				tab+'ORDER BY e."entryID" DESC LIMIT 50\n'+
 			') x ORDER BY "entryID" ASC',
-			tags
+			obj.parameters
 		);
 	}
 }
@@ -165,25 +167,6 @@ serve.root.json = function(req, res, root, json) {
 	query.on("end", function() {
 		res.end("]", "utf8");
 	});
-};
-serve.root.test = function(req, res, root, test) {
-	var tab = "\t";
-	var obj = Query.parse("").SQL(0, tab+"\t");
-	sql.debug(db,
-		'SELECT * FROM (\n'+
-			tab+'SELECT e."entryID", n."name" AS "hash", e."MIMEType" AS "type", e."time"\n'+
-			tab+'FROM\n'+
-				obj.query+
-			tab+'AS q\n'+
-			tab+'LEFT JOIN "entries" AS e ON (e."nameID" = q."nameID")\n'+
-			tab+'LEFT JOIN "names" AS n ON (n."nameID" = q."nameID")\n'+
-			tab+'ORDER BY e."entryID" DESC LIMIT 50\n'+
-		') x ORDER BY "entryID" ASC',
-		obj.parameters,
-		function(err, results) {
-			console.log(err, results);
-		}
-	);
 };
 serve.root.entry = function(req, res, root, entry) {
 	var hash = first(entry.components);
