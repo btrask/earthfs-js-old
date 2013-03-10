@@ -245,8 +245,16 @@ serve.root.submit = function(req, res, root, submit) {
 										' VALUES (DEFAULT, $1, $2)', [nameID, type],
 										function(err, result) {
 											if(err) return fail(err);
-											res.writeHead(303, {"Location": "/tag/"+hash});
+											res.writeHead(303, {"Location": "/entry/"+hash});
 											res.end();
+											Client.send({
+												"hash": hash,
+												"type": type,
+											}, tagMap.filter(function(map) {
+												return map[0] === hash;
+											}).map(function(map) {
+												return map[1];
+											}));
 										}
 									);
 								}
