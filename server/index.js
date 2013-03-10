@@ -74,6 +74,31 @@ function pathForEntry(hash, type) {
 	if(!bt.has(EXT, t)) throw new Error("Invalid MIME type "+type);
 	return DATA+"/"+hash.slice(0, 2)+"/"+hash+"."+EXT[t];
 }
+function tagSearch(input) {
+	var tab = "\t", obj, query, parameters;
+	if(undefined === input || "" === input) {
+		query = tab+'\t"names"';
+		parameters = [];
+	} else {
+		obj = Query.parse(input.split("+").map(function(tag) {
+			return decodeURIComponent(tag);
+		}).join(" ")).SQL(0, tab+"\t");
+		query = obj.query;
+		parameters = obj.parameters;
+	}
+	return db.query(
+		'SELECT * FROM (\n'+
+			tab+'SELECT e."entryID", n."name" AS "hash", e."MIMEType" AS "type", e."time"\n'+
+			tab+'FROM\n'+
+				query+
+			tab+'AS q\n'+
+			tab+'LEFT JOIN "entries" AS e ON (e."nameID" = q."nameID")\n'+
+			tab+'LEFT JOIN "names" AS n ON (n."nameID" = q."nameID")\n'+
+			tab+'ORDER BY e."entryID" DESC LIMIT 50\n'+
+		') x ORDER BY "entryID" ASC',
+		parameters
+	);
+}
 
 var serve = function(req, res) {
 	var path = urlModule.parse(req.url).pathname;
@@ -92,80 +117,19 @@ var serve = function(req, res) {
 serve.root = function(req, res, root) {
 	var components = root.components;
 	var options = urlModule.parse(req.url, true).query;
-	var imp = lookup(serve.root, first(components)) ||
-		lookup(serve.root, EXT[bt.negotiateTypes(req.headers.accept.split(","), QUERY_TYPES)]);
+	var imp = lookup(serve.root, first(components));
 	if(!imp) {
-		res.sendMessage(400, "Bad Request");
+		var path = CLIENT+root.path;
+		fs.stat(path, function(err, stats) {
+			if(err) return res.sendError(err);
+			res.sendFile(stats.isDirectory() ? path+"/index.html" : path);
+		});
 		return;
 	}
 	imp(req, res, root, {
 		"path": pathFromComponents(components),
 		"components": rest(components),
 		"options": options,
-	});
-};
-function tagSearch(input) {
-	if(undefined === input || "" === input) {
-		return db.query(
-			'SELECT * FROM ('+
-				'SELECT e."entryID", n."name" AS "hash", e."MIMEType" AS "type", e."time"'+
-				' FROM "entries" AS e'+
-				' LEFT JOIN "names" AS n ON (n."nameID" = e."nameID")'+
-				' ORDER BY e."entryID" DESC LIMIT 50'+
-			') x ORDER BY "entryID" ASC'
-		);
-	} else {
-		var query = input.split("+").map(function(tag) {
-			return decodeURIComponent(tag);
-		}).join(" ");
-		var tab = "\t";
-		var obj = Query.parse(query).SQL(0, tab+"\t");
-		return db.query(
-			'SELECT * FROM (\n'+
-				tab+'SELECT e."entryID", n."name" AS "hash", e."MIMEType" AS "type", e."time"\n'+
-				tab+'FROM\n'+
-					obj.query+
-				tab+'AS q\n'+
-				tab+'LEFT JOIN "entries" AS e ON (e."nameID" = q."nameID")\n'+
-				tab+'LEFT JOIN "names" AS n ON (n."nameID" = q."nameID")\n'+
-				tab+'ORDER BY e."entryID" DESC LIMIT 50\n'+
-			') x ORDER BY "entryID" ASC',
-			obj.parameters
-		);
-	}
-}
-serve.root.html = function(req, res, root, html) {
-	var path = CLIENT+html.path;
-	fs.stat(path, function(err, stats) {
-		if(err) return res.sendError(err);
-		res.sendFile(stats.isDirectory() ? path+"/index.html" : path);
-	});
-};
-serve.root.json = function(req, res, root, json) {
-	var query = tagSearch(json.options.q), started = false;
-	query.on("error", function(err) {
-		console.log("Error during query:", err);
-		if(!started) {
-			started = true;
-			res.sendError(err);
-		}
-	});
-	query.on("row", function(row) {
-		if(!started) {
-			started = true;
-			res.writeHead(200, {
-				"Content-Type": "text/json; charset=utf-8",
-			});
-			res.write("[", "utf8");
-		} else {
-			res.write(",", "utf8");
-		}
-		delete row.entryID; // We didn't want this in the first place, but Postgres made us ask for it.
-		row.url = "/entry/"+row.hash;
-		res.write(JSON.stringify(row));
-	});
-	query.on("end", function() {
-		res.end("]", "utf8");
 	});
 };
 serve.root.entry = function(req, res, root, entry) {
@@ -360,4 +324,21 @@ serve.root.preview = function(req, res, root, preview) {
 	});
 };
 
-http.createServer(serve).listen(8001);
+var server = http.createServer(serve);
+var io = require("socket.io").listen(server, {log: false});
+server.listen(8001);
+
+io.sockets.on("connection", function(socket) {
+	socket.on("query", function(params) {
+		var query = tagSearch(params["q"]);
+		query.on("error", function(err) {
+			console.log(err); // TODO
+		});
+		query.on("row", function(row) {
+			delete row.entryID; // We didn't want this in the first place, but Postgres made us ask for it.
+			row.url = "/entry/"+row.hash;
+			socket.emit("entry", row);
+		});
+		// TODO: Watch for new matching entries.
+	});
+});

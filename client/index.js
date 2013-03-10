@@ -17,7 +17,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
 FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE. */
 
-/*global query DOM*/
+/*global query DOM io*/
 
 var bt = {}; // TODO: Use separate file.
 bt.has = function(obj, prop) {
@@ -34,6 +34,8 @@ function Stream(query) {
 	stream.searchText.value = query;
 	stream.query = query;
 	stream.editor = null;
+	stream.socket = io.connect("/");
+	stream.socket.emit("query", {"q": query});
 
 	var editors = [TextEditor, FileEditor].map(function(Editor) {
 		var editor = new Editor(stream);
@@ -56,28 +58,14 @@ function Stream(query) {
 	};
 	stream.searchButton.onclick = submitQuery;
 
-	Stream.search({"q": query}, function(err, results) {
-		var entry; // TODO: Handle errors.
-		for(var i = 0; i < results.length; ++i) {
-			entry = new Entry(results[i]);
-			stream.entries.appendChild(entry.element);
-			entry.load();
-		}
+	stream.socket.on("entry", function(obj) {
+		var entry = new Entry(obj);
+		stream.entries.appendChild(entry.element);
+		entry.load();
 	});
 }
 Stream.location = function(params) {
 	return "/"+query.stringify(params);
-};
-Stream.search = function(params, callback/* (err, results) */) {
-	var req = new XMLHttpRequest();
-	req.open("GET", Stream.location(bt.union({"view": "json"}, params)), true);
-	req.onreadystatechange = function() {
-		if(4 !== req.readyState) return;
-		if(200 !== req.status) return; // TODO: Return errors.
-		callback(null, JSON.parse(req.responseText));
-	};
-	req.setRequestHeader("Accept", "text/json");
-	req.send("");
 };
 Stream.prototype.setEditor = function(editor) {
 	var stream = this;
