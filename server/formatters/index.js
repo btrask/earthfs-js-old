@@ -102,10 +102,10 @@ formatters.cachePath = function(hash, type) {
 };
 formatters.parseTags = function(path, srcType, hash, callback/* (names, tagMap) */) {
 	var obj = formatters.select(srcType, ["text/html", "*/*"], false);
-	if(!obj) return callback([hash], []);
+	if(!obj) return callback([hash], [[hash, hash]]);
 	var dstPath = formatters.cachePath(hash, obj.dstType);
 	obj.format(path, dstPath, function(err, tags) {
-		if(err) return callback([hash], []);
+		if(err) return callback([hash], [[hash, hash]]);
 		var names = tags.map(function(tag) {
 			return tag[1];
 		}).concat([hash]).unique();
