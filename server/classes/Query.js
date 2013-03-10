@@ -17,8 +17,8 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
 FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE. */
 var util = require("util");
-var bt = require("./utilities/bt");
-var sql = require("./utilities/sql");
+var bt = require("../utilities/bt");
+var sql = require("../utilities/sql");
 
 function Query(parent) {
 	var q = this;
@@ -34,7 +34,7 @@ function TagQuery(parent, tag) {
 util.inherits(TagQuery, Query);
 TagQuery.prototype.test = function(entry) {
 	var q = this;
-	return -1 !== entry.tags.indexOf(q.tag);
+	return -1 !== entry["tags"].indexOf(q.tag);
 };
 TagQuery.prototype.SQL = function(offset, tab) {
 	var q = this;

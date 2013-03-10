@@ -31,7 +31,8 @@ var http = require("./utilities/httpx");
 var sql = require("./utilities/sql");
 
 var formatters = require("./formatters");
-var Query = require("./Query");
+var Query = require("./classes/Query");
+var Client = require("./classes/Client");
 
 var CLIENT = __dirname+"/../build";
 var DATA = __dirname+"/../data";
@@ -74,23 +75,21 @@ function pathForEntry(hash, type) {
 	if(!bt.has(EXT, t)) throw new Error("Invalid MIME type "+type);
 	return DATA+"/"+hash.slice(0, 2)+"/"+hash+"."+EXT[t];
 }
-function tagSearch(input) {
-	var tab = "\t", obj, query, parameters;
-	if(undefined === input || "" === input) {
-		query = tab+'\t"names"';
+function tagSearch(query) {
+	var tab = "\t", obj, sql, parameters;
+	if(!query) {
+		sql = tab+'\t"names"';
 		parameters = [];
 	} else {
-		obj = Query.parse(input.split("+").map(function(tag) {
-			return decodeURIComponent(tag);
-		}).join(" ")).SQL(0, tab+"\t");
-		query = obj.query;
+		obj = query.SQL(0, tab+"\t");
+		sql = obj.query;
 		parameters = obj.parameters;
 	}
 	return db.query(
 		'SELECT * FROM (\n'+
-			tab+'SELECT e."entryID", n."name" AS "hash", e."MIMEType" AS "type", e."time"\n'+
+			tab+'SELECT e."entryID", n."nameID", n."name" AS "hash", e."MIMEType" AS "type", e."time"\n'+
 			tab+'FROM\n'+
-				query+
+				sql+
 			tab+'AS q\n'+
 			tab+'LEFT JOIN "entries" AS e ON (e."nameID" = q."nameID")\n'+
 			tab+'LEFT JOIN "names" AS n ON (n."nameID" = q."nameID")\n'+
@@ -330,15 +329,36 @@ server.listen(8001);
 
 io.sockets.on("connection", function(socket) {
 	socket.on("query", function(params) {
-		var query = tagSearch(params["q"]);
-		query.on("error", function(err) {
+		var str = params["q"].split("+").map(function(tag) {
+			return decodeURIComponent(tag);
+		}).join(" ");
+		var query = "" === str ? null : Query.parse(str);
+		// TODO: Use some sort of global query that filters hidden posts, etc.
+		// We shouldn't allow query to be null.
+		var client = new Client(socket, query);
+		var dbq = tagSearch(query);
+		dbq.on("error", function(err) {
 			console.log(err); // TODO
 		});
-		query.on("row", function(row) {
-			delete row.entryID; // We didn't want this in the first place, but Postgres made us ask for it.
-			row.url = "/entry/"+row.hash;
-			socket.emit("entry", row);
+		dbq.on("row", function(row) {
+			// We're relying on queries being implicitly ordered to produce results in the right order...
+			db.query(
+				'SELECT n."name" AS "tag" FROM "tags" AS t'+
+				' LEFT JOIN "names" AS n ON (t."impliedID" = n."nameID")'+
+				' WHERE t."nameID" = $1 AND t."indirect" > 0', [row.nameID],
+				function(err, results) {
+					if(err) throw err;
+					client.send({
+						"hash": row.hash,
+						"type": row.type,
+						"tags": results.rows.map(function(row) { return row.tag; }),
+						"url": "/entry/"+row.hash,
+					});
+				}
+			);
 		});
-		// TODO: Watch for new matching entries.
+		dbq.on("end", function() {
+			if(client.connected) Client.all.push(client); // Start watching for new entries.
+		});
 	});
 });
