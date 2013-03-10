@@ -344,7 +344,6 @@ io.sockets.on("connection", function(socket) {
 			client.send({
 				"hash": row.hash,
 				"type": row.type,
-				"url": "/entry/"+row.hash,
 			}, null);
 		});
 		dbq.on("end", function() {

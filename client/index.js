@@ -151,11 +151,10 @@ function Entry(obj) {
 	entry.element = DOM.clone("entry", this.elems);
 	entry.hash = obj["hash"];
 	entry.type = obj["type"];
-	entry.url = obj["url"];
 	DOM.fill(entry.elems.hash, "#"+entry.hash);
 	DOM.fill(entry.elems.content, "Loading…");
 	entry.elems.hash.href = Stream.location({"q": entry.hash});
-	entry.elems.raw.href = entry.url;
+	entry.elems.raw.href = "/entry/"+entry.hash;
 }
 Entry.prototype.load = function() {
 	var entry = this;
