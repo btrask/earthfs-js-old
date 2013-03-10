@@ -31,6 +31,7 @@ var http = require("./utilities/httpx");
 var sql = require("./utilities/sql");
 
 var formatters = require("./formatters");
+var Query = require("./Query");
 
 var CLIENT = __dirname+"/../build";
 var DATA = __dirname+"/../data";
@@ -164,6 +165,25 @@ serve.root.json = function(req, res, root, json) {
 	query.on("end", function() {
 		res.end("]", "utf8");
 	});
+};
+serve.root.test = function(req, res, root, test) {
+	var tab = "\t";
+	var obj = Query.parse("").SQL(0, tab+"\t");
+	sql.debug(db,
+		'SELECT * FROM (\n'+
+			tab+'SELECT e."entryID", n."name" AS "hash", e."MIMEType" AS "type", e."time"\n'+
+			tab+'FROM (\n'+
+				obj.query+
+			tab+') AS q\n'+
+			tab+'LEFT JOIN "entries" AS e ON (e."nameID" = q."nameID")\n'+
+			tab+'LEFT JOIN "names" AS n ON (n."nameID" = q."nameID")\n'+
+			tab+'ORDER BY e."entryID" DESC LIMIT 50\n'+
+		') x ORDER BY "entryID" ASC',
+		obj.parameters,
+		function(err, results) {
+			console.log(err, results);
+		}
+	);
 };
 serve.root.entry = function(req, res, root, entry) {
 	var hash = first(entry.components);
