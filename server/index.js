@@ -91,7 +91,7 @@ function tagSearch(query) {
 			tab+'FROM\n'+
 				sql+
 			tab+'AS q\n'+
-			tab+'LEFT JOIN "entries" AS e ON (e."nameID" = q."nameID")\n'+
+			tab+'INNER JOIN "entries" AS e ON (e."nameID" = q."nameID")\n'+
 			tab+'LEFT JOIN "names" AS n ON (n."nameID" = q."nameID")\n'+
 			tab+'ORDER BY e."entryID" DESC LIMIT 50\n'+
 		') x ORDER BY "entryID" ASC',
