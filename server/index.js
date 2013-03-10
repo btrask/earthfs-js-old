@@ -172,9 +172,9 @@ serve.root.test = function(req, res, root, test) {
 	sql.debug(db,
 		'SELECT * FROM (\n'+
 			tab+'SELECT e."entryID", n."name" AS "hash", e."MIMEType" AS "type", e."time"\n'+
-			tab+'FROM (\n'+
+			tab+'FROM\n'+
 				obj.query+
-			tab+') AS q\n'+
+			tab+'AS q\n'+
 			tab+'LEFT JOIN "entries" AS e ON (e."nameID" = q."nameID")\n'+
 			tab+'LEFT JOIN "names" AS n ON (n."nameID" = q."nameID")\n'+
 			tab+'ORDER BY e."entryID" DESC LIMIT 50\n'+
