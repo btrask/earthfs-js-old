@@ -46,9 +46,8 @@ console.log("Formatters: "+files.join(", "));
 var waiting = [];
 var queue = [];
 function start(count) {
-	var worker;
-	for(var i = 0; i < count; ++i) {
-		worker = cluster.fork();
+	for(var i = 0; i < count; ++i) (function() {
+		var worker = cluster.fork();
 		worker.callback = null;
 		worker.on("message", function(msg) {
 			if(worker.callback) worker.callback.apply(this, msg);
@@ -61,7 +60,7 @@ function start(count) {
 			start(1);
 		});
 		waiting.push(worker);
-	}
+	})();
 }
 function enqueue(msg, callback) {
 	queue.push([msg, callback]);
