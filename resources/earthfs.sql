@@ -24,6 +24,21 @@ COMMENT ON EXTENSION plpgsql IS 'PL/pgSQL procedural language';
 
 SET search_path = public, pg_catalog;
 
+--
+-- Name: queryTag(text); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION "queryTag"(tag text) RETURNS TABLE("nameID" bigint)
+    LANGUAGE sql STABLE STRICT
+    AS $_$
+SELECT t."nameID" FROM "tags" t
+LEFT JOIN "names" AS n ON (t."impliedID" = n."nameID")
+WHERE n."name" = $1 AND t."indirect" > 0
+$_$;
+
+
+ALTER FUNCTION public."queryTag"(tag text) OWNER TO postgres;
+
 SET default_tablespace = '';
 
 SET default_with_oids = false;
