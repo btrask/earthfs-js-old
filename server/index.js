@@ -336,7 +336,7 @@ var io = require("socket.io").listen(server, {log: false});
 server.listen(8001);
 
 io.sockets.on("connection", function(socket) {
-	socket.on("query", function(params) {
+	socket.emit("connected", function(params) {
 		var str = params["q"].split("+").map(function(tag) {
 			return decodeURIComponent(tag);
 		}).join(" ");

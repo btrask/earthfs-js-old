@@ -35,7 +35,10 @@ function Stream(query) {
 	stream.query = query;
 	stream.editor = null;
 	stream.socket = io.connect("/");
-	stream.socket.emit("query", {"q": query});
+	stream.socket.on("connected", function(callback) {
+		DOM.fill(stream.entries);
+		callback({"q": query});
+	});
 
 	var editors = [TextEditor, FileEditor].map(function(Editor) {
 		var editor = new Editor(stream);
