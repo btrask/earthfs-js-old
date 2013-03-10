@@ -20,18 +20,13 @@ var util = require("util");
 var bt = require("../utilities/bt");
 var sql = require("../utilities/sql");
 
-function Query(parent) {
-	var q = this;
-	q.parent = parent;
-}
+var Query = exports;
 
-function TagQuery(parent, tag) {
+function TagQuery(tag) {
 	var q = this;
-	Query.call(q, parent);
 	q.tag = tag;
 	q.name = "tag-"+q.tag;
 }
-util.inherits(TagQuery, Query);
 TagQuery.prototype.test = function(tags) {
 	var q = this;
 	return -1 !== tags.indexOf(q.tag);
@@ -49,15 +44,13 @@ TagQuery.prototype.SQL = function(offset, tab) {
 	};
 };
 
-function IntersectionQuery(parent, items) {
+function IntersectionQuery(items) {
 	var q = this;
-	Query.call(q, parent);
 	q.items = items;
 	if(q.items.length < 2) throw new Error("Intersection requires at least two items");
 	q.itemNames = q.items.map(function(query) { return query.name; });
 	q.name = "intersection("+q.itemNames.join(",")+")";
 }
-util.inherits(IntersectionQuery, Query);
 IntersectionQuery.prototype.test = function(tags) {
 	var q = this;
 	for(var i = 0; i < q.items.length; ++i) {
@@ -85,12 +78,10 @@ IntersectionQuery.prototype.SQL = function(offset, tab) {
 	};
 };
 
-
 Query.parse = function(str) {
 	var tags = str.split(/\s+/).map(function(tag) { // TODO: Real parsing.
-		return new TagQuery(null, tag);
+		return new TagQuery(tag);
 	});
 	if(1 === tags.length) return tags[0];
-	return new IntersectionQuery(null, tags);
+	return new IntersectionQuery(tags);
 };
-module.exports = Query;
