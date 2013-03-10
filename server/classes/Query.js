@@ -32,9 +32,9 @@ function TagQuery(parent, tag) {
 	q.name = "tag-"+q.tag;
 }
 util.inherits(TagQuery, Query);
-TagQuery.prototype.test = function(entry) {
+TagQuery.prototype.test = function(tags) {
 	var q = this;
-	return -1 !== entry["tags"].indexOf(q.tag);
+	return -1 !== tags.indexOf(q.tag);
 };
 TagQuery.prototype.SQL = function(offset, tab) {
 	var q = this;
@@ -58,10 +58,10 @@ function IntersectionQuery(parent, items) {
 	q.name = "intersection("+q.itemNames.join(",")+")";
 }
 util.inherits(IntersectionQuery, Query);
-IntersectionQuery.prototype.test = function(entry) {
+IntersectionQuery.prototype.test = function(tags) {
 	var q = this;
 	for(var i = 0; i < q.items.length; ++i) {
-		if(!q.items[i].test(entry)) return false;
+		if(!q.items[i].test(tags)) return false;
 	}
 	return true;
 };

@@ -19,7 +19,7 @@ IN THE SOFTWARE. */
 function Client(socket, query) {
 	var client = this;
 	client.socket = socket;
-	client.query = query; // For now, query can be null. Hopefully that will change.
+	client.query = query; // TODO: Don't use null as a valid query.
 	client.connected = true;
 
 	client.socket.on("disconnect", function() {
@@ -27,16 +27,17 @@ function Client(socket, query) {
 		Client.all.splice(Client.all.indexOf(client), 1);
 	});
 }
-Client.prototype.send = function(entry) {
+Client.prototype.send = function(entry, tags) {
 	var client = this;
-	if(client.query && !client.query.test(entry)) return;
+	if(tags && client.query && !client.query.test(tags)) return;
+	// TODO: We shouldn't have to check if client.query is null.
 	client.socket.emit("entry", entry);
 };
 
 Client.all = [];
-Client.send = function(entry) {
+Client.send = function(entry, tags) {
 	Client.all.forEach(function(client) {
-		client.send(entry);
+		client.send(entry, tags);
 	});
 };
 

@@ -341,21 +341,11 @@ io.sockets.on("connection", function(socket) {
 			console.log(err); // TODO
 		});
 		dbq.on("row", function(row) {
-			// We're relying on queries being implicitly ordered to produce results in the right order...
-			db.query(
-				'SELECT n."name" AS "tag" FROM "tags" AS t'+
-				' LEFT JOIN "names" AS n ON (t."impliedID" = n."nameID")'+
-				' WHERE t."nameID" = $1 AND t."indirect" > 0', [row.nameID],
-				function(err, results) {
-					if(err) throw err;
-					client.send({
-						"hash": row.hash,
-						"type": row.type,
-						"tags": results.rows.map(function(row) { return row.tag; }),
-						"url": "/entry/"+row.hash,
-					});
-				}
-			);
+			client.send({
+				"hash": row.hash,
+				"type": row.type,
+				"url": "/entry/"+row.hash,
+			}, null);
 		});
 		dbq.on("end", function() {
 			if(client.connected) Client.all.push(client); // Start watching for new entries.
