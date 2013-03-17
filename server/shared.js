@@ -39,16 +39,17 @@ shared.pathForEntry = function(dir, hash, type) {
 	return dir+"/"+hash.slice(0, 2)+"/"+hash+"."+EXT[t];
 };
 
-shared.moveEntryFile = function(path, hash, type, callback/* (err, path) */) {
-	fs.chmod(path, 292 /*=0444*/, function(err) {
+shared.moveEntryFile = function(srcPath, hash, type, callback/* (err, path) */) {
+	fs.chmod(srcPath, 292 /*=0444*/, function(err) {
 		if(err) return callback(err, null);
-		var dst = shared.pathForEntry(shared.DATA, hash, type);
-		fs.mkdirRecursive(pathModule.dirname(dst), function(err) {
+		var dstPath = shared.pathForEntry(shared.DATA, hash, type);
+		fs.mkdirRecursive(pathModule.dirname(dstPath), function(err) {
 			if(err) return callback(err, null);
-			fs.link(path, dst, function(err) { // TODO: Test this carefully to make sure we don't overwrite.
+			fs.link(srcPath, dstPath, function(err) { // TODO: Test this carefully to make sure we don't overwrite.
+				if(err) console.log(srcPath, dstPath);
 				if(err) return callback(err, null); // TODO: Clients should remove the file if there was an error.
-				fs.unlink(path);
-				callback(null, dst);
+				fs.unlink(srcPath);
+				callback(null, dstPath);
 			});
 		});
 	});
