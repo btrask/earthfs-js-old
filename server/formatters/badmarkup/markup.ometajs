@@ -29,7 +29,7 @@ ometa markup {
 	main = [hash:hash] [content:body end] -> hash+body,
 	hash = htmlEnc*:x end -> "<a href=\"/id/"+x.join("")+"\">#"+x.join("")+"</a>\n\n",
 	content = markup*:x -> "<div style=\"white-space: pre-wrap;\">"+x.join("")+"</div>",
-	markup = blockquote | inlinequote | linequote | tag | anchor | htmlEnc,
+	markup = blockquote | inlinequote | linequote | anchor | htmlEnc,
 
 	blockquote = br (seq('Quote:') | seq("Reply:")) br br bqcontent:content (bqendquote | bqcite):cite br -> "\n<blockquote>"+content+cite+"</blockquote>",
 	bqcontent = beginninglinequote?:blq (~bqendquote ~bqcite markup)*:x -> (blq || "")+x.join(""),
@@ -49,12 +49,12 @@ ometa markup {
 	namedAnchor = (~seq(" <") ~br ~url htmlEnc)+:name seq(" <") anchor:anchor '>' -> name.join("")+" &lt;"+anchor+"&gt;",
 	url = fullURL,// | bareDomain,
 //	bareDomain = (letter | digit | '-')+ '.' seq('com' 'net' 'org' 'edu')
-	fullURL = (scheme seq('://') urlChars), // FIXME: http://www.example.com/. includes the trailing period (and comma) in the link.
+	fullURL = (scheme ':' urlChars), // FIXME: http://www.example.com/. includes the trailing period (and comma) in the link.
 	scheme = (letter | digit | '-')+,
 	urlChars = (letter | digit | '.' | ',' | '/' | '-' | '#' | '_' | '(' | ')' | '?' | '=' | htmlEncAmp | ':' | '~' | '%' | '{' | '}' | '+')+,
 	// file:///Users/ben/Desktop/site/dst/sequence-breaking.html
 
-	tag = '#' (letter | digit | '-' | '_')+:x -> "<a href=\"/?q="+x.join("")+"\">#"+x.join("")+"</a>",
+//	tag = '#' (letter | digit | '-' | '_')+:x -> "<a href=\"/?q="+x.join("")+"\">#"+x.join("")+"</a>",
 
 	htmlEnc = htmlEncAmp | htmlEncQuot | htmlEncApos | htmlEncLt | htmlEncGt | anything,
 	htmlEncAmp = '&' -> "&amp;",
