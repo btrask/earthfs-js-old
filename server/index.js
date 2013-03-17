@@ -227,12 +227,13 @@ serve.root.submit = function(req, res, root, submit) {
 			return;
 		}
 		var file = fileByField.entry;
-		var URN = "urn:sha1:"+file.hash;
+		var hash = file.hash;
+		var URN = "urn:sha1:"+hash;
 		var type = file.type;
 		console.log("Adding entry "+URN);
-		shared.moveEntryFile(file.path, file.hash, type, function(err, path) {
+		shared.moveEntryFile(file.path, hash, type, function(err, path) {
 			if(err) throw err;
-			shared.createEntry(path, type, file.hash, URN, function(err, entryID) {
+			shared.createEntry(path, type, hash, URN, function(err, entryID) {
 				if(err) throw err;
 				shared.addEntryLinks(path, type, entryID, function(err) {
 					console.log(err);
