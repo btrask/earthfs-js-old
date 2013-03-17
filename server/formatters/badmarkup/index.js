@@ -27,12 +27,11 @@ exports.negotiateTypes = function(srcType, dstTypes) {
 	if(!bt.negotiateTypes([srcType], ["text/x-bad-markup"])) return null;
 	return bt.negotiateTypes(dstTypes, ["text/html"]);
 };
-exports.format = function(srcPath, srcType, dstPath, dstType, callback/* (err, tags) */) {
+exports.format = function(srcPath, srcType, dstPath, dstType, callback/* (err) */) {
 	fs.readFile(srcPath, "utf8", function(err, str) {
-		if(err) return callback(err, null);
+		if(err) return callback(err);
 		fs.writeFile(dstPath, markup.matchAll(str, "content"), "utf8", function(err) {
-			if(err) return callback(err, null);
-			callback(err, []); // TODO: Determine tags.
+			callback(err);
 		});
 	});
 };

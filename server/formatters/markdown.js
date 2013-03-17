@@ -20,23 +20,6 @@ var fs = require("fs");
 var markdown = require("markdown").markdown;
 var bt = require("../utilities/bt");
 
-function fixTags(ast, tags) {
-	var str, rx, x;
-	for(var i = 1; i < ast.length; ++i) {
-		str = ast[i];
-		if(Array.isArray(str)) { fixTags(str, tags); continue; }
-		if("string" !== typeof str) continue;
-		while((x = /(^|[\s\(\)\[\]])#(([\w\d\-_]+:)?([\w\d\-_]{3,40}))\b/.exec(str))) {
-			ast.splice(i++, 0, str.slice(0, x.index)+x[1]);
-			ast.splice(i++, 0, ["a", {href: "?q="+x[4]}, "#"+x[2]]);
-			str = str.slice(x.index+x[0].length);
-			tags.push([(x[3]||":").slice(0, -1), x[4]]);
-		}
-		if(str.length) ast[i] = str;
-		else ast.splice(i--, 1);
-	}
-}
-
 exports.negotiateTypes = function(srcType, dstTypes) {
 	return null; // Temporarily disabled so we can test robotskirt instead.
 //	if(!bt.negotiateTypes(["text/markdown"], [srcType])) return null;
@@ -44,12 +27,10 @@ exports.negotiateTypes = function(srcType, dstTypes) {
 };
 exports.format = function(srcPath, srcType, dstPath, dstType, callback) {
 	fs.readFile(srcPath, "utf8", function(err, str) {
-		if(err) return callback(err, null);
-		var ast = markdown.toHTMLTree(str), tags = [];
-		fixTags(ast, tags);
+		if(err) return callback(err);
+		var ast = markdown.toHTMLTree(str);
 		fs.writeFile(dstPath, markdown.renderJsonML(ast), "utf8", function(err) {
-			if(err) return callback(err, null);
-			callback(null, tags);
+			callback(err);
 		});
 	});
 };

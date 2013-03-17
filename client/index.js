@@ -152,16 +152,16 @@ function Entry(obj) {
 	var entry = this;
 	entry.elems = {};
 	entry.element = DOM.clone("entry", this.elems);
-	entry.hash = obj["hash"];
+	entry.URN = obj["URN"];
 	entry.type = obj["type"];
-	DOM.fill(entry.elems.hash, "#"+entry.hash);
+	DOM.fill(entry.elems.URN, entry.URN);
 	DOM.fill(entry.elems.content, "Loading…");
-	entry.elems.hash.href = Stream.location({"q": entry.hash});
-	entry.elems.raw.href = "/entry/"+entry.hash;
+	entry.elems.URN.href = Stream.location({"q": entry.URN});
+	entry.elems.raw.href = "/entry/"+entry.URN;
 }
 Entry.prototype.load = function() {
 	var entry = this;
-	var url = "/entry/"+encodeURIComponent(entry.hash);
+	var url = "/entry/"+encodeURIComponent(entry.URN);
 	if(bt.has(IMAGE_TYPES, entry.type)) {
 		var image = new Image();
 		image.src = url;

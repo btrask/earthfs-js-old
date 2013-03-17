@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 /* Copyright Ben Trask and other contributors. All rights reserved.
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to
@@ -17,37 +16,30 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
 FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE. */
-var pg = require("pg");
-var fs = require("../server/utilities/fsx");
+var fs = require("fs");
 
-var DATA = __dirname+"/../data";
-var CACHE = __dirname+"/../cache";
-
-var db = new pg.Client(require("../secret.json").db);
-
-var remaining = 0;
-function dbErr() {
-	++remaining;
-	return function(err) {
-		if(err) console.log(err);
-		if(--remaining) db.end();
-	};
+function fallback(path, type, callback/* (err, links) */) {
+	var stream = fs.createReadStream(path);
+	var last = "";
+	var links = [];
+	stream.setEncoding("utf8");
+	stream.on("data", function(chunk) {
+			// <http://daringfireball.net/2010/07/improved_regex_for_matching_urls>
+			var exp = /\b((?:[a-z][\w\-]+:(?:\/{1,3}|[a-z0-9%])|www\d{0,3}[.]|[a-z0-9.\-]+[.][a-z]{2,4}\/)(?:[^\s()<>]+|\(([^\s()<>]+|(\([^\s()<>]+\)))*\))+(?:\(([^\s()<>]+|(\([^\s()<>]+\)))*\)|[^\s`!()\[\]{};:'".,<>?«»“”‘’]))/ig;
+			var x;
+			chunk = last + chunk;
+			while((x = exp.exec(chunk))) links.push(x[0]);
+			last = chunk.slice(exp.lastIndex);
+	});
+	stream.on("end", function() {
+		callback(null, links);
+	});
+	stream.on("error", function(err) {
+		callback(err, null);
+	});
 }
-function fsErr(err) {
-	if(err && "ENOENT" !== err.code) console.log(err);
-}
 
-if("--seriously" !== process.argv[2]) {
-	console.log("Usage: reset-all.js --seriously");
-	console.log("\tAre you sure?");
-} else {
-	db.connect();
-	db.query('TRUNCATE TABLE "entries" CASCADE', dbErr());
-	db.query('TRUNCATE TABLE "URIs" CASCADE', dbErr());
-	db.query('TRUNCATE TABLE "links" CASCADE', dbErr());
-	db.query('SELECT setval(\'public."entries_entryID_seq"\', 1, true)', dbErr());
-	db.query('SELECT setval(\'public."URIs_uriID_seq"\', 1, true)', dbErr());
-	db.query('SELECT setval(\'public."links_linkID_seq"\', 1, true)', dbErr());
-	fs.rmRecursive(DATA, fsErr);
-	fs.rmRecursive(CACHE, fsErr);
-}
+exports.parse = function(path, type, callback/* (err, links) */) {
+	if("text/" !== type.slice(0, 5)) return callback(null, []); // TODO: Handle parsers for specific MIME types.
+	fallback(path, type, callback);
+};

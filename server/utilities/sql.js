@@ -27,16 +27,11 @@ sql.debug = function query(db, str, args, cb) {
 		cb(err, result);
 	});
 };
-sql.list1D = function(a, offset) {
+sql.list1D = function(a, offset, asRows) {
 	var r = [];
-	for(var i = offset; i < offset+a.length; ++i) r.push("$"+i);
-	return r.join(","); // TODO: Use a.map()?
-};
-/*sql.list2 = function(start, count) {
-	var r = [];
-	for(var i = start; i < start+count; ++i) r.push("($"+i+")");
+	for(var i = offset; i < offset+a.length; ++i) r.push(asRows ? "($"+i+")" :"$"+i);
 	return r.join(",");
-};*/
+};
 sql.list2D = function(a, offset) {
 	var r1 = [], r2, x = offset;
 	for(var i = 0; i < a.length; ++i) {

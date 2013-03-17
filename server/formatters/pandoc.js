@@ -24,20 +24,21 @@ var TYPE_NAMES = {
 	"text/html": "html",
 };
 var SRC_TYPES = [
+	"text/markdown",
 ];
 var DST_TYPES = [
-	"text/html"
+	"text/html",
 ];
 
 exports.negotiateTypes = function(srcType, dstTypes) {
 	if(!bt.negotiateTypes(SRC_TYPES, [srcType])) return null;
 	return bt.negotiateTypes(dstTypes, DST_TYPES);
 };
-exports.format = function(srcPath, srcType, dstPath, dstType, callback/* (err, tags) */) {
+exports.format = function(srcPath, srcType, dstPath, dstType, callback/* (err) */) {
 	srcType = srcType.split(";")[0];
 	dstType = dstType.split(";")[0]; // TODO: Handle charsets?
 	var task = cp.spawn("pandoc", ["-f", TYPE_NAMES[srcType], "-t", TYPE_NAMES[dstType], "-o", dstPath, srcPath]);
 	task.on("exit", function(status) {
-		callback(status ? new Error(status) : null, []); // TODO: Is there any reasonable way to determine tags?
+		callback(status ? new Error(status) : null);
 	});
 };

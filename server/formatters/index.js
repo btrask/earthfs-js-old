@@ -30,7 +30,6 @@ var bt = require("../utilities/bt");
 var formatters = exports;
 
 var EXT = require("../utilities/ext.json");
-var CACHE = __dirname+"/../../cache";
 
 var files = fs.readdirSync(__dirname).filter(function(name) {
 	return !name.match(/^index\.js$|^\./);
@@ -77,8 +76,8 @@ function dequeue() {
 
 start(2); // TODO: Detect number of CPUs.
 
-formatters.select = function(srcType, dstTypes, allowNative) { // TODO: `allowNative` versus tagging, better distinction?
-	if(allowNative && bt.negotiateTypes(dstTypes, [srcType])) return {
+formatters.select = function(srcType, dstTypes) {
+	if(bt.negotiateTypes(dstTypes, [srcType])) return {
 		dstType: srcType,
 		format: null,
 	};
@@ -90,7 +89,7 @@ formatters.select = function(srcType, dstTypes, allowNative) { // TODO: `allowNa
 		if(!bt.has(EXT, dstType)) continue;
 		return {
 			dstType: dstType,
-			format: function(srcPath, dstPath, callback/* (err, tags) */) {
+			format: function(srcPath, dstPath, callback/* (err) */) {
 				enqueue([formatter.path, srcPath, srcType, dstPath, dstType], callback);
 			},
 		};
@@ -99,39 +98,6 @@ formatters.select = function(srcType, dstTypes, allowNative) { // TODO: `allowNa
 };
 formatters.cachePath = function(hash, type) {
 	return CACHE+"/"+EXT[type]+"/"+hash+"."+EXT[type];
-};
-formatters.parseTags = function(path, srcType, hash, callback/* (names, tagMap) */) {
-	var obj = formatters.select(srcType, ["text/html", "*/*"], false);
-	if(!obj) return callback([hash], [[hash, hash]]);
-	var dstPath = formatters.cachePath(hash, obj.dstType);
-	obj.format(path, dstPath, function(err, tags) {
-		if(err) return callback([hash], [[hash, hash]]);
-		var names = tags.map(function(tag) {
-			return tag[1];
-		}).concat([hash]).unique();
-		var tagsByNamespace = {};
-		tags.forEach(function(tag) {
-			if(!bt.has(tagsByNamespace, tag[0])) tagsByNamespace[tag[0]] = [];
-			tagsByNamespace[tag[0]].push(tag[1]);
-		});
-		var generalTags;
-		if(bt.has(tagsByNamespace, "")) generalTags = tagsByNamespace[""].unique();
-		else generalTags = [];
-		var tagMap = [[hash, hash]];
-		if(bt.has(tagsByNamespace, "meta")) {
-			tagsByNamespace["meta"].unique().forEach(function(meta) {
-				if(hash !== meta) tagMap.push([hash, meta]);
-				generalTags.forEach(function(tag) {
-					if(meta !== tag) tagMap.push([meta, tag]);
-				});
-			});
-		} else {
-			generalTags.forEach(function(tag) {
-				if(hash !== tag) tagMap.push([hash, tag]);
-			});
-		}
-		callback(names, tagMap);
-	});
 };
 
 

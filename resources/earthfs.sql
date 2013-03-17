@@ -24,24 +24,43 @@ COMMENT ON EXTENSION plpgsql IS 'PL/pgSQL procedural language';
 
 SET search_path = public, pg_catalog;
 
---
--- Name: queryTag(text); Type: FUNCTION; Schema: public; Owner: postgres
---
-
-CREATE FUNCTION "queryTag"(tag text) RETURNS TABLE("nameID" bigint)
-    LANGUAGE sql STABLE STRICT
-    AS $_$
-SELECT t."nameID" FROM "tags" t
-LEFT JOIN "names" AS n ON (t."impliedID" = n."nameID")
-WHERE n."name" = $1 AND t."indirect" > 0
-$_$;
-
-
-ALTER FUNCTION public."queryTag"(tag text) OWNER TO postgres;
-
 SET default_tablespace = '';
 
 SET default_with_oids = false;
+
+--
+-- Name: URIs; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
+--
+
+CREATE TABLE "URIs" (
+    "uriID" bigint NOT NULL,
+    "URI" text NOT NULL,
+    "entryID" bigint
+);
+
+
+ALTER TABLE public."URIs" OWNER TO postgres;
+
+--
+-- Name: URIs_uriID_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE "URIs_uriID_seq"
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public."URIs_uriID_seq" OWNER TO postgres;
+
+--
+-- Name: URIs_uriID_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
+
+ALTER SEQUENCE "URIs_uriID_seq" OWNED BY "URIs"."uriID";
+
 
 --
 -- Name: entries; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
@@ -49,9 +68,9 @@ SET default_with_oids = false;
 
 CREATE TABLE entries (
     "entryID" bigint NOT NULL,
-    "nameID" bigint NOT NULL,
-    "MIMEType" text NOT NULL,
-    "time" timestamp with time zone DEFAULT now() NOT NULL
+    hash text NOT NULL,
+    type text NOT NULL,
+    fulltext tsvector
 );
 
 
@@ -79,58 +98,25 @@ ALTER SEQUENCE "entries_entryID_seq" OWNED BY entries."entryID";
 
 
 --
--- Name: names; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
+-- Name: links; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
 --
 
-CREATE TABLE names (
-    "nameID" bigint NOT NULL,
-    name text NOT NULL
-);
-
-
-ALTER TABLE public.names OWNER TO postgres;
-
---
--- Name: names_nameID_seq; Type: SEQUENCE; Schema: public; Owner: postgres
---
-
-CREATE SEQUENCE "names_nameID_seq"
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
-ALTER TABLE public."names_nameID_seq" OWNER TO postgres;
-
---
--- Name: names_nameID_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
---
-
-ALTER SEQUENCE "names_nameID_seq" OWNED BY names."nameID";
-
-
---
--- Name: tags; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
---
-
-CREATE TABLE tags (
-    "tagID" bigint NOT NULL,
-    "nameID" bigint NOT NULL,
-    "impliedID" bigint NOT NULL,
+CREATE TABLE links (
+    "linkID" bigint NOT NULL,
+    "fromEntryID" bigint NOT NULL,
+    "toUriID" bigint NOT NULL,
     direct boolean NOT NULL,
     indirect bigint NOT NULL
 );
 
 
-ALTER TABLE public.tags OWNER TO postgres;
+ALTER TABLE public.links OWNER TO postgres;
 
 --
--- Name: tags_tagID_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+-- Name: links_linkID_seq; Type: SEQUENCE; Schema: public; Owner: postgres
 --
 
-CREATE SEQUENCE "tags_tagID_seq"
+CREATE SEQUENCE "links_linkID_seq"
     START WITH 1
     INCREMENT BY 1
     NO MINVALUE
@@ -138,13 +124,20 @@ CREATE SEQUENCE "tags_tagID_seq"
     CACHE 1;
 
 
-ALTER TABLE public."tags_tagID_seq" OWNER TO postgres;
+ALTER TABLE public."links_linkID_seq" OWNER TO postgres;
 
 --
--- Name: tags_tagID_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+-- Name: links_linkID_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
 --
 
-ALTER SEQUENCE "tags_tagID_seq" OWNED BY tags."tagID";
+ALTER SEQUENCE "links_linkID_seq" OWNED BY links."linkID";
+
+
+--
+-- Name: uriID; Type: DEFAULT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY "URIs" ALTER COLUMN "uriID" SET DEFAULT nextval('"URIs_uriID_seq"'::regclass);
 
 
 --
@@ -155,108 +148,70 @@ ALTER TABLE ONLY entries ALTER COLUMN "entryID" SET DEFAULT nextval('"entries_en
 
 
 --
--- Name: nameID; Type: DEFAULT; Schema: public; Owner: postgres
+-- Name: linkID; Type: DEFAULT; Schema: public; Owner: postgres
 --
 
-ALTER TABLE ONLY names ALTER COLUMN "nameID" SET DEFAULT nextval('"names_nameID_seq"'::regclass);
-
-
---
--- Name: tagID; Type: DEFAULT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY tags ALTER COLUMN "tagID" SET DEFAULT nextval('"tags_tagID_seq"'::regclass);
+ALTER TABLE ONLY links ALTER COLUMN "linkID" SET DEFAULT nextval('"links_linkID_seq"'::regclass);
 
 
 --
--- Name: entriesPrimaryKey; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
+-- Name: entryPrimaryKey; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
 --
 
 ALTER TABLE ONLY entries
-    ADD CONSTRAINT "entriesPrimaryKey" PRIMARY KEY ("entryID");
+    ADD CONSTRAINT "entryPrimaryKey" PRIMARY KEY ("entryID");
 
 
 --
--- Name: entriesUniqueName; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
+-- Name: linkPrimaryKey; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
 --
 
-ALTER TABLE ONLY entries
-    ADD CONSTRAINT "entriesUniqueName" UNIQUE ("nameID");
-
-
---
--- Name: namesPrimaryKey; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
---
-
-ALTER TABLE ONLY names
-    ADD CONSTRAINT "namesPrimaryKey" PRIMARY KEY ("nameID");
+ALTER TABLE ONLY links
+    ADD CONSTRAINT "linkPrimaryKey" PRIMARY KEY ("linkID");
 
 
 --
--- Name: namesUniqueName; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
+-- Name: uniqueURI; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
 --
 
-ALTER TABLE ONLY names
-    ADD CONSTRAINT "namesUniqueName" UNIQUE (name);
-
-
---
--- Name: tagsPrimaryKey; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
---
-
-ALTER TABLE ONLY tags
-    ADD CONSTRAINT "tagsPrimaryKey" PRIMARY KEY ("tagID");
+ALTER TABLE ONLY "URIs"
+    ADD CONSTRAINT "uniqueURI" UNIQUE ("URI");
 
 
 --
--- Name: fki_entriesForeignKeyNameID; Type: INDEX; Schema: public; Owner: postgres; Tablespace: 
+-- Name: uriPrimaryKey; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
 --
 
-CREATE INDEX "fki_entriesForeignKeyNameID" ON entries USING btree ("nameID");
-
-
---
--- Name: namesNameIndex; Type: INDEX; Schema: public; Owner: postgres; Tablespace: 
---
-
-CREATE UNIQUE INDEX "namesNameIndex" ON names USING btree (name);
+ALTER TABLE ONLY "URIs"
+    ADD CONSTRAINT "uriPrimaryKey" PRIMARY KEY ("uriID");
 
 
 --
--- Name: tagsNameImplicationIndex; Type: INDEX; Schema: public; Owner: postgres; Tablespace: 
+-- Name: fulltextIndex; Type: INDEX; Schema: public; Owner: postgres; Tablespace: 
 --
 
-CREATE UNIQUE INDEX "tagsNameImplicationIndex" ON tags USING btree ("nameID", "impliedID");
-
-
---
--- Name: namesIgnoreDuplicates; Type: RULE; Schema: public; Owner: postgres
---
-
-CREATE RULE "namesIgnoreDuplicates" AS ON INSERT TO names WHERE (EXISTS (SELECT 1 FROM names WHERE (names.name = new.name))) DO INSTEAD NOTHING;
+CREATE INDEX "fulltextIndex" ON entries USING gin (fulltext);
 
 
 --
--- Name: tagsUpdateOrInsert; Type: RULE; Schema: public; Owner: postgres
+-- Name: linkEntryUriIndex; Type: INDEX; Schema: public; Owner: postgres; Tablespace: 
 --
 
-CREATE RULE "tagsUpdateOrInsert" AS ON INSERT TO tags WHERE (EXISTS (SELECT 1 FROM tags WHERE ((tags."nameID" = new."nameID") AND (tags."impliedID" = new."impliedID")))) DO INSTEAD UPDATE tags SET indirect = new.indirect WHERE ((tags."nameID" = new."nameID") AND (tags."impliedID" = new."impliedID"));
-
-
---
--- Name: entriesForeignKeyNameID; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY entries
-    ADD CONSTRAINT "entriesForeignKeyNameID" FOREIGN KEY ("nameID") REFERENCES names("nameID") ON DELETE RESTRICT;
+CREATE UNIQUE INDEX "linkEntryUriIndex" ON links USING btree ("fromEntryID", "toUriID");
 
 
 --
--- Name: tagsForeignKeyNameID; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: uriEntryIDIndex; Type: INDEX; Schema: public; Owner: postgres; Tablespace: 
 --
 
-ALTER TABLE ONLY tags
-    ADD CONSTRAINT "tagsForeignKeyNameID" FOREIGN KEY ("nameID") REFERENCES names("nameID") ON DELETE RESTRICT;
+CREATE UNIQUE INDEX "uriEntryIDIndex" ON "URIs" USING btree ("uriID", "entryID");
+
+
+--
+-- Name: uriOnDuplicateDoNothing; Type: RULE; Schema: public; Owner: postgres
+--
+
+CREATE RULE "uriOnDuplicateDoNothing" AS ON INSERT TO "URIs" WHERE (EXISTS (SELECT 1 FROM "URIs" old WHERE (old."URI" = new."URI"))) DO INSTEAD NOTHING;
 
 
 --

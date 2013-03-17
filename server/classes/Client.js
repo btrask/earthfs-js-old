@@ -27,17 +27,18 @@ function Client(socket, query) {
 		Client.all.splice(Client.all.indexOf(client), 1);
 	});
 }
-Client.prototype.send = function(entry, tags) {
+Client.prototype.send = function(entry, entryID) {
 	var client = this;
-	if(tags && client.query && !client.query.test(tags)) return;
+//	if(tags && client.query && !client.query.test(tags)) return;
 	// TODO: We shouldn't have to check if client.query is null.
+	// TODO: We have to hit the DB in order to perform full-text queries.
 	client.socket.emit("entry", entry);
 };
 
 Client.all = [];
-Client.send = function(entry, tags) {
+Client.send = function(entry, entryID) {
 	Client.all.forEach(function(client) {
-		client.send(entry, tags);
+		client.send(entry, entryID);
 	});
 };
 

@@ -31,11 +31,13 @@ var http = require("./utilities/httpx");
 var sql = require("./utilities/sql");
 
 var formatters = require("./formatters");
+var parsers = require("./parsers");
 var Query = require("./classes/Query");
 var Client = require("./classes/Client");
 
 var CLIENT = __dirname+"/../build";
 var DATA = __dirname+"/../data";
+var CACHE = __dirname+"/../../cache";
 
 var EXT = require("./utilities/ext.json");
 var QUERY_TYPES = ["text/html", "text/json"];
@@ -70,12 +72,19 @@ function rest(array) {
 	return array.slice(1);
 }
 
-function pathForEntry(hash, type) {
+function pathForEntry(dir, hash, type) {
 	var t = type.split(";")[0];
 	if(!bt.has(EXT, t)) throw new Error("Invalid MIME type "+type);
-	return DATA+"/"+hash.slice(0, 2)+"/"+hash+"."+EXT[t];
+	return dir+"/"+hash.slice(0, 2)+"/"+hash+"."+EXT[t];
 }
 function tagSearch(query) {
+	return db.query(
+		'SELECT * FROM ('+
+			' SELECT e."entryID", \'urn:sha1:\' || e."hash" AS "URN", e."type"'+
+			' FROM "entries" AS e ORDER BY "entryID" DESC LIMIT 50'+
+		') x ORDER BY "entryID" ASC'
+	);
+	// TODO: Update querying with the new schema.
 	var tab = "\t", obj, sql, parameters;
 	if(!query) {
 		sql = tab+'\t"names"';
@@ -132,35 +141,42 @@ serve.root = function(req, res, root) {
 	});
 };
 serve.root.entry = function(req, res, root, entry) {
-	var hash = first(entry.components);
-	if(!hash) {
+	var URN = first(entry.components);
+	console.log(URN);
+	if(!URN) {
 		res.sendMessage(400, "Bad Request");
 		return;
 	}
 	db.query(
-		'SELECT "MIMEType", "time" FROM "entries"'+
-		' LEFT JOIN "names" ON ("entries"."nameID" = "names"."nameID")'+
-		' WHERE "names"."name" = $1', [hash],
-		function(err, result) {
+		'SELECT e."entryID", e."hash", e."type"'+
+		' FROM "entries" AS e'+
+		' LEFT JOIN "URIs" AS u ON (u."entryID" = e."entryID")'+
+		' WHERE u."URI" = $1', [URN],
+		function(err, results) {
 			if(err) {
 				res.sendError(err);
 				return;
 			}
-			var srcType = result.rows[0].MIMEType;
-			var srcPath = pathForEntry(hash, srcType);
+			if(!results.rows.length) {
+				res.sendMessage(404, "Not Found");
+				return;
+			}
+			var row = results.rows[0];
+			var srcType = row.type;
+			var srcPath = pathForEntry(DATA, row.hash, srcType);
 			var dstTypes = req.headers.accept.split(",");
-			sendFormatted(req, res, srcPath, srcType, dstTypes, hash);
+			sendFormatted(req, res, srcPath, srcType, dstTypes, row.hash);
 		}
 	);
 };
 function sendFormatted(req, res, srcPath, srcType, dstTypes, hash) {
-	var obj = formatters.select(srcType, dstTypes, true);
+	var obj = formatters.select(srcType, dstTypes);
 	if(!obj) {
 		res.sendMessage(406, "Not Acceptable");
 		return;
 	}
 	var dstType = obj.dstType;
-	var dstPath = dstType === srcType ? srcPath : formatters.cachePath(hash, dstType);
+	var dstPath = dstType === srcType ? srcPath : pathForEntry(CACHE, hash, dstType);
 	var format = obj.format;
 	if("text/" === dstType.slice(0, 5)) dstType += "; charset=utf-8";
 
@@ -180,7 +196,7 @@ function sendFormatted(req, res, srcPath, srcType, dstTypes, hash) {
 			if(!format) return res.sendError(err);
 			fs.mkdirRecursive(pathModule.dirname(dstPath), function(err) {
 				if(err) return res.sendError(err);
-				format(srcPath, dstPath, function(err, tags) {
+				format(srcPath, dstPath, function(err) {
 					if(err) return res.sendError(err);
 					fs.stat(dstPath, function(err, stats) {
 						if(err) return res.sendError(err);
@@ -217,67 +233,31 @@ serve.root.submit = function(req, res, root, submit) {
 			return;
 		}
 		var file = fileByField.entry;
-		var hash = file.hash;
+		var URN = "urn:sha1:"+file.hash;
 		var type = file.type;
-		console.log("Adding entry "+hash);
-		importEntryFile(file.path, hash, type, function(err, path) {
+		console.log("Adding entry "+URN);
+		importEntryFile(file.path, file.hash, type, function(err, path) {
 			if(err) throw err;
-			formatters.parseTags(path, type, hash, function(names, tagMap) {
+			createEntry(path, type, file.hash, URN, function(err, entryID) {
 				if(err) throw err;
-				// TODO: Use transactions?
-				defineNames(names, function(err) {
+				addEntryLinks(path, type, entryID, function(err) {
+					console.log(err);
 					if(err) throw err;
-					db.query(
-						'SELECT "nameID" FROM "names"'+
-						' WHERE "name" = $1', [hash],
-						function(err, nameResult) {
-							if(err) throw err;
-							var nameID = nameResult.rows[0].nameID;
-							db.query(
-								'INSERT INTO "tags" ("nameID", "impliedID", "direct", "indirect")'+
-								' SELECT a."nameID", b."nameID", TRUE, 1 FROM "names" a'+
-								' JOIN "names" b ON (TRUE)'+
-								' WHERE (a."name", b."name") IN ('+sql.list2D(tagMap, 1)+')', sql.flatten(tagMap),
-								function(err, result) {
-									if(err) return fail(err);
-									db.query(
-										'INSERT INTO "entries" ("entryID", "nameID", "MIMEType")'+
-										' VALUES (DEFAULT, $1, $2)', [nameID, type],
-										function(err, result) {
-											if(err) return fail(err);
-											res.writeHead(303, {"Location": "/entry/"+hash});
-											res.end();
-											Client.send({
-												"hash": hash,
-												"type": type,
-											}, tagMap.filter(function(map) {
-												return map[0] === hash;
-											}).map(function(map) {
-												return map[1];
-											}));
-										}
-									);
-								}
-							);
-						}
-					);
+					res.writeHead(303, {"Location": "/entry/"+URN});
+					res.end();
+					Client.send({
+						"URN": URN,
+						"type": type,
+					}, entryID);
 				});
 			});
 		});
 	});
 };
-function defineNames(names, callback/* (err) */) {
-	if(!names.length) return callback(null);
-	db.query(
-		'INSERT INTO "names" ("name")'+
-		' VALUES '+sql.list2D(names, 1), names,
-		function(err, result) { callback(err); }
-	);
-}
 function importEntryFile(path, hash, type, callback/* (err, path) */) {
 	fs.chmod(path, 292 /*=0444*/, function(err) {
 		if(err) return callback(err, null);
-		var dst = pathForEntry(hash, type);
+		var dst = pathForEntry(DATA, hash, type);
 		fs.mkdirRecursive(pathModule.dirname(dst), function(err) {
 			if(err) return callback(err, null);
 			fs.link(path, dst, function(err) { // TODO: Test this carefully to make sure we don't overwrite.
@@ -286,6 +266,52 @@ function importEntryFile(path, hash, type, callback/* (err, path) */) {
 				callback(null, dst);
 			});
 		});
+	});
+}
+function createEntry(path, type, hash, URI, callback/* (err, entryID) */) {
+	if("text/" === type.slice(0, 5)) {
+		fs.readFile(pathForEntry(DATA, hash, type), "utf8", function(err, data) {
+			insert(data);
+		});
+	} else {
+		insert(null);
+	}
+	function insert(data) {
+		sql.debug(db,
+			'INSERT INTO "entries" ("hash", "type", "fulltext")'+
+			' VALUES ($1, $2, to_tsvector(\'english\', $3)) RETURNING "entryID"',
+			[hash, type, data],
+			function(err, results) {
+				if(err) return callback(err, null);
+				var entryID = results.rows[0].entryID;
+				sql.debug(db,
+					'INSERT INTO "URIs" ("URI", "entryID") VALUES ($1, $2)', [URI, entryID],
+					function(err, results) {
+						callback(err, entryID);
+					}
+				);
+			}
+		);
+	}
+}
+function addEntryLinks(path, type, entryID, callback/* (err) */) {
+	parsers.parse(path, type, function(err, links) {
+		if(err || !links.length) return callback(err);
+		sql.debug(db,
+			'INSERT INTO "URIs" ("URI")'+
+			' VALUES '+sql.list1D(links, 1, true)+'', links,
+			function(err, results) {
+				if(err) return callback(err);
+				sql.debug(db,
+					'INSERT INTO "links" ("fromEntryID", "toUriID", "direct", "indirect")'+
+					' SELECT $1, "uriID", true, 1'+
+					' FROM "URIs" WHERE "URI" IN ('+sql.list1D(links, 2)+')', [entryID].concat(links),
+					function(err, results) {
+						callback(err);
+					}
+				);
+			}
+		);
 	});
 }
 
@@ -312,7 +338,7 @@ serve.root.preview = function(req, res, root, preview) {
 		var obj = formatters.select(srcType, dstTypes, true);
 		if(!obj) return res.sendMessage(406, "Not Acceptable");
 		var dstPath = srcPath+".out";
-		obj.format(srcPath, dstPath, function(err, tags) {
+		obj.format(srcPath, dstPath, function(err) {
 			fs.unlink(srcPath);
 			if(err) return res.sendError(err);
 			fs.stat(dstPath, function(err, stats) {
@@ -350,7 +376,7 @@ io.sockets.on("connection", function(socket) {
 		});
 		dbq.on("row", function(row) {
 			client.send({
-				"hash": row.hash,
+				"URN": row.URN,
 				"type": row.type,
 			}, null);
 		});
