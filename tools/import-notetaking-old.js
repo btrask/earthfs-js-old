@@ -26,7 +26,7 @@ var bt = require("../server/utilities/bt");
 var fs = require("../server/utilities/fsx");
 var sql = require("../server/utilities/sql");
 
-var DATA = __dirname+"/../data";
+var shared = require("../server/shared");
 
 if(process.argv.length < 3) {
 	console.log("Usage: import.js path");
@@ -34,9 +34,9 @@ if(process.argv.length < 3) {
 }
 var SRC = pathModule.resolve(process.cwd(), process.argv[2])+"/data";
 
-var TAG_RX = /(^|[\s\(\)])#([\w\d\-_]{3,40})($|[\s\(\)])/g; // Captures 3 parts.
+var TAG_RX = /(^|[\s\(\)])#([\w\d\-_]{14})($|[\s\(\)])/g; // Captures 3 parts.
 
-var db = new pg.Client(require("../secret.json").db);
+var db = shared.db = new pg.Client(require("../secret.json").db);
 db.connect();
 
 function has(obj, prop) {
@@ -55,60 +55,36 @@ function allTags(str) {
 	return r;
 }
 
-var hashReplacements = {};
+var URNs = {};
 function processEntry(oldHash, callback) {
-	var path = SRC+"/plain/"+oldHash.slice(0, 2).toLowerCase()+"/"+oldHash;
-	fs.stat(path, function(err, stats) {
-		fs.readFile(path, "utf8", function(err, data) {
-			data = data.replace(TAG_RX, function(x, prev, hash, next) {
-				return prev+"#"+(has(hashReplacements, hash) ? hashReplacements[hash] : hash)+next;
+	var srcPath = SRC+"/plain/"+oldHash.slice(0, 2).toLowerCase()+"/"+oldHash;
+	fs.stat(srcPath, function(err, stats) {
+		fs.readFile(srcPath, "utf8", function(err, data) {
+			data = data.replace(TAG_RX, function(original, prev, hash, next) {
+				if(!has(URNs, hash)) return original;
+				return prev+URNs[hash]+next;
 			});
-			
+
 			var sha1 = crypto.createHash("sha1");
 			sha1.update(data, "utf8");
 			var hash = sha1.digest("hex");
-			hashReplacements[oldHash] = hash;
-			var names = [hash].concat(allTags(data)).unique();
+			var URN = "urn:sha1:"+hash;
+			URNs[oldHash] = URN;
 
-			fs.mkdirRecursive(DATA+"/"+hash.slice(0, 2), function(err) {
-				fs.writeFileReadOnly(DATA+"/"+hash.slice(0, 2)+"/"+hash+".badmarkup", data, "utf8", function(err) {
-					db.query( // TODO: We can use a rule on SELECT instead of INSERT to make this even shorter.
-						'INSERT INTO "names" ("name")'+
-						' VALUES '+sql.list2D(names, 1)+'', names,
-						function(err, result) {
+			var type = "text/x-bad-markup; charset=utf-8";
+			var dstPath = shared.pathForEntry(shared.DATA, hash, type);
+
+			fs.mkdirRecursive(pathModule.dirname(dstPath), function(err) {
+				if(err) throw util.inspect(err);
+				fs.writeFileReadOnly(dstPath, data, "utf8", function(err) {
+					if(err) throw util.inspect(err);
+					shared.createEntry(dstPath, type, hash, URN, function(err, entryID) {
+						if(err) throw util.inspect(err);
+						shared.addEntryLinks(dstPath, type, entryID, function(err) {
 							if(err) throw util.inspect(err);
-							db.query(
-								'SELECT "name", "nameID" FROM "names"'+
-								' WHERE "name" IN ('+sql.list1D(names, 1)+')'+
-								'', names, // TODO: It'd be nice if we could get the hashID so we don't have to search.
-								function(err, result) {
-									if(err) throw util.inspect(err);
-									var hashID = result.rows.filter(function(row) {
-										return row.name === hash;
-									})[0].nameID;
-									var tags = result.rows.slice(1).map(function(row) {
-										return [hashID, row.nameID, true, 0];
-									});
-									if(tags.length) db.query(
-										'INSERT INTO "tags" ("nameID", "impliedID", "direct", "indirect")'+
-										' VALUES '+sql.list2D(tags, 1)+'', sql.flatten(tags),
-										function(err, result) {
-											if(err) throw util.inspect(err);
-										}
-									);
-									db.query(
-										'INSERT INTO "entries" ("nameID", "MIMEType", "time")'+
-										' VALUES ($1, $2, $3)',
-										[hashID, "text/x-bad-markup; charset=utf-8", stats.ctime],
-										function(err, result) {
-											if(err) throw util.inspect(err);
-											callback();
-										}
-									);
-								}
-							);
-						}
-					);
+							callback();
+						});
+					});
 				});
 			});
 		});

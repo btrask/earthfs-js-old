@@ -30,19 +30,18 @@ var fs = require("./utilities/fsx");
 var http = require("./utilities/httpx");
 var sql = require("./utilities/sql");
 
+var shared = require("./shared");
 var formatters = require("./formatters");
 var parsers = require("./parsers");
 var Query = require("./classes/Query");
 var Client = require("./classes/Client");
 
 var CLIENT = __dirname+"/../build";
-var DATA = __dirname+"/../data";
-var CACHE = __dirname+"/../../cache";
 
 var EXT = require("./utilities/ext.json");
 var QUERY_TYPES = ["text/html", "text/json"];
 
-var db = new pg.Client(require("../secret.json").db);
+var db = shared.db = new pg.Client(require("../secret.json").db);
 db.connect();
 
 function has(obj, prop) {
@@ -72,11 +71,6 @@ function rest(array) {
 	return array.slice(1);
 }
 
-function pathForEntry(dir, hash, type) {
-	var t = type.split(";")[0];
-	if(!bt.has(EXT, t)) throw new Error("Invalid MIME type "+type);
-	return dir+"/"+hash.slice(0, 2)+"/"+hash+"."+EXT[t];
-}
 function tagSearch(query) {
 	return db.query(
 		'SELECT * FROM ('+
@@ -163,7 +157,7 @@ serve.root.entry = function(req, res, root, entry) {
 			}
 			var row = results.rows[0];
 			var srcType = row.type;
-			var srcPath = pathForEntry(DATA, row.hash, srcType);
+			var srcPath = shared.pathForEntry(shared.DATA, row.hash, srcType);
 			var dstTypes = req.headers.accept.split(",");
 			sendFormatted(req, res, srcPath, srcType, dstTypes, row.hash);
 		}
@@ -176,7 +170,7 @@ function sendFormatted(req, res, srcPath, srcType, dstTypes, hash) {
 		return;
 	}
 	var dstType = obj.dstType;
-	var dstPath = dstType === srcType ? srcPath : pathForEntry(CACHE, hash, dstType);
+	var dstPath = dstType === srcType ? srcPath : shared.pathForEntry(shared.CACHE, hash, dstType);
 	var format = obj.format;
 	if("text/" === dstType.slice(0, 5)) dstType += "; charset=utf-8";
 
@@ -236,11 +230,11 @@ serve.root.submit = function(req, res, root, submit) {
 		var URN = "urn:sha1:"+file.hash;
 		var type = file.type;
 		console.log("Adding entry "+URN);
-		importEntryFile(file.path, file.hash, type, function(err, path) {
+		shared.moveEntryFile(file.path, file.hash, type, function(err, path) {
 			if(err) throw err;
-			createEntry(path, type, file.hash, URN, function(err, entryID) {
+			shared.createEntry(path, type, file.hash, URN, function(err, entryID) {
 				if(err) throw err;
-				addEntryLinks(path, type, entryID, function(err) {
+				shared.addEntryLinks(path, type, entryID, function(err) {
 					console.log(err);
 					if(err) throw err;
 					res.writeHead(303, {"Location": "/entry/"+URN});
@@ -254,66 +248,6 @@ serve.root.submit = function(req, res, root, submit) {
 		});
 	});
 };
-function importEntryFile(path, hash, type, callback/* (err, path) */) {
-	fs.chmod(path, 292 /*=0444*/, function(err) {
-		if(err) return callback(err, null);
-		var dst = pathForEntry(DATA, hash, type);
-		fs.mkdirRecursive(pathModule.dirname(dst), function(err) {
-			if(err) return callback(err, null);
-			fs.link(path, dst, function(err) { // TODO: Test this carefully to make sure we don't overwrite.
-				fs.unlink(path);
-				if(err) return callback(err, null);
-				callback(null, dst);
-			});
-		});
-	});
-}
-function createEntry(path, type, hash, URI, callback/* (err, entryID) */) {
-	if("text/" === type.slice(0, 5)) {
-		fs.readFile(pathForEntry(DATA, hash, type), "utf8", function(err, data) {
-			insert(data);
-		});
-	} else {
-		insert(null);
-	}
-	function insert(data) {
-		sql.debug(db,
-			'INSERT INTO "entries" ("hash", "type", "fulltext")'+
-			' VALUES ($1, $2, to_tsvector(\'english\', $3)) RETURNING "entryID"',
-			[hash, type, data],
-			function(err, results) {
-				if(err) return callback(err, null);
-				var entryID = results.rows[0].entryID;
-				sql.debug(db,
-					'INSERT INTO "URIs" ("URI", "entryID") VALUES ($1, $2)', [URI, entryID],
-					function(err, results) {
-						callback(err, entryID);
-					}
-				);
-			}
-		);
-	}
-}
-function addEntryLinks(path, type, entryID, callback/* (err) */) {
-	parsers.parse(path, type, function(err, links) {
-		if(err || !links.length) return callback(err);
-		sql.debug(db,
-			'INSERT INTO "URIs" ("URI")'+
-			' VALUES '+sql.list1D(links, 1, true)+'', links,
-			function(err, results) {
-				if(err) return callback(err);
-				sql.debug(db,
-					'INSERT INTO "links" ("fromEntryID", "toUriID", "direct", "indirect")'+
-					' SELECT $1, "uriID", true, 1'+
-					' FROM "URIs" WHERE "URI" IN ('+sql.list1D(links, 2)+')', [entryID].concat(links),
-					function(err, results) {
-						callback(err);
-					}
-				);
-			}
-		);
-	});
-}
 
 serve.root.preview = function(req, res, root, preview) {
 	if("POST" !== req.method) {
