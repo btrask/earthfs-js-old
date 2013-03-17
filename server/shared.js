@@ -31,7 +31,7 @@ var shared = exports;
 shared.db = null; // Set by the client.
 
 shared.DATA = __dirname+"/../data";
-shared.CACHE = __dirname+"/../../cache";
+shared.CACHE = __dirname+"/../cache";
 
 shared.pathForEntry = function(dir, hash, type) {
 	var t = type.split(";")[0];
