@@ -136,7 +136,6 @@ serve.root = function(req, res, root) {
 };
 serve.root.entry = function(req, res, root, entry) {
 	var URN = first(entry.components);
-	console.log(URN);
 	if(!URN) {
 		res.sendMessage(400, "Bad Request");
 		return;
@@ -216,10 +215,21 @@ serve.root.submit = function(req, res, root, submit) {
 	var form = new formidable.IncomingForm({
 		"keepExtensions": false,
 	});
-	form.hash = "sha1";
 	form.addListener("error", function(err) {
 		fail(err);
 	});
+	var hashes = {};
+	form.onPart = function(part) {
+		if("entry" !== part.name) return; // TODO: Is skipping other parts a good idea?
+		var sha1 = crypto.createHash("sha1");
+		part.on("data", function(chunk) {
+			sha1.update(chunk);
+		});
+		part.on("end", function() {
+			hashes[part.name] = sha1.digest("hex");
+		});
+		form.handlePart(part);
+	};
 	form.parse(req, function(err, fields, fileByField) {
 		if(err) return fail(err);
 		if(!has(fileByField, "entry")) {
@@ -227,7 +237,7 @@ serve.root.submit = function(req, res, root, submit) {
 			return;
 		}
 		var file = fileByField.entry;
-		var hash = file.hash;
+		var hash = hashes.entry;
 		var URN = "urn:sha1:"+hash;
 		var type = file.type;
 		console.log("Adding entry "+URN);
@@ -236,7 +246,6 @@ serve.root.submit = function(req, res, root, submit) {
 			shared.createEntry(path, type, hash, URN, function(err, entryID) {
 				if(err) throw err;
 				shared.addEntryLinks(path, type, entryID, function(err) {
-					console.log(err);
 					if(err) throw err;
 					res.writeHead(303, {"Location": "/entry/"+URN});
 					res.end();
