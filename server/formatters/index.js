@@ -33,6 +33,7 @@ var EXT = require("../utilities/ext.json");
 
 var disabled = {
 	"markdown.js": 1,
+	"pandoc.js": 1,
 	"robotskirt.js": 1,
 };
 var files = fs.readdirSync(__dirname).filter(function(name) {
@@ -94,7 +95,6 @@ formatters.select = function(srcType, dstTypes) {
 		return {
 			dstType: dstType,
 			format: function(srcPath, dstPath, callback/* (err) */) {
-				console.log("Running formatter: "+formatter.path);
 				enqueue([formatter.path, srcPath, srcType, dstPath, dstType], callback);
 			},
 		};
