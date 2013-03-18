@@ -21,9 +21,8 @@ var markdown = require("markdown").markdown;
 var bt = require("../utilities/bt");
 
 exports.negotiateTypes = function(srcType, dstTypes) {
-	return null; // Temporarily disabled so we can test robotskirt instead.
-//	if(!bt.negotiateTypes(["text/markdown"], [srcType])) return null;
-//	return bt.negotiateTypes(dstTypes, ["text/html"]);
+	if(!bt.negotiateTypes(["text/markdown"], [srcType])) return null;
+	return bt.negotiateTypes(dstTypes, ["text/html"]);
 };
 exports.format = function(srcPath, srcType, dstPath, dstType, callback) {
 	fs.readFile(srcPath, "utf8", function(err, str) {
