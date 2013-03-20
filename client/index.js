@@ -17,7 +17,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
 FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE. */
 
-/*global query DOM io*/
+/*global query DOM io Text*/
 
 var bt = {}; // TODO: Use separate file.
 bt.has = function(obj, prop) {
@@ -179,6 +179,26 @@ Entry.prototype.load = function() {
 	req.send("");
 };
 Entry.parseHTML = function(html) {
+	function linkifyTextNode(text) {
+		var rx = /\burn:[\w\d\-\/_:]+\b/g;
+		var x, unlinked, rest, link;
+		while((x = rx.exec(text.data))) {
+			link = document.createElement("a");
+			link.appendChild(document.createTextNode(x[0]));
+			link.href = "/entry/"+encodeURIComponent(x[0]); // TODO: Use a query link instead.
+			unlinked = text.splitText(x.index);
+			rest = unlinked.splitText(x[0].length);
+			unlinked.parentNode.replaceChild(link, unlinked);
+		}
+	}
+	function linkifyURNs(node) {
+		if("A" === node.tagName) return;
+		var a = node.childNodes, l = a.length;
+		for(var i = 0; i < l; ++i) {
+			if(a[i] instanceof Text) linkifyTextNode(a[i]);
+			else linkifyURNs(a[i]);
+		}
+	}
 	function convertURNs(node) {
 		var a = node.childNodes, l = a.length, x;
 		for(var i = 0; i < l; ++i) {
@@ -187,11 +207,13 @@ Entry.parseHTML = function(html) {
 			if(x && "urn:" === x.slice(0, 4)) a[i].setAttribute("href", "/entry/"+encodeURIComponent(x));
 			x = a[i].getAttribute("src");
 			if(x && "urn:" === x.slice(0, 4)) a[i].setAttribute("src", "/entry/"+encodeURIComponent(x));
+			// TODO: Use a query link instead.
 			convertURNs(a[i]);
 		}
 	}
 	var elem = document.createElement("div");
 	elem.innerHTML = html;
+	linkifyURNs(elem);
 	convertURNs(elem);
 	return elem;
 };
