@@ -120,7 +120,7 @@ function TextEditor(stream) {
 			req.onreadystatechange = function() {
 				if(4 !== req.readyState) return;
 				downloading = false;
-				editor.preview.innerHTML = req.responseText;
+				DOM.fill(editor.preview, Entry.parseHTML(req.responseText));
 			};
 			req.open("POST", "/preview");
 			req.setRequestHeader("Accept", "text/html");
@@ -173,24 +173,30 @@ Entry.prototype.load = function() {
 	req.onreadystatechange = function() {
 		if(4 !== req.readyState) return;
 		if(200 !== req.status) return; // TODO: Handle 406 Not Acceptable.
-		entry.elems.content.innerHTML = req.responseText;
-		convertURNs(entry.elems.content);
+		DOM.fill(entry.elems.content, Entry.parseHTML(req.responseText));
 	};
 	req.setRequestHeader("Accept", "text/html");
 	req.send("");
 };
-
-function convertURNs(node) {
-	var a = node.childNodes, l = a.length, x;
-	for(var i = 0; i < l; ++i) {
-		if(!a[i].getAttribute) continue;
-		x = a[i].getAttribute("href");
-		if(x && "urn:" === x.slice(0, 4)) a[i].setAttribute("href", "/entry/"+encodeURIComponent(x));
-		x = a[i].getAttribute("src");
-		if(x && "urn:" === x.slice(0, 4)) a[i].setAttribute("src", "/entry/"+encodeURIComponent(x));
-		convertURNs(a[i]);
+Entry.parseHTML = function(html) {
+	function convertURNs(node) {
+		var a = node.childNodes, l = a.length, x;
+		for(var i = 0; i < l; ++i) {
+			if(!a[i].getAttribute) continue;
+			x = a[i].getAttribute("href");
+			if(x && "urn:" === x.slice(0, 4)) a[i].setAttribute("href", "/entry/"+encodeURIComponent(x));
+			x = a[i].getAttribute("src");
+			if(x && "urn:" === x.slice(0, 4)) a[i].setAttribute("src", "/entry/"+encodeURIComponent(x));
+			convertURNs(a[i]);
+		}
 	}
-}
+	var elem = document.createElement("div");
+	elem.innerHTML = html;
+	convertURNs(elem);
+	return elem;
+};
+
+
 
 var inputQuery = query.parse(window.location.search);
 var stream = new Stream(undefined === inputQuery.q ? "" : inputQuery.q);
