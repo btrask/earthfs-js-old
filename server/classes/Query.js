@@ -25,7 +25,6 @@ var Query = exports;
 function TagQuery(tag) {
 	var q = this;
 	q.tag = tag;
-	q.name = "tag-"+q.tag;
 }
 TagQuery.prototype.test = function(tags) {
 	var q = this;
@@ -36,20 +35,16 @@ TagQuery.prototype.SQL = function(offset, tab) {
 	return {
 		query:
 			tab+'"queryTag"($'+(offset+1)+')\n',
-/*			tab+'SELECT t."nameID"\n'+
-			tab+'FROM "tags" AS t\n'+
-			tab+'LEFT JOIN "names" AS n ON (t."impliedID" = n."nameID")\n'+
-			tab+'WHERE "name" = $'+(offset+1)+'\n',*/
 		parameters: [q.tag],
 	};
+};
+TagQuery.prototype.toString = function() {
+	return this.tag;
 };
 
 function IntersectionQuery(items) {
 	var q = this;
 	q.items = items;
-	if(q.items.length < 2) throw new Error("Intersection requires at least two items");
-	q.itemNames = q.items.map(function(query) { return query.name; });
-	q.name = "intersection("+q.itemNames.join(",")+")";
 }
 IntersectionQuery.prototype.test = function(tags) {
 	var q = this;
@@ -77,11 +72,45 @@ IntersectionQuery.prototype.SQL = function(offset, tab) {
 		parameters: parameters,
 	};
 };
+IntersectionQuery.prototype.toString = function() {
+	return "(* "+this.items.join(" ")+")";
+};
+
+
+// TODO
+function UnionQuery() {}
+function DifferenceQuery() {}
+
+
+var p = require("../formatters/badmarkup/parser");
+var whitespace = p.define("whitespace", p.star(p.charset(" \n\r\t\v　")));
+var token = p.define("token", p.replace(p.token(" \n\r\t\v　()"), function(x) {
+	return new TagQuery(x);
+}));
+var list = p.define("list", p.replace(
+	p.flatten(p.all(p.skip("("), p.plus(elem), p.skip(")"))),
+	function(x) {
+		switch(x[0]) {
+			case "+": return new UnionQuery(x.slice(1));
+			case "-": return new DifferenceQuery(x.slice(1));
+			case "*": return new IntersectionQuery(x.slice(1));
+			default: throw new Error("Invalid function: "+x[0]);
+		}
+	}
+));
+var elem = p.define("elem", p.flatten(p.all(
+	p.ignore(whitespace),
+	p.any(token, list)
+)));
+var lispy = p.define("lispy", p.replace(
+	p.flatten(p.all(p.plus(elem))),
+	function(x) {
+		return new IntersectionQuery(x);
+	}
+));
 
 Query.parse = function(str) {
-	var tags = str.split(/\s+/).map(function(tag) { // TODO: Real parsing.
-		return new TagQuery(tag);
-	});
-	if(1 === tags.length) return tags[0];
-	return new IntersectionQuery(tags);
+	return p.run(lispy, str);
 };
+
+console.log(String(Query.parse("a (* b c d) e")));

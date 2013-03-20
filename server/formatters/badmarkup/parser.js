@@ -27,13 +27,14 @@ function lineCount(str, i) {
 function repeat(str, count) {
 	return new Array(count+1).join(str);
 }
-function err(val) {
+
+var err = parser.err = function err(val) {
 	var a = [];
 	var x = arguments.callee.caller;
 	while(x && -1 === a.indexOf(x)) { a.push(x); x = x.caller; }
 	return { stack: a.map(function(x) { return (x.label ? x.label+": " : "")+(x.code || x.name || "(func)")+(x.state || ""); }).join("\n"), i: val.i };
-}
-function toCode(func) {
+};
+var toCode = parser.toCode = function toCode(func) {
 	var f = arguments.callee.caller;
 	var args = Array.isArray(f.arguments[0]) ? f.arguments[0] : f.arguments; // WTF?
 	func.code = f.name+"("+Array.prototype.slice.call(args).map(function(arg) {
@@ -43,7 +44,7 @@ function toCode(func) {
 		return "___";
 	}).join(", ")+")";
 	return func;
-}
+};
 
 parser.keep = function keep(str) {
 	return toCode(function _keep(val) {
@@ -115,6 +116,17 @@ parser.all = function all(arg1, arg2, etc) {
 			throw e;
 			// TODO: Store information on which one we were on.
 		}
+	});
+};
+parser.token = function token(delim) {
+	var set = Object.create(null), i;
+	for(i = 0; i < delim.length; ++i) set[delim[i]] = 1;
+	return toCode(function(val) {
+		for(i = val.i; i < val.s.length; ++i) if(set[val.s[i]]) break;
+		if(i === val.i) throw err(val);
+		var str = val.s.slice(val.i, i);
+		val.i = i;
+		return str;
 	});
 };
 parser.not = function not(bad, good) {
@@ -219,8 +231,8 @@ parser.assert = function assert(func, min, name) {
 };
 
 parser.define = function define(label, func) {
-	this[label] = func;
 	func.label = label;
+	return func;
 };
 parser.run = function run(func, s) {
 	try { return func({s: s, i: 0}); }
