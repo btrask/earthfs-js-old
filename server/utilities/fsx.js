@@ -24,6 +24,7 @@ fs.rmRecursive = function(path, callback/* (err) */) {
 	fs.readdir(path, function(err, files) {
 		if(!err) {
 			var remaining = files.length;
+			if(!remaining) return fs.rmdir(path, callback);
 			for(var i = 0; i < files.length; ++i) {
 				fs.rmRecursive(path+"/"+files[i], function(err) {
 					if(err) {
