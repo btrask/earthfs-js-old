@@ -11,6 +11,7 @@
 	".atom"  : "application/atom+xml",
 	".au"    : "audio/basic",
 	".avi"   : "video/x-msvideo",
+	".badmarkup": "text/x-bad-markup",
 	".bat"   : "application/x-msdownload",
 	".bin"   : "application/octet-stream",
 	".bmp"   : "image/bmp",

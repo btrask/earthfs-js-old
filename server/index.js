@@ -41,6 +41,7 @@ var Client = require("./classes/Client");
 var CLIENT = __dirname+"/../build";
 
 var EXT = require("./utilities/ext.json");
+var MIME = require("./utilities/mime.json");
 var QUERY_TYPES = ["text/html", "text/json"];
 
 var db = shared.db = new pg.Client(require("../secret.json").db);
@@ -227,8 +228,8 @@ serve.root.submit = function(req, res, root, submit) {
 		var file = fileByField.entry;
 		var hash = hashes.entry;
 		var URN = "urn:sha1:"+hash;
-		var type = file.type;
-		console.log("Adding entry "+URN);
+		var ext = pathModule.extname(file.name);
+		var type = bt.has(MIME, ext) ? MIME[ext] : file.type;
 		shared.moveEntryFile(file.path, hash, type, function(err, path) {
 			if(err) throw err;
 			shared.createEntry(path, type, hash, null, URN, function(err, entryID, data) {
