@@ -33,6 +33,8 @@ shared.db = null; // Set by the client.
 shared.DATA = __dirname+"/../data";
 shared.CACHE = __dirname+"/../cache";
 
+var log = fs.createWriteStream(shared.DATA+"/hashes.log", {flags: "a", encoding: "utf8"});
+
 shared.pathForEntry = function(dir, hash, type) {
 	var t = type.split(";")[0];
 	if(!bt.has(EXT, t)) throw new Error("Invalid MIME type "+type);
@@ -70,6 +72,7 @@ shared.copyEntryFile = function(srcPath, hash, type, callback/* (err, path) */) 
 	});
 };
 shared.createEntry = function(path, type, hash, URI, callback/* (err, entryID, data) */) {
+	log.write(new Date().toISOString()+"\t"+hash+"\n");
 	if("text/" === type.slice(0, 5)) {
 		fs.readFile(shared.pathForEntry(shared.DATA, hash, type), "utf8", function(err, data) {
 			insert(data);
