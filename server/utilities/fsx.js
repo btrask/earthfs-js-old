@@ -19,16 +19,6 @@ IN THE SOFTWARE. */
 var fs = require("fs");
 var pathModule = require("path");
 
-fs.mkdirRecursive = function(filename, callback/* (err) */) {
-	fs.mkdir(filename, function(err) {
-		if(!err || "EEXIST" === err.code) return callback(null);
-		if("ENOENT" !== err.code) return callback(err);
-		fs.mkdirRecursive(pathModule.dirname(filename), function(err) {
-			if(err) return callback(err);
-			fs.mkdir(filename, callback);
-		});
-	});
-};
 fs.rmRecursive = function(path, callback/* (err) */) {
 	if("/" === path) return callback(new Error("Are you out of your mind?"));
 	fs.readdir(path, function(err, files) {

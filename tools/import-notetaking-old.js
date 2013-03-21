@@ -21,6 +21,7 @@ var crypto = require("crypto");
 var util = require("util");
 var pathModule = require("path");
 var pg = require("pg");
+var mkdirp = require("mkdirp");
 
 var bt = require("../server/utilities/bt");
 var fs = require("../server/utilities/fsx");
@@ -74,7 +75,7 @@ function processEntry(oldHash, callback) {
 			var type = "text/x-bad-markup; charset=utf-8";
 			var dstPath = shared.pathForEntry(shared.DATA, hash, type);
 
-			fs.mkdirRecursive(pathModule.dirname(dstPath), function(err) {
+			mkdirp(pathModule.dirname(dstPath), function(err) {
 				if(err) throw util.inspect(err);
 				fs.writeFileReadOnly(dstPath, data, "utf8", function(err) {
 					if(err) throw util.inspect(err);

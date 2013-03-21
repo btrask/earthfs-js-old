@@ -24,6 +24,7 @@ var util = require("util");
 
 var pg = require("pg");
 var formidable = require("formidable");
+var mkdirp = require("mkdirp");
 
 var bt = require("./utilities/bt");
 var fs = require("./utilities/fsx");
@@ -174,7 +175,7 @@ function sendFormatted(req, res, srcPath, srcType, dstTypes, hash) {
 			sendFile(dstPath, stats);
 		} else if("ENOENT" === err.code) {
 			if(!format) return res.sendError(err);
-			fs.mkdirRecursive(pathModule.dirname(dstPath), function(err) {
+			mkdirp(pathModule.dirname(dstPath), function(err) {
 				if(err) return res.sendError(err);
 				format(srcPath, dstPath, function(err) {
 					if(err) return res.sendError(err);

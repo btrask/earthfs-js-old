@@ -47,7 +47,7 @@ shared.moveEntryFile = function(srcPath, hash, type, callback/* (err, path) */) 
 	fs.chmod(srcPath, 292 /*=0444*/, function(err) {
 		if(err) return callback(err, null);
 		var dstPath = shared.pathForEntry(shared.DATA, hash, type);
-		fs.mkdirRecursive(pathModule.dirname(dstPath), function(err) {
+		mkdirp(pathModule.dirname(dstPath), function(err) {
 			if(err) return callback(err, null);
 			fs.link(srcPath, dstPath, function(err) { // TODO: Test this carefully to make sure we don't overwrite.
 				if(err) console.log(srcPath, dstPath);
