@@ -230,7 +230,7 @@ serve.root.submit = function(req, res, root, submit) {
 		console.log("Adding entry "+URN);
 		shared.moveEntryFile(file.path, hash, type, function(err, path) {
 			if(err) throw err;
-			shared.createEntry(path, type, hash, URN, function(err, entryID, data) {
+			shared.createEntry(path, type, hash, null, URN, function(err, entryID, data) {
 				if(err) throw err;
 				shared.addEntryLinks(data, type, entryID, function(err) {
 					if(err) throw err;

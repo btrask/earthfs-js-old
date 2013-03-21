@@ -78,7 +78,7 @@ function processEntry(oldHash, callback) {
 				if(err) throw util.inspect(err);
 				fs.writeFileReadOnly(dstPath, data, "utf8", function(err) {
 					if(err) throw util.inspect(err);
-					shared.createEntry(dstPath, type, hash, URN, function(err, entryID, data) {
+					shared.createEntry(dstPath, type, hash, srcPath, URN, function(err, entryID, data) {
 						if(err) throw util.inspect(err);
 						shared.addEntryLinks(data, type, entryID, function(err) {
 							if(err) throw util.inspect(err);

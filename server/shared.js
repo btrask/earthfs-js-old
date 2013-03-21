@@ -71,8 +71,12 @@ shared.copyEntryFile = function(srcPath, hash, type, callback/* (err, path) */) 
 		callback(null, dstPath);
 	});
 };
-shared.createEntry = function(path, type, hash, URI, callback/* (err, entryID, data) */) {
-	log.write(new Date().toISOString()+"\t"+hash+"\n");
+shared.createEntry = function(path, type, hash, source, URI, callback/* (err, entryID, data) */) {
+	log.write(JSON.stringify({
+		"date": new Date().toISOString(),
+		"hash": hash,
+		"source": source,
+	})+"\n");
 	if("text/" === type.slice(0, 5)) {
 		fs.readFile(shared.pathForEntry(shared.DATA, hash, type), "utf8", function(err, data) {
 			insert(data);
