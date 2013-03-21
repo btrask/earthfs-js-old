@@ -33,6 +33,7 @@ function Stream(query) {
 	stream.element = DOM.clone("stream", this);
 	stream.searchText.value = query;
 	stream.query = query;
+	stream.sidebarSize = 150;
 	stream.editor = null;
 	stream.socket = io.connect("/");
 	stream.socket.on("connected", function(callback) {
@@ -61,14 +62,44 @@ function Stream(query) {
 	};
 	stream.searchButton.onclick = submitQuery;
 
+	DOM.addListener(stream.toolbar, "mousedown", function(event) {
+		if(event.target !== stream.toolbar || !stream.editor) return;
+		var cursor = stream.element.offsetHeight - event.clientY;
+		var offset = stream.sidebarSize - cursor;
+		var move, end;
+		DOM.addListener(document, "mousemove", move = function(event) {
+			var cursor = stream.element.offsetHeight - event.clientY;
+			stream.setSidebarSize(cursor + offset);
+			if(event.preventDefault) event.preventDefault();
+			return false;
+		});
+		DOM.addListener(document, "mouseup", end = function(event) {
+			DOM.removeListener(document, "mousemove", move);
+			DOM.removeListener(document, "mouseup", end);
+			if(event.preventDefault) event.preventDefault();
+			return false;
+		});
+		if(event.preventDefault) event.preventDefault();
+		return false;
+	});
+
 	stream.socket.on("entry", function(obj) {
 		var entry = new Entry(obj);
 		stream.entries.appendChild(entry.element);
 		entry.load();
 	});
 }
-Stream.location = function(params) {
-	return "/"+query.stringify(params);
+Stream.prototype.reflow = function() {
+	stream.setSidebarSize(stream.sidebarSize);
+};
+Stream.prototype.setSidebarSize = function(y) {
+	var stream = this;
+	var toolbarHeight = stream.toolbar.offsetHeight;
+	var windowHeight = stream.element.offsetHeight;
+	var clamped = stream.editor ? Math.max(100, Math.min(y, windowHeight)) : toolbarHeight;
+	stream.content.style.bottom = clamped+"px";
+	stream.sidebar.style.height = clamped+"px";
+	stream.sidebarSize = y;
 };
 Stream.prototype.setEditor = function(editor) {
 	var stream = this;
@@ -82,6 +113,7 @@ Stream.prototype.setEditor = function(editor) {
 		stream.sidebar.appendChild(stream.editor.element);
 		DOM.classify(stream.editor.button, "selected", true);
 	}
+	stream.reflow();
 };
 Stream.prototype.upload = function(blob) {
 	if(!blob) throw new Error("Bad upload");
@@ -100,6 +132,9 @@ Stream.prototype.upload = function(blob) {
 	};
 	req.open("POST", "/submit");
 	req.send(form);
+};
+Stream.location = function(params) {
+	return "/"+query.stringify(params);
 };
 
 function TextEditor(stream) {
@@ -223,3 +258,4 @@ Entry.parseHTML = function(html) {
 var inputQuery = query.parse(window.location.search);
 var stream = new Stream(undefined === inputQuery.q ? "" : inputQuery.q);
 document.body.appendChild(stream.element);
+stream.reflow();
