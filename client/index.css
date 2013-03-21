@@ -75,14 +75,15 @@ a:hover {
 	padding: 0 14px;
 	border-width: 0 1px;
 	margin-right: -1px;
+	font-weight: bold;
 }
 .toolbar > .button:active {
 	background: -webkit-linear-gradient(bottom, #eee, #ddd);
 	background: -moz-linear-gradient(bottom, #eee, #ddd);
 }
 .toolbar > .button.selected {
-	background: -webkit-linear-gradient(top, #777, #ddd);
-	background: -moz-linear-gradient(top, #777, #ddd);
+	background: -webkit-linear-gradient(top, #666, #ccc);
+	background: -moz-linear-gradient(top, #666, #ccc);
 	text-shadow: 0 1px 1px #000;
 	color: white;
 }
