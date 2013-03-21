@@ -38,11 +38,12 @@ function condense(x) {
 }
 function translate(x) {
 	if(!Array.isArray(x)) return new query.Term(x);
-	switch(x[0]) {
-		case "*": return new query.Intersection(x.slice(1).map(translate));
-		case "+": return new query.Union(x.slice(1).map(translate));
-		case "-": return new query.Negative(translate(x[1]));
-		default: throw new Error("Invalid operator: "+x[0]);
+	var operator = x.shift();
+	switch(operator) {
+		case "*": return new query.Intersection(x.map(translate));
+		case "+": return new query.Union(x.map(translate));
+		case "-": return new query.Negative(translate(x[0]));
+		default: throw new Error("Invalid operator: "+operator);
 	}
 }
 
