@@ -170,6 +170,8 @@ function TextEditor(stream) {
 	editor.submitButton.onclick = function(event) {
 		stream.upload(new Blob([editor.textarea.value], {"type": "text/markdown"}));
 		// TODO: Selectable MIME types.
+		editor.textarea.value = "";
+		DOM.fill(editor.preview);
 	};
 }
 TextEditor.prototype.activate = function() {
