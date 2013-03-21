@@ -22,19 +22,30 @@ var shared = require("../server/shared");
 var db = shared.db = new pg.Client(require("../secret.json").db);
 db.connect();
 
-if(process.argv.length <= 2) {
-	console.log("Usage: inspect-entry.js hash|URN");
+if("--help" === process.argv[2] || "-h" === process.argv[2]) {
+	console.log("Usage: inspect-entry.js [hash|URN]");
 	process.exit();
 }
 
-var term = process.argv[2];
-db.query(
-	'SELECT * FROM "entries" AS e'+
-	' LEFT JOIN "URIs" AS u ON (e."entryID" = u."entryID")'+
-	' WHERE e."hash" = $1 OR u."URI" = $1'+
-	' ORDER BY e."entryID" DESC', [term],
-	function(err, results) {
-		console.log(results.rows);
-		db.end();
-	}
-);
+function print(err, results) {
+	console.log(results.rows);
+	db.end();
+}
+
+if(process.argv.length <= 2) {
+	db.query(
+		'SELECT e."entryID", e."hash", e."type", u."uriID", u."URI"'+
+		' FROM "entries" AS e'+
+		' LEFT JOIN "URIs" AS u ON (e."entryID" = u."entryID")'+
+		' WHERE TRUE'+
+		' ORDER BY e."entryID" DESC LIMIT 5', [], print
+	);
+} else {
+	db.query(
+		'SELECT e."entryID", e."hash", e."type", u."uriID", u."URI"'+
+		' FROM "entries" AS e'+
+		' LEFT JOIN "URIs" AS u ON (e."entryID" = u."entryID")'+
+		' WHERE e."hash" = $1 OR u."URI" = $1'+
+		' ORDER BY e."entryID" DESC', [process.argv[2]], print
+	);
+}
