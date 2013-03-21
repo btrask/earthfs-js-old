@@ -30,7 +30,7 @@ function dbErr() {
 	++remaining;
 	return function(err) {
 		if(err) console.log(err);
-		if(--remaining) db.end();
+		if(!--remaining) db.end();
 	};
 }
 function fsErr(err) {
@@ -42,12 +42,10 @@ if("--seriously" !== process.argv[2]) {
 	console.log("\tAre you sure?");
 } else {
 	db.connect();
-	db.query('TRUNCATE TABLE "entries" CASCADE', dbErr());
-	db.query('TRUNCATE TABLE "URIs" CASCADE', dbErr());
-	db.query('TRUNCATE TABLE "links" CASCADE', dbErr());
-	db.query('SELECT setval(\'public."entries_entryID_seq"\', 1, true)', dbErr());
-	db.query('SELECT setval(\'public."URIs_uriID_seq"\', 1, true)', dbErr());
-	db.query('SELECT setval(\'public."links_linkID_seq"\', 1, true)', dbErr());
+	db.query('TRUNCATE TABLE "entries" RESTART IDENTITY CASCADE', dbErr());
+	db.query('TRUNCATE TABLE "URIs" RESTART IDENTITY CASCADE', dbErr());
+	db.query('TRUNCATE TABLE "links" RESTART IDENTITY CASCADE', dbErr());
+	db.query('VACUUM FULL', dbErr());
 	fs.rmRecursive(DATA, fsErr);
 	fs.rmRecursive(CACHE, fsErr);
 }
