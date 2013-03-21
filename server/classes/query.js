@@ -20,17 +20,17 @@ var util = require("util");
 var bt = require("../utilities/bt");
 var sql = require("../utilities/sql");
 
-var Query = exports;
+var query = exports;
 
-function TagQuery(tag) {
+query.Term = function TermQuery(tag) {
 	var q = this;
 	q.tag = tag;
-}
-TagQuery.prototype.test = function(tags) {
+};
+query.Term.prototype.test = function(tags) {
 	var q = this;
 	return -1 !== tags.indexOf(q.tag);
 };
-TagQuery.prototype.SQL = function(offset, tab) {
+query.Term.prototype.SQL = function(offset, tab) {
 	var q = this;
 	return {
 		query:
@@ -38,22 +38,22 @@ TagQuery.prototype.SQL = function(offset, tab) {
 		parameters: [q.tag],
 	};
 };
-TagQuery.prototype.toString = function() {
+query.Term.prototype.toString = function() {
 	return this.tag;
 };
 
-function IntersectionQuery(items) {
+query.Intersection = function IntersectionQuery(items) {
 	var q = this;
 	q.items = items;
-}
-IntersectionQuery.prototype.test = function(tags) {
+};
+query.Intersection.prototype.test = function(tags) {
 	var q = this;
 	for(var i = 0; i < q.items.length; ++i) {
 		if(!q.items[i].test(tags)) return false;
 	}
 	return true;
 };
-IntersectionQuery.prototype.SQL = function(offset, tab) {
+query.Intersection.prototype.SQL = function(offset, tab) {
 	var q = this;
 	var queries = [tab,'(SELECT x0."nameID"\n',tab,'FROM\n'];
 	var parameters = [];
@@ -72,45 +72,10 @@ IntersectionQuery.prototype.SQL = function(offset, tab) {
 		parameters: parameters,
 	};
 };
-IntersectionQuery.prototype.toString = function() {
+query.Intersection.prototype.toString = function() {
 	return "(* "+this.items.join(" ")+")";
 };
 
-
 // TODO
-function UnionQuery() {}
-function DifferenceQuery() {}
-
-
-var p = require("../formatters/badmarkup/parser");
-var whitespace = p.define("whitespace", p.star(p.charset(" \n\r\t\v　")));
-var token = p.define("token", p.replace(p.token(" \n\r\t\v　()"), function(x) {
-	return new TagQuery(x);
-}));
-var list = p.define("list", p.replace(
-	p.flatten(p.all(p.skip("("), p.plus(elem), p.skip(")"))),
-	function(x) {
-		switch(x[0]) {
-			case "+": return new UnionQuery(x.slice(1));
-			case "-": return new DifferenceQuery(x.slice(1));
-			case "*": return new IntersectionQuery(x.slice(1));
-			default: throw new Error("Invalid function: "+x[0]);
-		}
-	}
-));
-var elem = p.define("elem", p.flatten(p.all(
-	p.ignore(whitespace),
-	p.any(token, list)
-)));
-var lispy = p.define("lispy", p.replace(
-	p.flatten(p.all(p.plus(elem))),
-	function(x) {
-		return new IntersectionQuery(x);
-	}
-));
-
-Query.parse = function(str) {
-	return p.run(lispy, str);
-};
-
-console.log(String(Query.parse("a (* b c d) e")));
+query.Union = function UnionQuery() {};
+query.Negative = function NegativeQuery() {};
