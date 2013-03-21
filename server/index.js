@@ -238,15 +238,27 @@ serve.root.submit = function(req, res, root, submit) {
 					if(err) throw err;
 					res.writeHead(303, {"Location": "/entry/"+URN});
 					res.end();
-					Client.send({
+					sendEntry(entryID, {
 						"URN": URN,
 						"type": type,
-					}, entryID);
+					});
 				});
 			});
 		});
 	});
 };
+function sendEntry(entryID, entry) {
+	Client.all.forEach(function(client) {
+		var obj = client.query.SQL(2, "");
+		db.query(
+			'SELECT $1 IN \n'+
+			obj.query+' AS matches', [entryID].concat(obj.parameters),
+			function(err, results) {
+				if(results.rows[0].matches) client.send(entry);
+			}
+		);
+	});
+}
 
 serve.root.preview = function(req, res, root, preview) {
 	if("POST" !== req.method) {
@@ -308,7 +320,7 @@ io.sockets.on("connection", function(socket) {
 				client.send({
 					"URN": row.URN,
 					"type": row.type,
-				}, null);
+				});
 			});
 			dbq.on("end", function() {
 				if(client.connected) Client.all.push(client); // Start watching for new entries.

@@ -36,10 +36,5 @@ Client.prototype.send = function(entry, entryID) {
 };
 
 Client.all = [];
-Client.send = function(entry, entryID) {
-	Client.all.forEach(function(client) {
-		client.send(entry, entryID);
-	});
-};
 
 module.exports = Client;
