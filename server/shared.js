@@ -69,7 +69,7 @@ shared.copyEntryFile = function(srcPath, hash, type, callback/* (err, path) */) 
 		callback(null, dstPath);
 	});
 };
-shared.createEntry = function(path, type, hash, URI, callback/* (err, entryID) */) {
+shared.createEntry = function(path, type, hash, URI, callback/* (err, entryID, data) */) {
 	if("text/" === type.slice(0, 5)) {
 		fs.readFile(shared.pathForEntry(shared.DATA, hash, type), "utf8", function(err, data) {
 			insert(data);
@@ -88,15 +88,15 @@ shared.createEntry = function(path, type, hash, URI, callback/* (err, entryID) *
 				sql.debug(shared.db,
 					'INSERT INTO "URIs" ("URI", "entryID") VALUES ($1, $2)', [URI, entryID],
 					function(err, results) {
-						callback(err, entryID);
+						callback(err, entryID, data);
 					}
 				);
 			}
 		);
 	}
 };
-shared.addEntryLinks = function(path, type, entryID, callback/* (err) */) {
-	parsers.parse(path, type, function(err, links) {
+shared.addEntryLinks = function(data, type, entryID, callback/* (err) */) {
+	parsers.parse(data, type, function(err, links) {
 		if(err || !links.length) return callback(err);
 		links = links.unique();
 		sql.debug(shared.db,

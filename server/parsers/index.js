@@ -17,29 +17,16 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
 FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE. */
 var fs = require("fs");
+var parsers = exports;
 
-function fallback(path, type, callback/* (err, links) */) {
-	var stream = fs.createReadStream(path);
-	var last = "";
-	var links = [];
-	stream.setEncoding("utf8");
-	stream.on("data", function(chunk) {
-			// <http://daringfireball.net/2010/07/improved_regex_for_matching_urls>
-			var exp = /\b((?:[a-z][\w\-]+:(?:\/{1,3}|[a-z0-9%])|www\d{0,3}[.]|[a-z0-9.\-]+[.][a-z]{2,4}\/)(?:[^\s()<>]+|\(([^\s()<>]+|(\([^\s()<>]+\)))*\))+(?:\(([^\s()<>]+|(\([^\s()<>]+\)))*\)|[^\s`!()\[\]{};:'".,<>?«»“”‘’]))/ig;
-			var x;
-			chunk = last + chunk;
-			while((x = exp.exec(chunk))) links.push(x[0]);
-			last = chunk.slice(exp.lastIndex);
-	});
-	stream.on("end", function() {
-		callback(null, links);
-	});
-	stream.on("error", function(err) {
-		callback(err, null);
-	});
-}
-
-exports.parse = function(path, type, callback/* (err, links) */) {
+parsers.parse = function(data, type, callback/* (err, links) */) {
 	if("text/" !== type.slice(0, 5)) return callback(null, []); // TODO: Handle parsers for specific MIME types.
-	fallback(path, type, callback);
+	parsers.fallback(data, type, callback);
+};
+parsers.fallback = function(data, type, callback/* (err, links) */) {
+	// <http://daringfireball.net/2010/07/improved_regex_for_matching_urls>
+	var exp = /\b((?:[a-z][\w\-]+:(?:\/{1,3}|[a-z0-9%])|www\d{0,3}[.]|[a-z0-9.\-]+[.][a-z]{2,4}\/)(?:[^\s()<>]+|\(([^\s()<>]+|(\([^\s()<>]+\)))*\))+(?:\(([^\s()<>]+|(\([^\s()<>]+\)))*\)|[^\s`!()\[\]{};:'".,<>?«»“”‘’]))/ig;
+	var links = [], x;
+	while((x = exp.exec(data))) links.push(x[0]);
+	callback(null, links);
 };
