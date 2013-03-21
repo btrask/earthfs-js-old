@@ -33,6 +33,7 @@ function Stream(query) {
 	stream.element = DOM.clone("stream", this);
 	stream.searchText.value = query;
 	stream.query = query;
+	stream.pinned = true;
 	stream.sidebarSize = 150;
 	stream.editor = null;
 	stream.socket = io.connect("/");
@@ -85,24 +86,37 @@ function Stream(query) {
 		if(event.preventDefault) event.preventDefault();
 		return false;
 	});
+	DOM.addListener(stream.content, "scroll", function(event) {
+		var c = stream.content;
+		stream.pinned = c.scrollTop >= (c.scrollHeight - c.clientHeight);
+	});
 
 	stream.socket.on("entry", function(obj) {
 		var entry = new Entry(obj);
 		stream.entries.appendChild(entry.element);
-		entry.load();
+		stream.keepPinned();
+		entry.load(function() {
+			stream.keepPinned();
+		});
 	});
 }
 Stream.prototype.reflow = function() {
-	stream.setSidebarSize(stream.sidebarSize);
-};
-Stream.prototype.setSidebarSize = function(y) {
 	var stream = this;
 	var toolbarHeight = stream.toolbar.offsetHeight;
 	var windowHeight = stream.element.offsetHeight;
-	var clamped = stream.editor ? Math.max(100, Math.min(y, windowHeight)) : toolbarHeight;
+	var clamped = stream.editor ? Math.max(100, Math.min(stream.sidebarSize, windowHeight)) : toolbarHeight;
 	stream.content.style.bottom = clamped+"px";
 	stream.sidebar.style.height = clamped+"px";
-	stream.sidebarSize = y;
+	stream.keepPinned();
+};
+Stream.prototype.keepPinned = function() {
+	var stream = this;
+	if(stream.pinned) stream.content.scrollTop = stream.content.scrollHeight;
+};
+Stream.prototype.setSidebarSize = function(val) {
+	var stream = this;
+	stream.sidebarSize = val;
+	stream.reflow();
 };
 Stream.prototype.setEditor = function(editor) {
 	var stream = this;
@@ -205,7 +219,7 @@ function Entry(obj) {
 	entry.elems.URN.href = Stream.location({"q": entry.URN});
 	entry.elems.raw.href = "/entry/"+entry.URN;
 }
-Entry.prototype.load = function() {
+Entry.prototype.load = function(callback) {
 	var entry = this;
 	var url = "/entry/"+encodeURIComponent(entry.URN);
 	if(bt.has(IMAGE_TYPES, entry.type)) {
@@ -220,6 +234,7 @@ Entry.prototype.load = function() {
 		if(4 !== req.readyState) return;
 		if(200 !== req.status) return; // TODO: Handle 406 Not Acceptable.
 		DOM.fill(entry.elems.content, Entry.parseHTML(req.responseText));
+		callback();
 	};
 	req.setRequestHeader("Accept", "text/html");
 	req.send("");
