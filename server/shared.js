@@ -18,6 +18,7 @@ FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE. */
 var fs = require("fs");
 var pathModule = require("path");
+var mkdirp = require("mkdirp");
 
 var parsers = require("./parsers");
 
@@ -33,6 +34,7 @@ shared.db = null; // Set by the client.
 shared.DATA = __dirname+"/../data";
 shared.CACHE = __dirname+"/../cache";
 
+mkdirp.sync(shared.DATA);
 var log = fs.createWriteStream(shared.DATA+"/hashes.log", {flags: "a", encoding: "utf8"});
 
 shared.pathForEntry = function(dir, hash, type) {
