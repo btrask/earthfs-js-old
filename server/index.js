@@ -33,7 +33,8 @@ var sql = require("./utilities/sql");
 var shared = require("./shared");
 var formatters = require("./formatters");
 var parsers = require("./parsers");
-var Query = require("./classes/Query");
+var querylang = require("./query-languages");
+var query = require("./classes/query");
 var Client = require("./classes/Client");
 
 var CLIENT = __dirname+"/../build";
@@ -72,30 +73,16 @@ function rest(array) {
 }
 
 function tagSearch(query) {
-	return db.query(
-		'SELECT * FROM ('+
-			' SELECT e."entryID", \'urn:sha1:\' || e."hash" AS "URN", e."type"'+
-			' FROM "entries" AS e ORDER BY "entryID" DESC LIMIT 50'+
-		') x ORDER BY "entryID" ASC'
-	);
-	// TODO: Update querying with the new schema.
-	var tab = "\t", obj, sql, parameters;
-	if(!query) {
-		sql = tab+'\t"names"';
-		parameters = [];
-	} else {
-		obj = query.SQL(0, tab+"\t");
-		sql = obj.query;
-		parameters = obj.parameters;
-	}
+	var tab = "\t";
+	var obj = query.SQL(1, tab+"\t");
+	var sql = obj.query;
+	var parameters = obj.parameters;
 	return db.query(
 		'SELECT * FROM (\n'+
-			tab+'SELECT e."entryID", n."nameID", n."name" AS "hash", e."MIMEType" AS "type", e."time"\n'+
-			tab+'FROM\n'+
+			tab+'SELECT e."entryID", \'urn:sha1:\' || e."hash" AS "URN", e."type"\n'+
+			tab+'FROM "entries" AS e\n'+
+			tab+'WHERE e."entryID" IN\n'+
 				sql+
-			tab+'AS q\n'+
-			tab+'INNER JOIN "entries" AS e ON (e."nameID" = q."nameID")\n'+
-			tab+'LEFT JOIN "names" AS n ON (n."nameID" = q."nameID")\n'+
 			tab+'ORDER BY e."entryID" DESC LIMIT 50\n'+
 		') x ORDER BY "entryID" ASC',
 		parameters
@@ -307,25 +294,23 @@ server.listen(8001);
 
 io.sockets.on("connection", function(socket) {
 	socket.emit("connected", function(params) {
-		var str = params["q"].split("+").map(function(tag) {
-			return decodeURIComponent(tag);
-		}).join(" ");
-		var query = "" === str ? null : Query.parse(str);
+		var str = params["q"].split("+").map(decodeURIComponent).join(" ");
 		// TODO: Use some sort of global query that filters hidden posts, etc.
-		// We shouldn't allow query to be null.
-		var client = new Client(socket, query);
-		var dbq = tagSearch(query);
-		dbq.on("error", function(err) {
-			console.log(err); // TODO
-		});
-		dbq.on("row", function(row) {
-			client.send({
-				"URN": row.URN,
-				"type": row.type,
-			}, null);
-		});
-		dbq.on("end", function() {
-			if(client.connected) Client.all.push(client); // Start watching for new entries.
+		querylang.parse(str, "lispish", function(err, query) {
+			var client = new Client(socket, query);
+			var dbq = tagSearch(query);
+			dbq.on("error", function(err) {
+				console.log(err); // TODO
+			});
+			dbq.on("row", function(row) {
+				client.send({
+					"URN": row.URN,
+					"type": row.type,
+				}, null);
+			});
+			dbq.on("end", function() {
+				if(client.connected) Client.all.push(client); // Start watching for new entries.
+			});
 		});
 	});
 });

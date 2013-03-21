@@ -18,19 +18,20 @@ FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE. */
 var fs = require("fs");
 var bt = require("../utilities/bt");
+var query = require("../classes/query");
 
 var disabled = {
 };
 var modules = fs.readdirSync(__dirname).filter(function(name) {
 	return !bt.has(disabled, name) && !name.match(/^index\.js$|^\./);
 }).map(function(name) {
-	return require(name);
+	return require(__dirname+"/"+name);
 });
 
 exports.parse = function(str, language, callback/* (err, query) */) {
 	for(var i = 0; i < modules.length; ++i) {
 		if(!modules[i].supports(language)) continue;
-		modules[language].parse(str, callback);
+		modules[i].parse(str, callback);
 		return;
 	}
 	return callback(new Error("Invalid language"), null);

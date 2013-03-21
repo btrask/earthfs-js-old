@@ -52,6 +52,6 @@ exports.supports = function(language) {
 };
 exports.parse = function(str, callback/* (err, query) */) {
 	var ast = condense(parser.parse(str));
-	ast.unshift("*");
+	if(ast) ast.unshift("*");
 	callback(null, translate(ast));
 };

@@ -22,48 +22,50 @@ var sql = require("../utilities/sql");
 
 var query = exports;
 
-query.Term = function TermQuery(tag) {
-	var q = this;
-	q.tag = tag;
+query.All = function AllQuery() {};
+query.All.prototype.SQL = function(offset, tab) {
+	return {
+		query: tab+'(SELECT "entryID" FROM entries WHERE TRUE)',
+		parameters: [],
+	};
 };
-query.Term.prototype.test = function(tags) {
+
+query.Term = function TermQuery(term) {
+	if(null === term) return new query.All();
 	var q = this;
-	return -1 !== tags.indexOf(q.tag);
+	q.term = term;
 };
 query.Term.prototype.SQL = function(offset, tab) {
 	var q = this;
 	return {
 		query:
-			tab+'"queryTag"($'+(offset+1)+')\n',
-		parameters: [q.tag],
+			tab+'(SELECT "entryID" FROM "entries"\n'+
+			tab+'WHERE "fulltext" @@ to_tsquery(\'english\', $'+offset+'))\n',
+		parameters: [q.term],
 	};
 };
 query.Term.prototype.toString = function() {
-	return this.tag;
+	return this.term;
 };
 
 query.Intersection = function IntersectionQuery(items) {
+	if(1 === items.length) return items[0];
+	if(0 === items.length) return new query.All();
 	var q = this;
 	q.items = items;
 };
-query.Intersection.prototype.test = function(tags) {
-	var q = this;
-	for(var i = 0; i < q.items.length; ++i) {
-		if(!q.items[i].test(tags)) return false;
-	}
-	return true;
-};
 query.Intersection.prototype.SQL = function(offset, tab) {
 	var q = this;
-	var queries = [tab,'(SELECT x0."nameID"\n',tab,'FROM\n'];
+	var queries = [tab,'(SELECT x0."entryID"\n',tab,'FROM\n'];
 	var parameters = [];
 	q.items.forEach(function(q2, i) {
-		var obj = q2.SQL(parameters.length, tab+"\t");
-		if(0 !== i) queries.push(tab,'INNER JOIN\n');
+		var obj = q2.SQL(parameters.length+1, tab+"\t");
+		var first = 0 === i, last = q.items.length-1 === i;
+		if(!first) queries.push(tab,'INNER JOIN\n');
 		queries.push(obj.query);
 		queries.push(tab,'AS x',i);
-		if(0 !== i) queries.push(' ON (x',i,'."nameID" = x0."nameID")');
-		if(q.items.length-1 === i) queries.push(")");
+		if(!first) queries.push(' ON (x',i,'."entryID" = x0."entryID")');
+		if(last) queries.push(")");
 		queries.push("\n");
 		parameters.push.apply(parameters, obj.parameters);
 	});
