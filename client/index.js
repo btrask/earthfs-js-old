@@ -115,6 +115,7 @@ Stream.prototype.setEditor = function(editor) {
 	if(stream.editor) {
 		stream.sidebar.appendChild(stream.editor.element);
 		DOM.classify(stream.editor.button, "selected", true);
+		stream.editor.activate();
 	}
 	stream.reflow();
 };
@@ -171,6 +172,10 @@ function TextEditor(stream) {
 		// TODO: Selectable MIME types.
 	};
 }
+TextEditor.prototype.activate = function() {
+	var editor = this;
+	editor.textarea.focus();
+};
 function FileEditor(stream) {
 	var editor = this;
 	editor.element = DOM.clone("fileEditor", this);
@@ -179,6 +184,7 @@ function FileEditor(stream) {
 		stream.upload(editor.uploadInput.files[0]); // TODO: Disable button when no file selected.
 	};
 }
+FileEditor.prototype.activate = function() {};
 
 var IMAGE_TYPES = {
 	"image/jpeg": 1,
