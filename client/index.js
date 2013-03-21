@@ -62,6 +62,9 @@ function Stream(query) {
 	};
 	stream.searchButton.onclick = submitQuery;
 
+	DOM.addListener(window, "resize", function(event) {
+		stream.reflow();
+	});
 	DOM.addListener(stream.toolbar, "mousedown", function(event) {
 		if(event.target !== stream.toolbar || !stream.editor) return;
 		var cursor = stream.element.offsetHeight - event.clientY;
