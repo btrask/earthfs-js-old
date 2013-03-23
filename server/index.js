@@ -92,7 +92,8 @@ function tagSearch(query) {
 	);
 }
 
-var serve = function(req, res) {
+var server = http.createServer(serve);
+function serve(req, res) {
 	var path = urlModule.parse(req.url).pathname;
 	var components = componentsFromPath(path).map(function(x) {
 		return decodeURIComponent(x);
@@ -105,7 +106,7 @@ var serve = function(req, res) {
 		"path": path,
 		"components": components,
 	});
-};
+}
 serve.root = function(req, res, root) {
 	var components = root.components;
 	var options = urlModule.parse(req.url, true).query;
@@ -303,10 +304,7 @@ serve.root.preview = function(req, res, root, preview) {
 	});
 };
 
-var server = http.createServer(serve);
 var io = require("socket.io").listen(server, {log: false});
-server.listen(8001);
-
 io.sockets.on("connection", function(socket) {
 	socket.emit("connected", function(params) {
 		var str = params["q"].split("+").map(decodeURIComponent).join(" ");
@@ -328,4 +326,8 @@ io.sockets.on("connection", function(socket) {
 			});
 		});
 	});
+});
+
+server.listen(8001, function() {
+	console.log("http://localhost:8001/");
 });
