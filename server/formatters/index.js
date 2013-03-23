@@ -40,9 +40,9 @@ var files = fs.readdirSync(__dirname).filter(function(name) {
 	return !bt.has(disabled, name) && !name.match(/^index\.js$|^\./);
 }).sort();
 var modules = files.map(function(name) {
-	var formatter = require(__dirname+"/"+name);
-	formatter.path = __dirname+"/"+name;
-	return formatter;
+	var module = require(__dirname+"/"+name);
+	module.path = __dirname+"/"+name;
+	return module;
 });
 console.log("Formatters: "+files.join(", "));
 

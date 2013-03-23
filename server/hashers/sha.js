@@ -16,27 +16,30 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
 FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE. */
-var fs = require("fs");
-var bt = require("../utilities/bt");
-var query = require("../classes/query");
+var crypto = require("crypto");
+var encdec = require("encdec");
+var base32 = encdec.create("ABCDEFGHIJKLMNOPQRSTUVWXYZ234567");
 
-var disabled = {
+exports.create = function() {
+	return new Hash();
 };
-var files = fs.readdirSync(__dirname).filter(function(name) {
-	return !bt.has(disabled, name) && !name.match(/^index\.js$|^\./);
-}).sort();
-var modules = files.map(function(name) {
-	var module = require(__dirname+"/"+name);
-	module.path = __dirname+"/"+name;
-	return module;
-});
-console.log("Query languages: "+files.join(", "));
 
-exports.parse = function(str, language, callback/* (err, query) */) {
-	for(var i = 0; i < modules.length; ++i) {
-		if(!modules[i].supports(language)) continue;
-		modules[i].parse(str, callback);
-		return;
-	}
-	return callback(new Error("Invalid language"), null);
+function Hash() {
+	var hash = this;
+	hash.sha1 = crypto.createHash("sha1");
+	hash.sha256 = crypto.createHash("sha256");
+}
+Hash.prototype.update = function(data, encoding) {
+	this.sha1.update(data, encoding);
+	this.sha256.update(data, encoding);
+};
+Hash.prototype.digests = function() {
+	var sha1 = this.sha1.digest();
+	var sha256 = this.sha256.digest();
+	return [
+		"urn:sha1:"+sha1.toString("hex"),
+		"urn:sha1:"+base32.encode(sha1),
+		"urn:sha256:"+sha1.toString("hex"),
+		"urn:sha256:"+base32.encode(sha256),
+	];
 };

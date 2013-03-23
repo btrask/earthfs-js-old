@@ -18,7 +18,7 @@ FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE. */
 var fs = require("fs");
 var bt = require("../utilities/bt");
-var query = require("../classes/query");
+var hashers = exports;
 
 var disabled = {
 };
@@ -30,13 +30,24 @@ var modules = files.map(function(name) {
 	module.path = __dirname+"/"+name;
 	return module;
 });
-console.log("Query languages: "+files.join(", "));
+console.log("Hashers: "+files.join(", "));
 
-exports.parse = function(str, language, callback/* (err, query) */) {
-	for(var i = 0; i < modules.length; ++i) {
-		if(!modules[i].supports(language)) continue;
-		modules[i].parse(str, callback);
-		return;
-	}
-	return callback(new Error("Invalid language"), null);
+hashers.hash = function(path, callback/* (err, hashes) */) {
+	var stream = fs.createReadStream(path);
+	var hashers = modules.map(function(module) {
+		var hasher = module.create();
+		stream.on("readable", function() {
+			hasher.update(stream.read());
+		});
+	});
+	stream.on("end", function() {
+		var hashes = [];
+		hashers.forEach(function(hasher) {
+			hashes.push.apply(hashes, hasher.digests());
+		});
+		callback(null, hashes);
+	});
+	stream.on("error", function(err) {
+		callback(err, null);
+	});
 };
