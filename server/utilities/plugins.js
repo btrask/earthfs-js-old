@@ -17,16 +17,24 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
 FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE. */
 var fs = require("fs");
-var bt = require("../utilities/bt");
-var query = require("../classes/query");
-var plugins = require("../utilities/plugins");
-var modules = plugins.load(__dirname, "Query languages");
+var pathModule = require("path");
+var bt = require("./bt");
 
-exports.parse = function(str, language, callback/* (err, query) */) {
-	for(var i = 0; i < modules.length; ++i) {
-		if(!modules[i].supports(language)) continue;
-		modules[i].parse(str, callback);
-		return;
-	}
-	return callback(new Error("Invalid language"), null);
+exports.load = function(dir, label) {
+	var disabled;
+	try { disabled = require(dir+"/disabled.json"); }
+	catch(e) { disabled = {}; }
+	var files = fs.readdirSync(dir).filter(function(name) {
+		if(/^\./.test(name)) return false;
+		if("index.js" === name) return false;
+		if("disabled.json" === name) return false;
+		if(bt.has(disabled, name)) return false;
+		return true;
+	}).sort();
+	if(label) console.log(label+": "+(files.join(", ") || "(none)"));
+	return files.map(function(name) {
+		var module = require(dir+"/"+name);
+		module.path = dir+"/"+name;
+		return module;
+	});
 };

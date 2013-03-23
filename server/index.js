@@ -31,9 +31,8 @@ var fs = require("./utilities/fsx");
 var http = require("./utilities/httpx");
 var sql = require("./utilities/sql");
 
-var shared = require("./shared");
 var formatters = require("./formatters");
-var parsers = require("./parsers");
+var shared = require("./shared");
 var querylang = require("./query-languages");
 var query = require("./classes/query");
 var Client = require("./classes/Client");

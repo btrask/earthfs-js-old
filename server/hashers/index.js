@@ -20,17 +20,8 @@ var fs = require("fs");
 var bt = require("../utilities/bt");
 var hashers = exports;
 
-var disabled = {
-};
-var files = fs.readdirSync(__dirname).filter(function(name) {
-	return !bt.has(disabled, name) && !name.match(/^index\.js$|^\./);
-}).sort();
-var modules = files.map(function(name) {
-	var module = require(__dirname+"/"+name);
-	module.path = __dirname+"/"+name;
-	return module;
-});
-console.log("Hashers: "+files.join(", "));
+var plugins = require("../utilities/plugins");
+var modules = plugins.load(__dirname, "Hashers");
 
 hashers.hash = function(path, callback/* (err, hashes) */) {
 	var stream = fs.createReadStream(path);

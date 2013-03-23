@@ -26,25 +26,12 @@ var EventEmitter = require("events").EventEmitter;
 var util = require("util");
 
 var bt = require("../utilities/bt");
+var plugins = require("../utilities/plugins");
+var modules = plugins.load(__dirname, "Formatters");
 
 var formatters = exports;
 
 var EXT = require("../utilities/ext.json");
-
-var disabled = {
-	"markdown.js": 1,
-	"pandoc.js": 1,
-	"robotskirt.js": 1,
-};
-var files = fs.readdirSync(__dirname).filter(function(name) {
-	return !bt.has(disabled, name) && !name.match(/^index\.js$|^\./);
-}).sort();
-var modules = files.map(function(name) {
-	var module = require(__dirname+"/"+name);
-	module.path = __dirname+"/"+name;
-	return module;
-});
-console.log("Formatters: "+files.join(", "));
 
 
 var waiting = [];

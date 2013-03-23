@@ -17,6 +17,9 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
 FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE. */
 var fs = require("fs");
+var plugins = require("../utilities/plugins");
+var modules = plugins.load(__dirname, "Parsers");
+
 var parsers = exports;
 
 parsers.parse = function(data, type, callback/* (err, links) */) {
