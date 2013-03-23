@@ -32,8 +32,10 @@ var http = require("./utilities/httpx");
 var sql = require("./utilities/sql");
 
 var formatters = require("./formatters");
-var shared = require("./shared");
+var parsers = require("./parsers");
 var querylang = require("./query-languages");
+var hashers = require("./hashers");
+var shared = require("./shared");
 var query = require("./classes/query");
 var Client = require("./classes/Client");
 
