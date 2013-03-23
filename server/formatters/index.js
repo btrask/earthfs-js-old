@@ -79,6 +79,9 @@ function dequeue() {
 }
 
 
+cluster.setupMaster({
+	exec: __filename,
+});
 start(2); // TODO: Detect number of CPUs.
 
 formatters.select = function(srcType, dstTypes) {
