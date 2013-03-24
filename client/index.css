@@ -132,8 +132,8 @@ a:hover {
 .entryContent {
 	padding-left: 14px;
 	padding-right: 14px;
-	font-family: monospace; /* We probably shouldn't use monospace everywhere, but it's nice for code. */
-	font-size: 14px;
+	font-family: "Helvetica Neue", Helvetica, sans-serif;
+	font-size: 16px;
 	line-height: 1.5em;
 }
 .entryContent blockquote,
@@ -163,6 +163,11 @@ a:hover {
 }
 .entryContent ul, .entryContent ol {
 	margin-left: 40px;
+}
+.entryContent pre, .entryContent code, a.URN {
+	white-space: pre-wrap;
+	font-family: Melno, Monaco, monospace;
+	font-size: 14px;
 }
 
 /* Sidebar */

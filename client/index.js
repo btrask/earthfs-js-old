@@ -241,12 +241,13 @@ Entry.prototype.load = function(callback) {
 };
 Entry.parseHTML = function(html) {
 	function linkifyTextNode(text) {
-		var rx = /\burn:[\w\d\-\/_:]+\b/g;
+		// <http://daringfireball.net/2010/07/improved_regex_for_matching_urls>
+		var exp = /\b((?:[a-z][\w\-]+:(?:\/{1,3}|[a-z0-9%])|www\d{0,3}[.]|[a-z0-9.\-]+[.][a-z]{2,4}\/)(?:[^\s()<>]+|\(([^\s()<>]+|(\([^\s()<>]+\)))*\))+(?:\(([^\s()<>]+|(\([^\s()<>]+\)))*\)|[^\s`!()\[\]{};:'".,<>?«»“”‘’]))/ig;
 		var x, unlinked, rest, link;
-		while((x = rx.exec(text.data))) {
+		while((x = exp.exec(text.data))) {
 			link = document.createElement("a");
 			link.appendChild(document.createTextNode(x[0]));
-			link.href = "/entry/"+encodeURIComponent(x[0]); // TODO: Use a query link instead.
+			link.href = x[0];
 			unlinked = text.splitText(x.index);
 			rest = unlinked.splitText(x[0].length);
 			unlinked.parentNode.replaceChild(link, unlinked);
@@ -254,8 +255,8 @@ Entry.parseHTML = function(html) {
 	}
 	function linkifyURNs(node) {
 		if("A" === node.tagName) return;
-		var a = node.childNodes, l = a.length;
-		for(var i = 0; i < l; ++i) {
+		var a = node.childNodes;
+		for(var i = 0; i < a.length; ++i) {
 			if(a[i] instanceof Text) linkifyTextNode(a[i]);
 			else linkifyURNs(a[i]);
 		}
@@ -265,10 +266,15 @@ Entry.parseHTML = function(html) {
 		for(var i = 0; i < l; ++i) {
 			if(!a[i].getAttribute) continue;
 			x = a[i].getAttribute("href");
-			if(x && "urn:" === x.slice(0, 4)) a[i].setAttribute("href", "/entry/"+encodeURIComponent(x));
+			if(x && /^urn:/.test(x)) {
+				a[i].setAttribute("href", "/entry/"+encodeURIComponent(x));
+				DOM.classify(a[i], "URN");
+			}
 			x = a[i].getAttribute("src");
-			if(x && "urn:" === x.slice(0, 4)) a[i].setAttribute("src", "/entry/"+encodeURIComponent(x));
-			// TODO: Use a query link instead.
+			if(x && /^urn:/.test(x)) {
+				a[i].setAttribute("src", "/entry/"+encodeURIComponent(x));
+				// TODO: Use a query link instead.
+			}
 			convertURNs(a[i]);
 		}
 	}
