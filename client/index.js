@@ -161,6 +161,9 @@ function TextEditor(stream) {
 	var editor = this;
 	editor.element = DOM.clone("textEditor", this);
 	editor.label = "New Entry";
+	function trimBlankLines(str) {
+		return str.replace(/^[\n\r]+|[\n\r]+$/g, "");
+	}
 	var refresh = null, downloading = false;
 	editor.textarea.oninput = editor.textarea.onpropertychange = function() {
 		clearTimeout(refresh);
@@ -171,7 +174,10 @@ function TextEditor(stream) {
 			}
 			var form = new FormData();
 			var req = new XMLHttpRequest();
-			form.append("entry", new Blob([editor.textarea.value], {"type": "text/markdown"}));
+			form.append("entry", new Blob(
+				[trimBlankLines(editor.textarea.value)],
+				{"type": "text/markdown"}
+			));
 			req.onreadystatechange = function() {
 				if(4 !== req.readyState) return;
 				downloading = false;
@@ -184,8 +190,15 @@ function TextEditor(stream) {
 		}, 1000);
 	};
 	editor.submitButton.onclick = function(event) {
-		stream.upload(new Blob([editor.textarea.value], {"type": "text/markdown"}));
-		// TODO: Selectable MIME types.
+		if("" === editor.textarea.value.replace(/\s/g, "")) {
+			// TODO: Display submission error?
+		} else {
+			stream.upload(new Blob(
+				[trimBlankLines(editor.textarea.value)],
+				{"type": "text/markdown"}
+			));
+			// TODO: Selectable MIME types.
+		}
 		editor.textarea.value = "";
 		DOM.fill(editor.preview);
 	};
