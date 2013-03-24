@@ -139,6 +139,8 @@ Stream.prototype.upload = function(blob) {
 	var form = new FormData();
 	var req = new XMLHttpRequest();
 	form.append("entry", blob);
+	stream.pinned = true;
+	stream.keepPinned();
 	if(req.upload) req.upload.onprogress = function(event) {
 		var complete = event.loaded / event.total;
 		console.log("complete", complete);
