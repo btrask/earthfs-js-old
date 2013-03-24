@@ -267,13 +267,12 @@ Entry.parseHTML = function(html) {
 			if(!a[i].getAttribute) continue;
 			x = a[i].getAttribute("href");
 			if(x && /^urn:/.test(x)) {
-				a[i].setAttribute("href", "/entry/"+encodeURIComponent(x));
+				a[i].setAttribute("href", "?q="+encodeURIComponent(x));
 				DOM.classify(a[i], "URN");
 			}
 			x = a[i].getAttribute("src");
 			if(x && /^urn:/.test(x)) {
 				a[i].setAttribute("src", "/entry/"+encodeURIComponent(x));
-				// TODO: Use a query link instead.
 			}
 			convertURNs(a[i]);
 		}
