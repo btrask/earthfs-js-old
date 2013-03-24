@@ -251,11 +251,13 @@ serve.root.submit = function(req, res, root, submit) {
 };
 function sendEntry(entryID, entry) {
 	Client.all.forEach(function(client) {
-		var obj = client.query.SQL(2, "");
-		db.query(
+		var obj = client.query.SQL(2, "\t");
+		sql.debug(db,
 			'SELECT $1 IN \n'+
-			obj.query+' AS matches', [entryID].concat(obj.parameters),
+				obj.query+
+			'AS matches', [entryID].concat(obj.parameters),
 			function(err, results) {
+				if(err) console.log(err);
 				if(results.rows[0].matches) client.send(entry);
 			}
 		);

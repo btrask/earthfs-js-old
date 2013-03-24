@@ -59,7 +59,7 @@ query.Intersection.prototype.SQL = function(offset, tab) {
 	var queries = [tab,'(SELECT x0."entryID"\n',tab,'FROM\n'];
 	var parameters = [];
 	q.items.forEach(function(q2, i) {
-		var obj = q2.SQL(parameters.length+1, tab+"\t");
+		var obj = q2.SQL(parameters.length+offset, tab+"\t");
 		var first = 0 === i, last = q.items.length-1 === i;
 		if(!first) queries.push(tab,'INNER JOIN\n');
 		queries.push(obj.query);
