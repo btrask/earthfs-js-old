@@ -235,7 +235,7 @@ Entry.prototype.load = function(callback) {
 				DOM.fill(entry.elems.content, Entry.parseHTML(req.responseText));
 				break;
 			case 406: // Not Acceptable
-				DOM.fill(entry.elems.content, "(no preview available)");
+				DOM.fill(entry.elems.content, DOM.clone("noPreviewMessage"));
 				break;
 		}
 		callback();
