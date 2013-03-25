@@ -24,6 +24,7 @@ if(cluster.isMaster) (function() {
 var fs = require("fs");
 var EventEmitter = require("events").EventEmitter;
 var util = require("util");
+var os = require("os");
 
 var bt = require("../utilities/bt");
 var plugins = require("../utilities/plugins");
@@ -69,7 +70,7 @@ function dequeue() {
 cluster.setupMaster({
 	exec: __filename,
 });
-start(2); // TODO: Detect number of CPUs.
+start(os.cpus().length*2); // Simple heuristic.
 
 formatters.select = function(srcType, dstTypes) {
 	if(bt.negotiateTypes(dstTypes, [srcType])) return {
