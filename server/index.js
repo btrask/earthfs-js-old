@@ -232,10 +232,10 @@ serve.root.submit = function(req, res, root, submit) {
 		var URN = "urn:sha1:"+hash;
 		var ext = pathModule.extname(file.name);
 		var type = bt.has(MIME, ext) ? MIME[ext] : file.type;
-		if(0 === file.size) {
-			res.sendMessage(400, "Bad Request");
-			return;
-		}
+//		if(0 === file.size) {
+//			res.sendMessage(400, "Bad Request");
+//			return;
+//		}
 		shared.moveEntryFile(file.path, hash, type, function(err, path) {
 			if(err) throw err;
 			shared.createEntry(path, type, hash, null, URN, function(err, entryID, data) {
