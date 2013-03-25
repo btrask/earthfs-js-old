@@ -27,12 +27,12 @@ function Client(socket, query) {
 		Client.all.splice(Client.all.indexOf(client), 1);
 	});
 }
-Client.prototype.send = function(entry, entryID) {
+Client.prototype.send = function(URN) {
 	var client = this;
 //	if(tags && client.query && !client.query.test(tags)) return;
 	// TODO: We shouldn't have to check if client.query is null.
 	// TODO: We have to hit the DB in order to perform full-text queries.
-	client.socket.emit("entry", entry);
+	client.socket.emit("entry", URN);
 };
 
 Client.all = [];

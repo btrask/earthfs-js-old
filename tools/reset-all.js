@@ -18,7 +18,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
 FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE. */
 var pg = require("pg");
-var fs = require("../server/utilities/fsx");
+var fsx = require("../server/utilities/fsx");
 
 var DATA = __dirname+"/../data";
 var CACHE = __dirname+"/../cache";
@@ -46,6 +46,6 @@ if("--seriously" !== process.argv[2]) {
 	db.query('TRUNCATE TABLE "URIs" RESTART IDENTITY CASCADE', dbErr());
 	db.query('TRUNCATE TABLE "links" RESTART IDENTITY CASCADE', dbErr());
 	db.query('VACUUM FULL', dbErr());
-	fs.rmRecursive(DATA, fsErr);
-	fs.rmRecursive(CACHE, fsErr);
+	fsx.rmRecursive(DATA, fsErr);
+	fsx.rmRecursive(CACHE, fsErr);
 }

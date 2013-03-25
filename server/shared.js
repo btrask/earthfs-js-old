@@ -19,8 +19,6 @@ IN THE SOFTWARE. */
 var fs = require("fs");
 var mkdirp = require("mkdirp");
 
-var parsers = require("./parsers");
-
 var bt = require("./utilities/bt");
 var sql = require("./utilities/sql");
 
@@ -42,55 +40,54 @@ shared.pathForEntry = function(dir, hash, type) {
 	return dir+"/"+hash.slice(0, 2)+"/"+hash+"."+EXT[t];
 };
 
-shared.createEntry = function(path, type, hash, source, URI, callback/* (err, entryID, data) */) {
+shared.addEntry = function(source, type, h, p, callback/* (err, entryID) */) {
+
 	log.write(JSON.stringify({
 		"date": new Date().toISOString(),
-		"hash": hash,
+		"internalHash": h.internalHash,
+		"type": type,
 		"source": source,
 	})+"\n");
-	if("text/" === type.slice(0, 5)) {
-		fs.readFile(shared.pathForEntry(shared.DATA, hash, type), "utf8", function(err, data) {
-			insert(data);
-		});
-	} else {
-		insert(null);
-	}
-	function insert(data) {
-		sql.debug(shared.db,
-			'INSERT INTO "entries" ("hash", "type", "fulltext")'+
-			' VALUES ($1, $2, to_tsvector(\'english\', $3)) RETURNING "entryID"',
-			[hash, type, data],
-			function(err, results) {
-				if(err) return callback(err, null);
-				var entryID = results.rows[0].entryID;
-				sql.debug(shared.db,
-					'INSERT INTO "URIs" ("URI", "entryID") VALUES ($1, $2)', [URI, entryID],
-					function(err, results) {
-						callback(err, entryID, data);
-					}
-				);
-			}
-		);
-	}
-};
-shared.addEntryLinks = function(data, type, entryID, callback/* (err) */) {
-	parsers.parse(data, type, function(err, links) {
-		if(err || !links.length) return callback(err);
-		links = links.unique();
-		sql.debug(shared.db,
-			'INSERT INTO "URIs" ("URI")'+
-			' VALUES '+sql.list1D(links, 1, true)+'', links,
-			function(err, results) {
-				if(err) return callback(err);
-				sql.debug(shared.db,
-					'INSERT INTO "links" ("fromEntryID", "toUriID", "direct", "indirect")'+
-					' SELECT $1, "uriID", true, 1'+
-					' FROM "URIs" WHERE "URI" IN ('+sql.list1D(links, 2)+')', [entryID].concat(links),
-					function(err, results) {
-						callback(err);
-					}
-				);
-			}
-		);
-	});
+
+	sql.debug(shared.db,
+		'INSERT INTO "entries" ("hash", "type", "fulltext")'+
+		' VALUES ($1, $2, to_tsvector(\'english\', $3)) RETURNING "entryID"',
+		[h.internalHash, type, p.fullText],
+		function(err, results) {
+			if(err) return callback(err, null);
+			var entryID = results.rows[0].entryID;
+			var allLinks = h.URNs.concat(p.links, p.metaEntries, p.metaLinks).unique();
+			sql.debug(shared.db,
+				'INSERT INTO "URIs" ("URI")'+
+				' VALUES '+sql.list2D(allLinks, 1)+'', allLinks,
+				function(err, results) {
+					if(err) return callback(err, null);
+					sql.debug(shared.db,
+						'UPDATE "URIs" SET "entryID" = $1'+
+						' WHERE "URI" IN ('+sql.list1D(h.URNs, 2)+')',
+						[entryID].concat(h.URNs),
+						function(err, results) {
+							if(err) return callback(err, null);
+							if(!p.links.length) return callback(null, entryID);
+							sql.debug(shared.db,
+								'INSERT INTO "links"'+
+								' ("fromEntryID", "toUriID", "direct", "indirect")'+
+								' SELECT $1, "uriID", true, 1'+
+								' FROM "URIs" WHERE "URI" IN ('+sql.list1D(p.links, 2)+')',
+								[entryID].concat(p.links),
+								function(err, results) {
+									if(err) return callback(err, null);
+									// TODO
+									// 1. Add meta-links to the meta-entries
+									// 2. Recurse over links and add indirect rows
+									callback(err, entryID);
+								}
+							);
+						}
+					);
+				}
+			);
+		}
+	);
+
 };

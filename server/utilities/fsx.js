@@ -18,15 +18,16 @@ FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE. */
 var fs = require("fs");
 var pathModule = require("path");
+var fsx = exports;
 
-fs.rmRecursive = function(path, callback/* (err) */) {
+fsx.rmRecursive = function(path, callback/* (err) */) {
 	if("/" === path) return callback(new Error("Are you out of your mind?"));
 	fs.readdir(path, function(err, files) {
 		if(!err) {
 			var remaining = files.length;
 			if(!remaining) return fs.rmdir(path, callback);
 			for(var i = 0; i < files.length; ++i) {
-				fs.rmRecursive(path+"/"+files[i], function(err) {
+				fsx.rmRecursive(path+"/"+files[i], function(err) {
 					if(err) {
 						remaining = 0;
 						callback(err);
@@ -42,13 +43,13 @@ fs.rmRecursive = function(path, callback/* (err) */) {
 		}
 	});
 };
-fs.moveFile = function(src, dst, callback/* (err) */) {
+fsx.moveFile = function(src, dst, callback/* (err) */) {
 	fs.link(src, dst, function(err) {
 		if(err) return callback(err, null);
 		fs.unlink(src, callback);
 	});
 };
-fs.copyFile = function(src, dst, callback/* (err) */) {
+fsx.copyFile = function(src, dst, callback/* (err) */) {
 	var srcStream = fs.createReadStream(src);
 	var dstStream = fs.createWriteStream(dst);
 	srcStream.pipe(dstStream);
@@ -85,7 +86,7 @@ fs.copyFile = function(src, dst, callback/* (err) */) {
 // OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
 // USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-fs.writeAll = function(fd, buffer, offset, length, position, callback) {
+fsx.writeAll = function(fd, buffer, offset, length, position, callback) {
   var callback_ = arguments[arguments.length - 1];
   callback = (typeof(callback_) == 'function' ? callback_ : null);
 
@@ -102,10 +103,8 @@ fs.writeAll = function(fd, buffer, offset, length, position, callback) {
         offset += written;
         length -= written;
         position += written;
-        fs.writeAll(fd, buffer, offset, length, position, callback);
+        fsx.writeAll(fd, buffer, offset, length, position, callback);
       }
     }
   });
 };
-
-module.exports = fs;

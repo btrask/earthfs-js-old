@@ -21,20 +21,22 @@ var crypto = require("crypto");
 var pathModule = require("path");
 var urlModule = require("url");
 var util = require("util");
+var os = require("os");
+var fs = require("fs");
 
 var pg = require("pg");
 var formidable = require("formidable");
 var mkdirp = require("mkdirp");
 
 var bt = require("./utilities/bt");
-var fs = require("./utilities/fsx");
+var fsx = require("./utilities/fsx");
 var http = require("./utilities/httpx");
 var sql = require("./utilities/sql");
 
 var formatters = require("./formatters");
-var parsers = require("./parsers");
 var querylang = require("./query-languages");
-var hashers = require("./hashers");
+var Hashers = require("./hashers");
+var Parsers = require("./parsers");
 var shared = require("./shared");
 var query = require("./classes/query");
 var Client = require("./classes/Client");
@@ -74,6 +76,11 @@ function first(array) {
 function rest(array) {
 	return array.slice(1);
 }
+function randomString(length, charset) {
+	var chars = [], i;
+	for(i = 0; i < length; ++i) chars.push(charset[Math.floor(Math.random() * charset.length)]);
+	return chars.join("");
+}
 
 function tagSearch(query) {
 	var tab = "\t";
@@ -82,7 +89,7 @@ function tagSearch(query) {
 	var parameters = obj.parameters;
 	return db.query(
 		'SELECT * FROM (\n'+
-			tab+'SELECT e."entryID", \'urn:sha1:\' || e."hash" AS "URN", e."type"\n'+
+			tab+'SELECT e."entryID", \'urn:sha1:\' || e."hash" AS "URN"\n'+
 			tab+'FROM "entries" AS e\n'+
 			tab+'WHERE e."entryID" IN\n'+
 				sql+
@@ -212,54 +219,47 @@ serve.root.submit = function(req, res, root, submit) {
 	var hashes = {};
 	form.onPart = function(part) {
 		if("entry" !== part.name) return; // TODO: Is skipping other parts a good idea?
-		var sha1 = crypto.createHash("sha1");
+		var ext = pathModule.extname(part.filename);
+		var type = bt.has(MIME, ext) ? MIME[ext] : part.mime;
+		var tmp = os.tmpDir()+"/"+randomString(32, "0123456789abcdef");
+		var h = new Hashers(type);
+		var p = new Parsers(type);
+		var f = fs.createWriteStream(tmp);
+		var length = 0;
 		part.on("data", function(chunk) {
-			sha1.update(chunk);
+			h.update(chunk);
+			p.update(chunk);
+			f.write(chunk);
+			length += chunk.length;
 		});
 		part.on("end", function() {
-			hashes[part.name] = sha1.digest("hex");
-		});
-		form.handlePart(part);
-	};
-	form.parse(req, function(err, fields, fileByField) {
-		if(err) return fail(err);
-		if(!has(fileByField, "entry")) {
-			res.sendMessage(400, "Bad Request");
-			return;
-		}
-		var file = fileByField.entry;
-		var hash = hashes.entry;
-		var URN = "urn:sha1:"+hash;
-		var ext = pathModule.extname(file.name);
-		var type = bt.has(MIME, ext) ? MIME[ext] : file.type;
-//		if(0 === file.size) {
-//			res.sendMessage(400, "Bad Request");
-//			return;
-//		}
+			if(!length) {
+				res.sendMessage(400, "Bad Request");
+				return;
+			}
+			h.end();
+			p.end();
+			f.end();
 
-		var path = shared.pathForEntry(shared.DATA, hash, type);
-		mkdirp(pathModule.dirname(path), function(err) {
-			if(err) throw err;
-			fs.moveFile(file.path, path, function(err) {
+			var path = shared.pathForEntry(shared.DATA, h.internalHash, type);
+			mkdirp(pathModule.dirname(path), function(err) {
 				if(err) throw err;
-				shared.createEntry(path, type, hash, null, URN, function(err, entryID, data) {
+				fsx.moveFile(tmp, path, function(err) {
 					if(err) throw err;
-					shared.addEntryLinks(data, type, entryID, function(err) {
-						if(err) throw err;
-						res.writeHead(303, {"Location": "/entry/"+URN});
+					shared.addEntry(null, type, h, p, function(err, entryID) {
+						if(err) throw util.inspect(err);
+						res.writeHead(303, {"Location": h.primaryURN});
 						res.end();
-						sendEntry(entryID, {
-							"URN": URN,
-							"type": type,
-						});
+						sendEntry(entryID, h.primaryURN);
 					});
 				});
 			});
-		});
 
-	});
+		});
+	};
+	form.parse(req);
 };
-function sendEntry(entryID, entry) {
+function sendEntry(entryID, URN) {
 	Client.all.forEach(function(client) {
 		var obj = client.query.SQL(2, "\t");
 		sql.debug(db,
@@ -268,7 +268,7 @@ function sendEntry(entryID, entry) {
 			'AS matches', [entryID].concat(obj.parameters),
 			function(err, results) {
 				if(err) console.log(err);
-				if(results.rows[0].matches) client.send(entry);
+				if(results.rows[0].matches) client.send(URN);
 			}
 		);
 	});
@@ -286,10 +286,7 @@ io.sockets.on("connection", function(socket) {
 				console.log(err); // TODO
 			});
 			dbq.on("row", function(row) {
-				client.send({
-					"URN": row.URN,
-					"type": row.type,
-				});
+				client.send(row.URN);
 			});
 			dbq.on("end", function() {
 				if(client.connected) Client.all.push(client); // Start watching for new entries.

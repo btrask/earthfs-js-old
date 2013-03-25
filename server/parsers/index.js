@@ -22,14 +22,45 @@ var modules = plugins.load(__dirname, "Parsers");
 
 var parsers = exports;
 
-parsers.parse = function(data, type, callback/* (err, links) */) {
-	if("text/" !== type.slice(0, 5)) return callback(null, []); // TODO: Handle parsers for specific MIME types.
-	parsers.fallback(data, type, callback);
+function FallbackParser(type) {
+	var p = this;
+	p.links = null;
+	p.metaEntries = null;
+	p.metaLinks = null;
+	p.fullText = null;
+	p._buffers = []; // TODO: Use a streaming parser instead.
+}
+FallbackParser.prototype.update = function(chunk) {
+	var p = this;
+	p._buffers.push(chunk);
 };
-parsers.fallback = function(data, type, callback/* (err, links) */) {
+FallbackParser.prototype.end = function() {
+	var p = this;
+	var str = Buffer.concat(p._buffers).toString("utf8");
 	// <http://daringfireball.net/2010/07/improved_regex_for_matching_urls>
 	var exp = /\b((?:[a-z][\w\-]+:(?:\/{1,3}|[a-z0-9%])|www\d{0,3}[.]|[a-z0-9.\-]+[.][a-z]{2,4}\/)(?:[^\s()<>]+|\(([^\s()<>]+|(\([^\s()<>]+\)))*\))+(?:\(([^\s()<>]+|(\([^\s()<>]+\)))*\)|[^\s`!()\[\]{};:'".,<>?«»“”‘’]))/ig;
-	var links = [], x;
-	while((x = exp.exec(data))) links.push(x[0]);
-	callback(null, links);
+	var x;
+	p.links = [];
+	while((x = exp.exec(str))) p.links.push(x[0]);
+	p.metaEntries = [];
+	p.metaLinks = []; // TODO: Implement.
+	p.fullText = str;
 };
+FallbackParser.supports = function(type) {
+	return "text/" === type.slice(0, 5);
+};
+modules.push(FallbackParser);
+
+function ParserCollection(type) {
+	for(var i = 0; i < modules.length; ++i) {
+		if(modules[i].supports(type)) return new modules[i]();
+	}
+	var pc = this;
+	pc.links = [];
+	pc.metaEntries = [];
+	pc.metaLinks = [];
+}
+ParserCollection.prototype.update = function(chunk) {};
+ParserCollection.prototype.end = function() {};
+
+module.exports = ParserCollection;

@@ -27,6 +27,8 @@ var bt = require("../server/utilities/bt");
 var fs = require("../server/utilities/fsx");
 var sql = require("../server/utilities/sql");
 
+var Hashers = require("./hashers");
+var Parsers = require("./parsers");
 var shared = require("../server/shared");
 
 if(process.argv.length < 3) {
@@ -66,28 +68,28 @@ function processEntry(oldHash, callback) {
 				return prev+URNs[hash]+next;
 			});
 
-			var sha1 = crypto.createHash("sha1");
-			sha1.update(data, "utf8");
-			var hash = sha1.digest("hex");
-			var URN = "urn:sha1:"+hash;
-			URNs[oldHash] = URN;
-
+			var buffer = new Buffer(data, "utf8");
 			var type = "text/x-bad-markup; charset=utf-8";
-			var dstPath = shared.pathForEntry(shared.DATA, hash, type);
+			var h = new Hashers(type);
+			var p = new Parsers(type);
+			h.update(buffer);
+			p.update(buffer);
+			h.end();
+			p.end();
+			var dstPath = shared.pathForEntry(shared.DATA, h.internalHash, type);
+			URNs[oldHash] = h.primaryURN;
 
 			mkdirp(pathModule.dirname(dstPath), function(err) {
 				if(err) throw util.inspect(err);
-				fs.writeFile(dstPath, data, "utf8", function(err) {
+				fs.writeFile(dstPath, buffer, function(err) {
 					if(err) throw util.inspect(err);
-					shared.createEntry(dstPath, type, hash, srcPath, URN, function(err, entryID, data) {
+					shared.addEntry(srcPath, type, h, p, function(err, entryID) {
 						if(err) throw util.inspect(err);
-						shared.addEntryLinks(data, type, entryID, function(err) {
-							if(err) throw util.inspect(err);
-							callback();
-						});
+						callback();
 					});
 				});
 			});
+
 		});
 	});
 }

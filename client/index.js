@@ -97,8 +97,8 @@ function Stream(query) {
 		stream.pinned = c.scrollTop >= (c.scrollHeight - c.clientHeight);
 	});
 
-	stream.socket.on("entry", function(obj) {
-		var entry = new Entry(obj);
+	stream.socket.on("entry", function(URN) {
+		var entry = new Entry(URN);
 		stream.entries.appendChild(entry.element);
 		stream.keepPinned();
 		entry.load(function() {
@@ -213,32 +213,31 @@ var IMAGE_TYPES = {
 	"image/png": 1,
 	"image/gif": 1,
 };
-function Entry(obj) {
+function Entry(URN) {
 	var entry = this;
 	entry.elems = {};
 	entry.element = DOM.clone("entry", this.elems);
-	entry.URN = obj["URN"];
-	entry.type = obj["type"];
+	entry.URN = URN;
 	DOM.fill(entry.elems.URN, entry.URN);
 	DOM.fill(entry.elems.content, "Loading…");
 	entry.elems.URN.href = Stream.location({"q": entry.URN});
-	entry.elems.raw.href = "/entry/"+entry.URN;
+	entry.elems.raw.href = "/entry/"+encodeURIComponent(entry.URN);
 }
 Entry.prototype.load = function(callback) {
 	var entry = this;
 	var url = "/entry/"+encodeURIComponent(entry.URN);
-	if(bt.has(IMAGE_TYPES, entry.type)) {
-		var image = new Image();
-		image.src = url;
-		DOM.fill(entry.elems.content, image);
-		return;
-	}
 	var req = new XMLHttpRequest();
 	req.open("GET", url, true);
 	req.onreadystatechange = function() {
 		if(4 !== req.readyState) return;
-		if(200 !== req.status) return; // TODO: Handle 406 Not Acceptable.
-		DOM.fill(entry.elems.content, Entry.parseHTML(req.responseText));
+		switch(req.status) {
+			case 200: // OK
+				DOM.fill(entry.elems.content, Entry.parseHTML(req.responseText));
+				break;
+			case 406: // Not Acceptable
+				DOM.fill(entry.elems.content, "(no preview available)");
+				break;
+		}
 		callback();
 	};
 	req.setRequestHeader("Accept", "text/html");

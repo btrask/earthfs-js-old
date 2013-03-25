@@ -17,29 +17,26 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
 FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE. */
 var crypto = require("crypto");
-var encdec = require("encdec");
-var base32 = encdec.create("ABCDEFGHIJKLMNOPQRSTUVWXYZ234567");
+//var encdec = require("encdec");
+//var base32 = encdec.create("ABCDEFGHIJKLMNOPQRSTUVWXYZ234567");
 
-exports.create = function() {
-	return new Hash();
-};
+function Hasher(type) {
+	var h = this;
+	h.URNs = null;
 
-function Hash() {
-	var hash = this;
-	hash.sha1 = crypto.createHash("sha1");
-	hash.sha256 = crypto.createHash("sha256");
+	h._sha256 = crypto.createHash("sha256");
 }
-Hash.prototype.update = function(data, encoding) {
-	this.sha1.update(data, encoding);
-	this.sha256.update(data, encoding);
+Hasher.prototype.update = function(data, encoding) {
+	var h = this;
+	h._sha256.update(data);
 };
-Hash.prototype.digests = function() {
-	var sha1 = this.sha1.digest();
-	var sha256 = this.sha256.digest();
-	return [
-		"urn:sha1:"+sha1.toString("hex"),
-		"urn:sha1:"+base32.encode(sha1),
-		"urn:sha256:"+sha1.toString("hex"),
-		"urn:sha256:"+base32.encode(sha256),
+Hasher.prototype.end = function() {
+	var h = this;
+	var sha256 = new Buffer(h._sha256.digest("binary"), "binary"); // Hack for 0.8.x.
+	h.URNs = [
+		"urn:sha256:"+sha256.toString("hex"),
+//		"urn:sha256:"+base32.encode(sha256),
 	];
 };
+
+module.exports = Hasher;
