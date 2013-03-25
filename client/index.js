@@ -17,7 +17,13 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
 FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE. */
 
-/*global query DOM io Text*/
+/*global query DOM io Text marked*/
+
+marked.setOptions({
+	gfm: true,
+	breaks: true,
+	sanitize: true,
+});
 
 var bt = {}; // TODO: Use separate file.
 bt.has = function(obj, prop) {
@@ -164,30 +170,14 @@ function TextEditor(stream) {
 	function trimBlankLines(str) {
 		return str.replace(/^[\n\r]+|[\n\r]+$/g, "");
 	}
-	var refresh = null, downloading = false;
+	var refresh = null;
 	editor.textarea.oninput = editor.textarea.onpropertychange = function() {
-		clearTimeout(refresh);
 		refresh = setTimeout(function() {
-			if(downloading) {
-				refresh = setTimeout(arguments.callee, 1000);
-				return;
-			}
-			var form = new FormData();
-			var req = new XMLHttpRequest();
-			form.append("entry", new Blob(
-				[trimBlankLines(editor.textarea.value)],
-				{"type": "text/markdown"}
-			));
-			req.onreadystatechange = function() {
-				if(4 !== req.readyState) return;
-				downloading = false;
-				DOM.fill(editor.preview, Entry.parseHTML(req.responseText));
-			};
-			req.open("POST", "/preview");
-			req.setRequestHeader("Accept", "text/html");
-			req.send(form);
-			downloading = true;
-		}, 1000);
+			var src = trimBlankLines(editor.textarea.value);
+			var html = marked(src);
+			DOM.fill(editor.preview, Entry.parseHTML(html));
+			refresh = null;
+		}, 1000 * 0.25);
 	};
 	editor.submitButton.onclick = function(event) {
 		if("" === editor.textarea.value.replace(/\s/g, "")) {
