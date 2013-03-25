@@ -77,7 +77,7 @@ function processEntry(oldHash, callback) {
 
 			mkdirp(pathModule.dirname(dstPath), function(err) {
 				if(err) throw util.inspect(err);
-				fs.writeFileReadOnly(dstPath, data, "utf8", function(err) {
+				fs.writeFile(dstPath, data, "utf8", function(err) {
 					if(err) throw util.inspect(err);
 					shared.createEntry(dstPath, type, hash, srcPath, URN, function(err, entryID, data) {
 						if(err) throw util.inspect(err);

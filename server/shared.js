@@ -17,7 +17,6 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
 FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE. */
 var fs = require("fs");
-var pathModule = require("path");
 var mkdirp = require("mkdirp");
 
 var parsers = require("./parsers");
@@ -43,36 +42,6 @@ shared.pathForEntry = function(dir, hash, type) {
 	return dir+"/"+hash.slice(0, 2)+"/"+hash+"."+EXT[t];
 };
 
-shared.moveEntryFile = function(srcPath, hash, type, callback/* (err, path) */) {
-	fs.chmod(srcPath, 292 /*=0444*/, function(err) {
-		if(err) return callback(err, null);
-		var dstPath = shared.pathForEntry(shared.DATA, hash, type);
-		mkdirp(pathModule.dirname(dstPath), function(err) {
-			if(err) return callback(err, null);
-			fs.link(srcPath, dstPath, function(err) { // TODO: Test this carefully to make sure we don't overwrite.
-				if(err) console.log(srcPath, dstPath);
-				if(err) return callback(err, null); // TODO: Clients should remove the file if there was an error.
-				fs.unlink(srcPath);
-				callback(null, dstPath);
-			});
-		});
-	});
-};
-shared.copyEntryFile = function(srcPath, hash, type, callback/* (err, path) */) {
-	var dstPath = shared.pathForEntry(shared.DATA, hash, type);
-	var src = fs.createReadStream(srcPath);
-	var dst = fs.createWriteStream(dstPath, {mode: 292/*=0444*/});
-	src.pipe(dst);
-	src.on("error", function(err) {
-		callback(err, null);
-	});
-	dst.on("error", function(err) {
-		callback(err, null);
-	});
-	dst.on("close", function() { // TODO: Might be broken in Node 0.10.
-		callback(null, dstPath);
-	});
-};
 shared.createEntry = function(path, type, hash, source, URI, callback/* (err, entryID, data) */) {
 	log.write(JSON.stringify({
 		"date": new Date().toISOString(),

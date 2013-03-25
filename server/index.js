@@ -236,21 +236,27 @@ serve.root.submit = function(req, res, root, submit) {
 //			res.sendMessage(400, "Bad Request");
 //			return;
 //		}
-		shared.moveEntryFile(file.path, hash, type, function(err, path) {
+
+		var path = shared.pathForEntry(shared.DATA, hash, type);
+		mkdirp(pathModule.dirname(path), function(err) {
 			if(err) throw err;
-			shared.createEntry(path, type, hash, null, URN, function(err, entryID, data) {
+			fs.moveFile(file.path, path, function(err) {
 				if(err) throw err;
-				shared.addEntryLinks(data, type, entryID, function(err) {
+				shared.createEntry(path, type, hash, null, URN, function(err, entryID, data) {
 					if(err) throw err;
-					res.writeHead(303, {"Location": "/entry/"+URN});
-					res.end();
-					sendEntry(entryID, {
-						"URN": URN,
-						"type": type,
+					shared.addEntryLinks(data, type, entryID, function(err) {
+						if(err) throw err;
+						res.writeHead(303, {"Location": "/entry/"+URN});
+						res.end();
+						sendEntry(entryID, {
+							"URN": URN,
+							"type": type,
+						});
 					});
 				});
 			});
 		});
+
 	});
 };
 function sendEntry(entryID, entry) {

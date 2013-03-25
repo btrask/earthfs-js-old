@@ -42,6 +42,27 @@ fs.rmRecursive = function(path, callback/* (err) */) {
 		}
 	});
 };
+fs.moveFile = function(src, dst, callback/* (err) */) {
+	fs.link(src, dst, function(err) {
+		if(err) return callback(err, null);
+		fs.unlink(src, callback);
+	});
+};
+fs.copyFile = function(src, dst, callback/* (err) */) {
+	var srcStream = fs.createReadStream(src);
+	var dstStream = fs.createWriteStream(dst);
+	srcStream.pipe(dstStream);
+	// TODO: I'm not sure which of these error messages to listen on.
+	srcStream.on("error", function(err) {
+		callback(err);
+	});
+	dstStream.on("error", function(err) {
+		callback(err);
+	});
+	dstStream.on("end", function() {
+		callback(null);
+	});
+};
 
 // Copyright Joyent, Inc. and other Node contributors.
 //
@@ -83,20 +104,6 @@ fs.writeAll = function(fd, buffer, offset, length, position, callback) {
         position += written;
         fs.writeAll(fd, buffer, offset, length, position, callback);
       }
-    }
-  });
-};
-fs.writeFileReadOnly = function(path, data, encoding_, callback) {
-  var encoding = (typeof(encoding_) == 'string' ? encoding_ : 'utf8');
-  var callback_ = arguments[arguments.length - 1];
-  callback = (typeof(callback_) == 'function' ? callback_ : null);
-  fs.open(path, 'w', 292 /*=0444*/, function(openErr, fd) {
-    if (openErr) {
-      if (callback) callback(openErr);
-    } else {
-      var buffer = Buffer.isBuffer(data) ? data : new Buffer('' + data,
-          encoding);
-      fs.writeAll(fd, buffer, 0, buffer.length, 0, callback);
     }
   });
 };
