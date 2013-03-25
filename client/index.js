@@ -281,10 +281,20 @@ Entry.parseHTML = function(html) {
 			convertURNs(a[i]);
 		}
 	}
+	function targetBlank(node) {
+		var a = node.childNodes, l = a.length, x;
+		for(var i = 0; i < l; ++i) {
+			if("A" === a[i].tagName && a[i].getAttribute("href")) {
+				a[i].setAttribute("target", "_blank");
+			}
+			targetBlank(a[i]);
+		}
+	}
 	var elem = document.createElement("div");
 	elem.innerHTML = html;
 	linkifyURNs(elem);
 	convertURNs(elem);
+	targetBlank(elem);
 	return elem;
 };
 
