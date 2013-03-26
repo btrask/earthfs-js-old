@@ -33,7 +33,7 @@ exports.negotiateTypes = function(srcType, dstTypes) {
 exports.format = function(srcPath, srcType, dstPath, dstType, callback) {
 	fs.readFile(srcPath, "base64", function(err, buffer) {
 		if(err) return callback(err);
-		var html = "<img src=\"data:"+dstType+";base64,"+buffer+"\">";
+		var html = "<img src=\"data:"+srcType+";base64,"+buffer+"\">";
 		// TODO: This isn't optimal, but it makes sense for a couple reasons:
 		// 1. We get the path but not the URI, so we don't know how to access the image
 		// 2. If a formatter wants to use custom resources, it can't host them itself
