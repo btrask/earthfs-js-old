@@ -82,7 +82,7 @@ function randomString(length, charset) {
 	return chars.join("");
 }
 
-function tagSearch(query) {
+function tagSearch(query, callback/* (err, results) */) {
 	var tab = "\t";
 	var obj = query.SQL(1, tab+"\t");
 	var sql = obj.query;
@@ -95,7 +95,8 @@ function tagSearch(query) {
 				sql+
 			tab+'ORDER BY e."entryID" DESC LIMIT 50\n'+
 		') x ORDER BY "entryID" ASC',
-		parameters
+		parameters,
+		callback
 	);
 }
 
@@ -281,14 +282,11 @@ io.sockets.on("connection", function(socket) {
 		// TODO: Use some sort of global query that filters hidden posts, etc.
 		querylang.parse(str, "lispish", function(err, query) {
 			var client = new Client(socket, query);
-			var dbq = tagSearch(query);
-			dbq.on("error", function(err) {
-				console.log(err); // TODO
-			});
-			dbq.on("row", function(row) {
-				client.send(row.URN);
-			});
-			dbq.on("end", function() {
+			tagSearch(query, function(err, results) {
+				if(err) console.log(err); // TODO
+				socket.emit("entries", results.rows.map(function(row) {
+					return row.URN;
+				}));
 				if(client.connected) Client.all.push(client); // Start watching for new entries.
 			});
 		});

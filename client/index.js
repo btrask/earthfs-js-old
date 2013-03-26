@@ -44,7 +44,6 @@ function Stream(query) {
 	stream.editor = null;
 	stream.socket = io.connect("/");
 	stream.socket.on("connected", function(callback) {
-		DOM.fill(stream.entries);
 		callback({"q": query});
 	});
 
@@ -97,6 +96,18 @@ function Stream(query) {
 		stream.pinned = c.scrollTop >= (c.scrollHeight - c.clientHeight);
 	});
 
+	stream.socket.on("entries", function(URNs) {
+		var i = URNs.length, entry;
+		DOM.fill(stream.entries);
+		while(i--) {
+			entry = new Entry(URNs[i]);
+			stream.entries.insertBefore(entry.element, stream.entries.childNodes[0] || null);
+			stream.keepPinned();
+			entry.load(function() {
+				stream.keepPinned();
+			});
+		}
+	});
 	stream.socket.on("entry", function(URN) {
 		var entry = new Entry(URN);
 		stream.entries.appendChild(entry.element);
