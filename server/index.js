@@ -106,7 +106,9 @@ function tagSearch(query, callback/* (err, results) */) {
 
 var server = http.createServer(serve);
 function serve(req, res) {
-	var path = urlModule.parse(req.url).pathname;
+	var obj = urlModule.parse(req.url, true);
+	var path = obj.pathname;
+	var options = obj.query;
 	var components = componentsFromPath(path);
 	if(-1 !== components.indexOf("..")) {
 		res.sendMessage(400, "Bad Request");
@@ -115,11 +117,11 @@ function serve(req, res) {
 	serve.root(req, res, {
 		"path": path,
 		"components": components,
+		"options": options,
 	});
 }
 serve.root = function(req, res, root) {
 	var components = root.components;
-	var options = urlModule.parse(req.url, true).query;
 	var imp = lookup(serve.root, first(components));
 	if(!imp) {
 		var path = CLIENT+root.path;
@@ -132,7 +134,7 @@ serve.root = function(req, res, root) {
 	imp(req, res, root, {
 		"path": pathFromComponents(components),
 		"components": rest(components),
-		"options": options,
+		"options": root.options,
 	});
 };
 serve.root.entry = function(req, res, root, entry) {
