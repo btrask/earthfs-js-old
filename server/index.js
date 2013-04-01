@@ -59,11 +59,15 @@ function componentsFromPath(path) {
 	var a = "/" === path[0] ? 1 : 0;
 	var b = "/" === path[l-1] ? 1 : 0;
 	if(a+b >= l) return [];
-	return path.slice(a, -b || undefined).split("/");
+	return path.slice(a, -b || undefined).split("/").map(function(x) {
+		return decodeURIComponent(x);
+	});
 }
 function pathFromComponents(components) {
 	if(!components.length) return "";
-	return "/"+components.join("/");
+	return "/"+components.map(function(x) {
+		return encodeURIComponent(x);
+	}).join("/");
 }
 function lookup(obj, prop) {
 	if(!obj || !prop) return null; // TODO: Be more robust.
@@ -103,9 +107,7 @@ function tagSearch(query, callback/* (err, results) */) {
 var server = http.createServer(serve);
 function serve(req, res) {
 	var path = urlModule.parse(req.url).pathname;
-	var components = componentsFromPath(path).map(function(x) {
-		return decodeURIComponent(x);
-	});
+	var components = componentsFromPath(path);
 	if(-1 !== components.indexOf("..")) {
 		res.sendMessage(400, "Bad Request");
 		return;
