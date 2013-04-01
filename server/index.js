@@ -105,7 +105,8 @@ function tagSearch(query, callback/* (err, results) */) {
 	);
 }
 
-var server = https.createServer({
+var server = http.createServer(serve);
+var secureServer = https.createServer({
 	key: fs.readFileSync(__dirname+"/../server.key"),
 	cert: fs.readFileSync(__dirname+"/../server.crt"),
 	honorCipherOrder: true,
@@ -286,8 +287,10 @@ function sendEntry(entryID, URN) {
 	});
 }
 
-var io = require("socket.io").listen(server, {log: false});
-io.sockets.on("connection", function(socket) {
+var io = require("socket.io");
+io.listen(server, {log: false}).sockets.on("connection", steamServe);
+io.listen(secureServer, {log: false}).sockets.on("connection", steamServe);
+function steamServe(socket) {
 	socket.emit("connected", function(params) {
 		var str = params["q"].split("+").map(decodeURIComponent).join(" ");
 		// TODO: Use some sort of global query that filters hidden posts, etc.
@@ -302,9 +305,11 @@ io.sockets.on("connection", function(socket) {
 			});
 		});
 	});
-});
+}
 
-var PORT = 8001;
-server.listen(PORT, function() {
-	console.log("https://localhost:"+PORT+"/");
+server.listen(8001, function() {
+	console.log("http://localhost:8001/");
+});
+secureServer.listen(8002, function() {
+	console.log("https://localhost:8002/");
 });
