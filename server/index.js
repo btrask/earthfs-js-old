@@ -23,6 +23,7 @@ var urlModule = require("url");
 var util = require("util");
 var os = require("os");
 var fs = require("fs");
+var https = require("https");
 
 var pg = require("pg");
 var formidable = require("formidable");
@@ -104,7 +105,13 @@ function tagSearch(query, callback/* (err, results) */) {
 	);
 }
 
-var server = http.createServer(serve);
+var server = https.createServer({
+	key: fs.readFileSync(__dirname+"/../server.key"),
+	cert: fs.readFileSync(__dirname+"/../server.crt"),
+	honorCipherOrder: true,
+	requestCert: true,
+	rejectUnauthorized: false,
+}, serve);
 function serve(req, res) {
 	var obj = urlModule.parse(req.url, true);
 	var path = obj.pathname;
@@ -297,6 +304,7 @@ io.sockets.on("connection", function(socket) {
 	});
 });
 
-server.listen(8001, function() {
-	console.log("http://localhost:8001/");
+var PORT = 8001;
+server.listen(PORT, function() {
+	console.log("https://localhost:"+PORT+"/");
 });
