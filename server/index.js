@@ -307,9 +307,16 @@ function steamServe(socket) {
 	});
 }
 
-server.listen(8001, function() {
-	console.log("http://localhost:8001/");
+var LOCAL_PORT = 8001;
+var REMOTE_PORT = 8002;
+server.listen(LOCAL_PORT, "localhost", function() {
+	console.log("Local address: http://localhost:"+LOCAL_PORT+"/");
 });
-secureServer.listen(8002, function() {
-	console.log("https://localhost:8002/");
+secureServer.listen(REMOTE_PORT, function() {
+	console.log("Remote address: https://localhost:"+REMOTE_PORT+"/");
+	// TODO:
+	// 1. List LAN and WAN addresses separately
+	// 2. Use NAT traversal/UPnP
+	// We can allow browser clients over our remote address.
+	// There won't be an error if the domain and cert are set up right.
 });
