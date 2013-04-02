@@ -28,6 +28,8 @@ var https = require("https");
 var pg = require("pg");
 var formidable = require("formidable");
 var mkdirp = require("mkdirp");
+var ioServer = require("socket.io");
+var ioClient = require('socket.io-client');
 
 var bt = require("./utilities/bt");
 var fsx = require("./utilities/fsx");
@@ -287,10 +289,10 @@ function sendEntry(entryID, URN) {
 	});
 }
 
-var io = require("socket.io");
-io.listen(server, {log: false}).sockets.on("connection", steamServe);
-io.listen(secureServer, {log: false}).sockets.on("connection", steamServe);
-function steamServe(socket) {
+var ioOpts = {log: false};
+ioServer.listen(server, ioOpts).sockets.on("connection", streamServe);
+ioServer.listen(secureServer, ioOpts).sockets.on("connection", streamServe);
+function streamServe(socket) {
 	socket.emit("connected", function(params) {
 		var str = params["q"].split("+").map(decodeURIComponent).join(" ");
 		// TODO: Use some sort of global query that filters hidden posts, etc.
