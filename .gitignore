@@ -9,9 +9,3 @@ xcuserdata/
 .svn
 build/
 node_modules/
-secret.json
-data/
-cache/
-*.key
-*.crt
-*.pem
