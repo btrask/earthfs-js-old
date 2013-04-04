@@ -25,17 +25,16 @@ var sql = require("../utilities/sql");
 
 var EXT = require("../utilities/ext.json");
 
-function Repo(path) {
+function Repo(path, config) {
 	var repo = this;
 	repo.PATH = path;
-	repo.DATA = pathModule.resolve(repo.PATH, "./data");
-	repo.CACHE = pathModule.resolve(repo.PATH, "./cache");
-	repo.LOG = pathModule.resolve(repo.PATH, "./entries.log");
-	repo.CONFIG = pathModule.resolve(repo.PATH, "./EarthFS.json");
-	repo.KEY = pathModule.resolve(repo.PATH, "./server.key");
-	repo.CERT = pathModule.resolve(repo.PATH, "./server.crt");
+	repo.config = config;
+	repo.DATA = pathModule.resolve(repo.PATH, config["dataPath"] || "./data");
+	repo.CACHE = pathModule.resolve(repo.PATH, config["cachePath"] || "./cache");
+	repo.LOG = pathModule.resolve(repo.PATH, config["logPath"] || "./entries.log");
+	repo.KEY = pathModule.resolve(repo.PATH, config["keyPath"] || "./server.key");
+	repo.CERT = pathModule.resolve(repo.PATH, config["certPath"] || "./server.crt");
 	repo.log = fs.createWriteStream(repo.LOG, {flags: "a", encoding: "utf8"});
-	repo.config = JSON.parse(fs.readFileSync(repo.CONFIG, "utf8")); // TODO: Async?
 	repo.db = new pg.Client(repo.config.db); // TODO: Use client pool.
 	repo.db.connect();
 }
@@ -95,6 +94,18 @@ Repo.prototype.addEntry = function(source, type, h, p, callback/* (err, entryID)
 		}
 	);
 
+};
+
+Repo.load = function(path, callback/* (err, repo) */) {
+	var configPath = pathModule.resolve(path, "./EarthFS.json");
+	fs.readFile(configPath, "utf8", function(err, config) {
+		if(err) return callback(err, null);
+		return callback(null, JSON.parse(config));
+	});
+};
+Repo.loadSync = function(path) {
+	var configPath = pathModule.resolve(path, "./EarthFS.json");
+	return new Repo(path, JSON.parse(fs.readFileSync(configPath, "utf8")));
 };
 
 module.exports = Repo;

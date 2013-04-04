@@ -61,7 +61,7 @@ var EXT = require("./utilities/ext.json");
 var MIME = require("./utilities/mime.json");
 var QUERY_TYPES = ["text/html", "text/json"];
 
-var repo = new Repo(PATH);
+var repo = Repo.loadSync(PATH);
 
 function has(obj, prop) {
 	return Object.prototype.hasOwnProperty.call(obj, prop);
