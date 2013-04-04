@@ -17,39 +17,42 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
 FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE. */
 var fs = require("fs");
-var mkdirp = require("mkdirp");
+var pathModule = require("path");
+var pg = require("pg");
 
-var bt = require("./utilities/bt");
-var sql = require("./utilities/sql");
+var bt = require("../utilities/bt");
+var sql = require("../utilities/sql");
 
-var EXT = require("./utilities/ext.json");
+var EXT = require("../utilities/ext.json");
 
-var shared = exports;
-
-shared.db = null; // Set by the client.
-
-shared.DATA = __dirname+"/../data";
-shared.CACHE = __dirname+"/../cache";
-
-mkdirp.sync(shared.DATA);
-var log = fs.createWriteStream(shared.DATA+"/hashes.log", {flags: "a", encoding: "utf8"});
-
-shared.pathForEntry = function(dir, hash, type) {
+function Repo(path) {
+	var repo = this;
+	repo.PATH = path;
+	repo.DATA = pathModule.resolve(repo.PATH, "./data");
+	repo.CACHE = pathModule.resolve(repo.PATH, "./cache");
+	repo.LOG = pathModule.resolve(repo.DATA, "./hashes.log"); // TODO: Move to top level, rename.
+	repo.CONFIG = pathModule.resolve(repo.PATH, "./secret.json"); // TODO: Move to EarthFS.json.
+	repo.log = fs.createWriteStream(repo.LOG, {flags: "a", encoding: "utf8"});
+	repo.config = JSON.parse(fs.readFileSync(repo.CONFIG, "utf8")); // TODO: Async?
+	repo.db = new pg.Client(repo.config.db); // TODO: Use client pool.
+	repo.db.connect();
+}
+Repo.prototype.pathForEntry = function(dir, hash, type) {
 	var t = type.split(";")[0];
 	if(!bt.has(EXT, t)) throw new Error("Invalid MIME type "+type);
 	return dir+"/"+hash.slice(0, 2)+"/"+hash+"."+EXT[t];
 };
+Repo.prototype.addEntry = function(source, type, h, p, callback/* (err, entryID) */) {
+	var repo = this;
 
-shared.addEntry = function(source, type, h, p, callback/* (err, entryID) */) {
-
-	log.write(JSON.stringify({
+	repo.log.write(JSON.stringify({
 		"date": new Date().toISOString(),
 		"internalHash": h.internalHash,
 		"type": type,
 		"source": source,
 	})+"\n");
 
-	sql.debug(shared.db,
+	sql.debug(repo.db,
 		'INSERT INTO "entries" ("hash", "type", "fulltext")'+
 		' VALUES ($1, $2, to_tsvector(\'english\', $3)) RETURNING "entryID"',
 		[h.internalHash, type, p.fullText],
@@ -57,19 +60,19 @@ shared.addEntry = function(source, type, h, p, callback/* (err, entryID) */) {
 			if(err) return callback(err, null);
 			var entryID = results.rows[0].entryID;
 			var allLinks = h.URNs.concat(p.links, p.metaEntries, p.metaLinks).unique();
-			sql.debug(shared.db,
+			sql.debug(repo.db,
 				'INSERT INTO "URIs" ("URI")'+
 				' VALUES '+sql.list2D(allLinks, 1)+'', allLinks,
 				function(err, results) {
 					if(err) return callback(err, null);
-					sql.debug(shared.db,
+					sql.debug(repo.db,
 						'UPDATE "URIs" SET "entryID" = $1'+
 						' WHERE "URI" IN ('+sql.list1D(h.URNs, 2)+')',
 						[entryID].concat(h.URNs),
 						function(err, results) {
 							if(err) return callback(err, null);
 							if(!p.links.length) return callback(null, entryID);
-							sql.debug(shared.db,
+							sql.debug(repo.db,
 								'INSERT INTO "links"'+
 								' ("fromEntryID", "toUriID", "direct", "indirect")'+
 								' SELECT $1, "uriID", true, 1'+
@@ -91,3 +94,5 @@ shared.addEntry = function(source, type, h, p, callback/* (err, entryID) */) {
 	);
 
 };
+
+module.exports = Repo;

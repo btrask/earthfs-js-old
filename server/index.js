@@ -40,9 +40,10 @@ var formatters = require("./formatters");
 var querylang = require("./query-languages");
 var Hashers = require("./hashers");
 var Parsers = require("./parsers");
-var shared = require("./shared");
-var query = require("./classes/query");
+
 var Client = require("./classes/Client");
+var query = require("./classes/query");
+var Repo = require("./classes/Repo");
 
 var CLIENT = __dirname+"/../build";
 
@@ -50,8 +51,7 @@ var EXT = require("./utilities/ext.json");
 var MIME = require("./utilities/mime.json");
 var QUERY_TYPES = ["text/html", "text/json"];
 
-var db = shared.db = new pg.Client(require("../secret.json").db);
-db.connect();
+var repo = new Repo(__dirname+"/..");
 
 function has(obj, prop) {
 	return Object.prototype.hasOwnProperty.call(obj, prop);
@@ -94,7 +94,7 @@ function tagSearch(query, callback/* (err, results) */) {
 	var obj = query.SQL(1, tab+"\t");
 	var sql = obj.query;
 	var parameters = obj.parameters;
-	return db.query(
+	return repo.db.query(
 		'SELECT * FROM (\n'+
 			tab+'SELECT e."entryID", \'urn:sha1:\' || e."hash" AS "URN"\n'+
 			tab+'FROM "entries" AS e\n'+
@@ -153,7 +153,7 @@ serve.root.entry = function(req, res, root, entry) {
 		res.sendMessage(400, "Bad Request");
 		return;
 	}
-	db.query(
+	repo.db.query(
 		'SELECT e."entryID", e."hash", e."type"'+
 		' FROM "entries" AS e'+
 		' LEFT JOIN "URIs" AS u ON (u."entryID" = e."entryID")'+
@@ -169,7 +169,7 @@ serve.root.entry = function(req, res, root, entry) {
 			}
 			var row = results.rows[0];
 			var srcType = row.type;
-			var srcPath = shared.pathForEntry(shared.DATA, row.hash, srcType);
+			var srcPath = repo.pathForEntry(repo.DATA, row.hash, srcType);
 			var dstTypes = req.headers.accept.split(",");
 			sendFormatted(req, res, srcPath, srcType, dstTypes, row.hash);
 		}
@@ -182,7 +182,7 @@ function sendFormatted(req, res, srcPath, srcType, dstTypes, hash) {
 		return;
 	}
 	var dstType = obj.dstType;
-	var dstPath = dstType === srcType ? srcPath : shared.pathForEntry(shared.CACHE, hash, dstType);
+	var dstPath = dstType === srcType ? srcPath : repo.pathForEntry(repo.CACHE, hash, dstType);
 	var format = obj.format;
 	if("text/" === dstType.slice(0, 5)) dstType += "; charset=utf-8";
 
@@ -256,12 +256,12 @@ serve.root.submit = function(req, res, root, submit) {
 			p.end();
 			f.end();
 
-			var path = shared.pathForEntry(shared.DATA, h.internalHash, type);
+			var path = repo.pathForEntry(repo.DATA, h.internalHash, type);
 			mkdirp(pathModule.dirname(path), function(err) {
 				if(err) throw err;
 				fsx.moveFile(tmp, path, function(err) {
 					if(err) throw err;
-					shared.addEntry(null, type, h, p, function(err, entryID) {
+					repo.addEntry(null, type, h, p, function(err, entryID) {
 						if(err) throw util.inspect(err);
 						res.writeHead(303, {"Location": h.primaryURN});
 						res.end();
@@ -277,7 +277,7 @@ serve.root.submit = function(req, res, root, submit) {
 function sendEntry(entryID, URN) {
 	Client.all.forEach(function(client) {
 		var obj = client.query.SQL(2, "\t");
-		sql.debug(db,
+		sql.debug(repo.db,
 			'SELECT $1 IN \n'+
 				obj.query+
 			'AS matches', [entryID].concat(obj.parameters),
