@@ -25,6 +25,16 @@ var os = require("os");
 var fs = require("fs");
 var https = require("https");
 
+if(!process.argv[2]) {
+	console.error("Usage: earthfs [repo-path]");
+	process.exit();
+}
+var PATH = pathModule.resolve(process.cwd(), process.argv[2]);
+if(!fs.existsSync(PATH)) {
+	console.error("Error: Invalid path "+PATH);
+	process.exit();
+}
+
 var pg = require("pg");
 var formidable = require("formidable");
 var mkdirp = require("mkdirp");
@@ -51,7 +61,7 @@ var EXT = require("./utilities/ext.json");
 var MIME = require("./utilities/mime.json");
 var QUERY_TYPES = ["text/html", "text/json"];
 
-var repo = new Repo(__dirname+"/..");
+var repo = new Repo(PATH);
 
 function has(obj, prop) {
 	return Object.prototype.hasOwnProperty.call(obj, prop);
@@ -109,8 +119,8 @@ function tagSearch(query, callback/* (err, results) */) {
 
 var server = http.createServer(serve);
 var secureServer = https.createServer({
-	key: fs.readFileSync(__dirname+"/../server.key"),
-	cert: fs.readFileSync(__dirname+"/../server.crt"),
+	key: fs.readFileSync(repo.KEY),
+	cert: fs.readFileSync(repo.CERT),
 	honorCipherOrder: true,
 	requestCert: true,
 	rejectUnauthorized: false,

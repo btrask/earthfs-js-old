@@ -32,6 +32,8 @@ function Repo(path) {
 	repo.CACHE = pathModule.resolve(repo.PATH, "./cache");
 	repo.LOG = pathModule.resolve(repo.DATA, "./hashes.log"); // TODO: Move to top level, rename.
 	repo.CONFIG = pathModule.resolve(repo.PATH, "./secret.json"); // TODO: Move to EarthFS.json.
+	repo.KEY = pathModule.resolve(repo.PATH, "./server.key");
+	repo.CERT = pathModule.resolve(repo.PATH, "./server.crt");
 	repo.log = fs.createWriteStream(repo.LOG, {flags: "a", encoding: "utf8"});
 	repo.config = JSON.parse(fs.readFileSync(repo.CONFIG, "utf8")); // TODO: Async?
 	repo.db = new pg.Client(repo.config.db); // TODO: Use client pool.
