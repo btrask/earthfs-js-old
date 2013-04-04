@@ -17,6 +17,11 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
 FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE. */
+if(process.argv.length < 2) {
+	console.error("Usage: earthfs [repo-path]");
+	process.exit();
+}
+
 var crypto = require("crypto");
 var pathModule = require("path");
 var urlModule = require("url");
@@ -24,16 +29,6 @@ var util = require("util");
 var os = require("os");
 var fs = require("fs");
 var https = require("https");
-
-if(!process.argv[2]) {
-	console.error("Usage: earthfs [repo-path]");
-	process.exit();
-}
-var PATH = pathModule.resolve(process.cwd(), process.argv[2]);
-if(!fs.existsSync(PATH)) {
-	console.error("Error: Invalid path "+PATH);
-	process.exit();
-}
 
 var pg = require("pg");
 var formidable = require("formidable");
@@ -61,7 +56,7 @@ var EXT = require("./utilities/ext.json");
 var MIME = require("./utilities/mime.json");
 var QUERY_TYPES = ["text/html", "text/json"];
 
-var repo = Repo.loadSync(PATH);
+var repo = Repo.loadSync(process.argv[2]);
 
 function has(obj, prop) {
 	return Object.prototype.hasOwnProperty.call(obj, prop);
