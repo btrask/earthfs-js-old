@@ -314,8 +314,8 @@ function streamServe(socket) {
 	});
 }
 
-var LOCAL_PORT = 8001;
-var REMOTE_PORT = 8002;
+var LOCAL_PORT = repo.config.localPort >>> 0 || 8001;
+var REMOTE_PORT = repo.config.remotePort >>> 0 || 8002;
 server.listen(LOCAL_PORT, "localhost", function() {
 	console.log("Local address: http://localhost:"+LOCAL_PORT+"/");
 });
