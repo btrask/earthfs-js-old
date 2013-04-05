@@ -196,8 +196,12 @@ function sendFormatted(req, res, srcPath, srcType, dstTypes, hash) {
 }
 
 serve.root.submit = function(req, res, root, submit) {
+	if("127.0.0.1" !== req.connection.remoteAddress) {
+		res.sendMessage(403, "Forbidden");
+		return;
+	}
 	if("POST" !== req.method) {
-		res.sendMessage(400, "Bad Request");
+		res.sendMessage(405, "Method Not Allowed");
 		return;
 	}
 	function fail(err) {
