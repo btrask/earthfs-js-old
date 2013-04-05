@@ -88,12 +88,20 @@ function rest(array) {
 	return array.slice(1);
 }
 
-var server = http.createServer(serve);
-var secureServer = https.createServer({
-	key: fs.readFileSync(repo.KEY),
-	cert: fs.readFileSync(repo.CERT),
-	honorCipherOrder: true,
-}, serve);
+var server;
+(function() {
+	try {
+		server = https.createServer({
+			key: fs.readFileSync(repo.KEY),
+			cert: fs.readFileSync(repo.CERT),
+			honorCipherOrder: true,
+		}, serve);
+		server.scheme = "https";
+	} catch(e) {
+		server = http.createServer(serve);
+		server.scheme = "http";
+	}
+})();
 function serve(req, res) {
 	var obj = urlModule.parse(req.url, true);
 	var path = obj.pathname;
@@ -244,7 +252,6 @@ repo.on("entry", function(URN, entryID) {
 
 var ioOpts = {log: false};
 ioServer.listen(server, ioOpts).sockets.on("connection", streamServe);
-ioServer.listen(secureServer, ioOpts).sockets.on("connection", streamServe);
 function streamServe(socket) {
 	socket.emit("connected", function(params) {
 		var str = params["q"].split("+").map(decodeURIComponent).join(" ");
@@ -296,18 +303,10 @@ function streamServe(socket) {
 	});
 }
 
-var LOCAL_PORT = repo.config.localPort >>> 0 || 8001;
-var REMOTE_PORT = repo.config.remotePort >>> 0 || 8002;
-server.listen(LOCAL_PORT, "localhost", function() {
-	console.log("Local address: http://localhost:"+LOCAL_PORT+"/");
-});
-secureServer.listen(REMOTE_PORT, function() {
-	console.log("Remote address: https://localhost:"+REMOTE_PORT+"/");
-	// TODO:
-	// 1. List LAN and WAN addresses separately
-	// 2. Use NAT traversal/UPnP
-	// We can allow browser clients over our remote address.
-	// There won't be an error if the domain and cert are set up right.
+var PORT = repo.config.port >>> 0 || 8001;
+server.listen(PORT, function() {
+	console.log(""+server.scheme+"://localhost:"+PORT+"/");
+	// TODO: Optionally set up NAT traversal/UPnP.
 });
 
 var Remote = require("./classes/Remote");
