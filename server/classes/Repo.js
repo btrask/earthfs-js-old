@@ -122,7 +122,11 @@ function addEntry(repo, source, type, h, p, callback/* (err, primaryURN) */) {
 						[entryID].concat(h.URNs),
 						function(err, results) {
 							if(err) return callback(err, null);
-							if(!p.links.length) return callback(null, h.primaryURN);
+							if(!p.links.length) {
+								callback(null, h.primaryURN);
+								repo.emit("entry", h.primaryURN, entryID);
+								return;
+							}
 							sql.debug(repo.db,
 								'INSERT INTO "links"'+
 								' ("fromEntryID", "toUriID", "direct", "indirect")'+
