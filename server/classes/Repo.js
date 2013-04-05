@@ -76,15 +76,15 @@ Repo.prototype.addEntryStream = function(stream, type, callback/* (err, primaryU
 		length += chunk.length;
 	});
 	stream.on("end", function() {
-		if(!length) return callback(new Error("Null message length"), null);
+		if(!length) return callback(new Error("Null message length"), null, null);
 		h.end();
 		p.end();
 		f.end();
 		var path = repo.pathForEntry(repo.DATA, h.internalHash, type);
 		mkdirp(pathModule.dirname(path), function(err) {
-			if(err) return callback(err, null);
+			if(err) return callback(err, null, null);
 			fsx.moveFile(tmp, path, function(err) {
-				if(err) return callback(err, null);
+				if(err) return callback(err, null, null);
 				addEntry(repo, null, type, h, p, callback);
 			});
 		});
