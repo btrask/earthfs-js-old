@@ -80,15 +80,17 @@ Repo.prototype.addEntryStream = function(stream, type, callback/* (err, primaryU
 		h.end();
 		p.end();
 		f.end();
-		var path = repo.pathForEntry(repo.DATA, h.internalHash, type);
-		mkdirp(pathModule.dirname(path), function(err) {
-			if(err) return callback(err, null);
-			fsx.moveFile(tmp, path, function(err) {
-				if(err) {
-					if("EEXIST" === err.code) return callback(null, h.primaryURN);
-					return callback(err, null);
-				}
-				addEntry(repo, null, type, h, p, callback);
+		f.on("close", function() {
+			var path = repo.pathForEntry(repo.DATA, h.internalHash, type);
+			mkdirp(pathModule.dirname(path), function(err) {
+				if(err) return callback(err, null);
+				fsx.moveFile(tmp, path, function(err) {
+					if(err) {
+						if("EEXIST" === err.code) return callback(null, h.primaryURN);
+						return callback(err, null);
+					}
+					addEntry(repo, null, type, h, p, callback);
+				});
 			});
 		});
 	});
