@@ -93,8 +93,6 @@ var secureServer = https.createServer({
 	key: fs.readFileSync(repo.KEY),
 	cert: fs.readFileSync(repo.CERT),
 	honorCipherOrder: true,
-	requestCert: true,
-	rejectUnauthorized: false,
 }, serve);
 function serve(req, res) {
 	var obj = urlModule.parse(req.url, true);
