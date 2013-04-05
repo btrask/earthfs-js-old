@@ -18,15 +18,30 @@ FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE. */
 var fs = require("fs");
 var pathModule = require("path");
+var os = require("os");
+var EventEmitter = require("events").EventEmitter;
+var util = require("util");
+
 var pg = require("pg");
+var mkdirp = require("mkdirp");
 
 var bt = require("../utilities/bt");
 var sql = require("../utilities/sql");
+var fsx = require("../utilities/fsx");
 
 var EXT = require("../utilities/ext.json");
 
+var Hashers, Parsers; // Only loaded once the Repo.makeWriteable() is called.
+
+function randomString(length, charset) { // TODO: Put this somewhere.
+	var chars = [], i;
+	for(i = 0; i < length; ++i) chars.push(charset[Math.floor(Math.random() * charset.length)]);
+	return chars.join("");
+}
+
 function Repo(path, config) {
 	var repo = this;
+	EventEmitter.call(this);
 	repo.PATH = path;
 	repo.config = config;
 	repo.DATA = pathModule.resolve(repo.PATH, config["dataPath"] || "./data");
@@ -37,14 +52,46 @@ function Repo(path, config) {
 	repo.log = fs.createWriteStream(repo.LOG, {flags: "a", encoding: "utf8"});
 	repo.db = new pg.Client(repo.config.db); // TODO: Use client pool.
 	repo.db.connect();
+	// TODO: Track clients ourselves.
 }
+util.inherits(Repo, EventEmitter);
+
 Repo.prototype.pathForEntry = function(dir, hash, type) {
 	var t = type.split(";")[0];
 	if(!bt.has(EXT, t)) throw new Error("Invalid MIME type "+type);
 	return dir+"/"+hash.slice(0, 2)+"/"+hash+"."+EXT[t];
 };
-Repo.prototype.addEntry = function(source, type, h, p, callback/* (err, entryID) */) {
+Repo.prototype.addEntryStream = function(stream, type, callback/* (err, primaryURN, entryID) */) {
+	if(!Repo.writeable) throw new Error("Repo loaded in read-only mode");
 	var repo = this;
+	var tmp = pathModule.resolve(os.tmpDir(), randomString(32, "0123456789abcdef"));
+	var h = new Hashers(type);
+	var p = new Parsers(type);
+	var f = fs.createWriteStream(tmp);
+	var length = 0;
+	stream.on("data", function(chunk) {
+		h.update(chunk);
+		p.update(chunk);
+		f.write(chunk);
+		length += chunk.length;
+	});
+	stream.on("end", function() {
+		if(!length) return callback(new Error("Null message length"), null);
+		h.end();
+		p.end();
+		f.end();
+		var path = repo.pathForEntry(repo.DATA, h.internalHash, type);
+		mkdirp(pathModule.dirname(path), function(err) {
+			if(err) return callback(err, null);
+			fsx.moveFile(tmp, path, function(err) {
+				if(err) return callback(err, null);
+				addEntry(repo, null, type, h, p, callback);
+			});
+		});
+	});
+};
+function addEntry(repo, source, type, h, p, callback/* (err, primaryURN, entryID) */) {
+	if(!Repo.writeable) throw new Error("Repo loaded in read-only mode");
 
 	repo.log.write(JSON.stringify({
 		"date": new Date().toISOString(),
@@ -58,21 +105,21 @@ Repo.prototype.addEntry = function(source, type, h, p, callback/* (err, entryID)
 		' VALUES ($1, $2, to_tsvector(\'english\', $3)) RETURNING "entryID"',
 		[h.internalHash, type, p.fullText],
 		function(err, results) {
-			if(err) return callback(err, null);
+			if(err) return callback(err, null, null);
 			var entryID = results.rows[0].entryID;
 			var allLinks = h.URNs.concat(p.links, p.metaEntries, p.metaLinks).unique();
 			sql.debug(repo.db,
 				'INSERT INTO "URIs" ("URI")'+
 				' VALUES '+sql.list2D(allLinks, 1)+'', allLinks,
 				function(err, results) {
-					if(err) return callback(err, null);
+					if(err) return callback(err, null, null);
 					sql.debug(repo.db,
 						'UPDATE "URIs" SET "entryID" = $1'+
 						' WHERE "URI" IN ('+sql.list1D(h.URNs, 2)+')',
 						[entryID].concat(h.URNs),
 						function(err, results) {
-							if(err) return callback(err, null);
-							if(!p.links.length) return callback(null, entryID);
+							if(err) return callback(err, null, null);
+							if(!p.links.length) return callback(null, h.primaryURN, entryID);
 							sql.debug(repo.db,
 								'INSERT INTO "links"'+
 								' ("fromEntryID", "toUriID", "direct", "indirect")'+
@@ -80,11 +127,12 @@ Repo.prototype.addEntry = function(source, type, h, p, callback/* (err, entryID)
 								' FROM "URIs" WHERE "URI" IN ('+sql.list1D(p.links, 2)+')',
 								[entryID].concat(p.links),
 								function(err, results) {
-									if(err) return callback(err, null);
+									if(err) return callback(err, null, null);
 									// TODO
 									// 1. Add meta-links to the meta-entries
 									// 2. Recurse over links and add indirect rows
-									callback(err, entryID);
+									callback(null, h.primaryURN, entryID);
+									repo.emit("entry", h.primaryURN, entryID);
 								}
 							);
 						}
@@ -94,8 +142,15 @@ Repo.prototype.addEntry = function(source, type, h, p, callback/* (err, entryID)
 		}
 	);
 
-};
+}
 
+Repo.writeable = false;
+Repo.makeWriteable = function() {
+	if(Repo.writeable) return;
+	Repo.writeable = true;
+	Hashers = require("../hashers");
+	Parsers = require("../parsers");
+};
 Repo.load = function(path, callback/* (err, repo) */) {
 	var configPath = pathModule.resolve(path, "./EarthFS.json");
 	fs.readFile(configPath, "utf8", function(err, config) {

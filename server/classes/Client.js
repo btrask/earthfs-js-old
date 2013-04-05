@@ -35,6 +35,6 @@ Client.prototype.send = function(URN) {
 	client.socket.emit("entry", URN);
 };
 
-Client.all = [];
+Client.all = []; // TODO: Clients should probably be tracked by the repo instead.
 
 module.exports = Client;

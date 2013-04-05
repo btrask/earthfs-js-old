@@ -134,6 +134,40 @@ ALTER SEQUENCE "links_linkID_seq" OWNED BY links."linkID";
 
 
 --
+-- Name: remotes; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
+--
+
+CREATE TABLE remotes (
+    "remoteID" bigint NOT NULL,
+    "remoteURL" text NOT NULL,
+    query text NOT NULL
+);
+
+
+ALTER TABLE public.remotes OWNER TO postgres;
+
+--
+-- Name: remotes_remoteID_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE "remotes_remoteID_seq"
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public."remotes_remoteID_seq" OWNER TO postgres;
+
+--
+-- Name: remotes_remoteID_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
+
+ALTER SEQUENCE "remotes_remoteID_seq" OWNED BY remotes."remoteID";
+
+
+--
 -- Name: uriID; Type: DEFAULT; Schema: public; Owner: postgres
 --
 
@@ -152,6 +186,13 @@ ALTER TABLE ONLY entries ALTER COLUMN "entryID" SET DEFAULT nextval('"entries_en
 --
 
 ALTER TABLE ONLY links ALTER COLUMN "linkID" SET DEFAULT nextval('"links_linkID_seq"'::regclass);
+
+
+--
+-- Name: remoteID; Type: DEFAULT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY remotes ALTER COLUMN "remoteID" SET DEFAULT nextval('"remotes_remoteID_seq"'::regclass);
 
 
 --

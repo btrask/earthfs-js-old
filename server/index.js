@@ -43,12 +43,11 @@ var sql = require("./utilities/sql");
 
 var formatters = require("./formatters");
 var querylang = require("./query-languages");
-var Hashers = require("./hashers");
-var Parsers = require("./parsers");
 
 var Client = require("./classes/Client");
 var query = require("./classes/query");
 var Repo = require("./classes/Repo");
+Repo.makeWriteable();
 
 var CLIENT = __dirname+"/../build";
 
@@ -87,29 +86,6 @@ function first(array) {
 }
 function rest(array) {
 	return array.slice(1);
-}
-function randomString(length, charset) {
-	var chars = [], i;
-	for(i = 0; i < length; ++i) chars.push(charset[Math.floor(Math.random() * charset.length)]);
-	return chars.join("");
-}
-
-function tagSearch(query, callback/* (err, results) */) {
-	var tab = "\t";
-	var obj = query.SQL(1, tab+"\t");
-	var sql = obj.query;
-	var parameters = obj.parameters;
-	return repo.db.query(
-		'SELECT * FROM (\n'+
-			tab+'SELECT e."entryID", \'urn:sha1:\' || e."hash" AS "URN"\n'+
-			tab+'FROM "entries" AS e\n'+
-			tab+'WHERE e."entryID" IN\n'+
-				sql+
-			tab+'ORDER BY e."entryID" DESC LIMIT 50\n'+
-		') x ORDER BY "entryID" ASC',
-		parameters,
-		callback
-	);
 }
 
 var server = http.createServer(serve);
@@ -175,7 +151,7 @@ serve.root.entry = function(req, res, root, entry) {
 			var row = results.rows[0];
 			var srcType = row.type;
 			var srcPath = repo.pathForEntry(repo.DATA, row.hash, srcType);
-			var dstTypes = req.headers.accept.split(",");
+			var dstTypes = (req.headers.accept || "*/*").split(",");
 			sendFormatted(req, res, srcPath, srcType, dstTypes, row.hash);
 		}
 	);
@@ -240,46 +216,16 @@ serve.root.submit = function(req, res, root, submit) {
 	form.onPart = function(part) {
 		if("entry" !== part.name) return; // TODO: Is skipping other parts a good idea?
 		var ext = pathModule.extname(part.filename);
-		var type = bt.has(MIME, ext) ? MIME[ext] : part.mime;
-		var tmp = os.tmpDir()+"/"+randomString(32, "0123456789abcdef");
-		var h = new Hashers(type);
-		var p = new Parsers(type);
-		var f = fs.createWriteStream(tmp);
-		var length = 0;
-		part.on("data", function(chunk) {
-			h.update(chunk);
-			p.update(chunk);
-			f.write(chunk);
-			length += chunk.length;
-		});
-		part.on("end", function() {
-			if(!length) {
-				res.sendMessage(400, "Bad Request");
-				return;
-			}
-			h.end();
-			p.end();
-			f.end();
-
-			var path = repo.pathForEntry(repo.DATA, h.internalHash, type);
-			mkdirp(pathModule.dirname(path), function(err) {
-				if(err) throw err;
-				fsx.moveFile(tmp, path, function(err) {
-					if(err) throw err;
-					repo.addEntry(null, type, h, p, function(err, entryID) {
-						if(err) throw util.inspect(err);
-						res.writeHead(303, {"Location": h.primaryURN});
-						res.end();
-						sendEntry(entryID, h.primaryURN);
-					});
-				});
-			});
-
+		var type = bt.has(MIME, ext) ? MIME[ext] : part.mime; // TODO: Keep charset if possible.
+		repo.addEntryStream(part, type, function(err, primaryURN, entryID) {
+			if(err) return res.sendError(err);
+			res.writeHead(303, {"Location": primaryURN});
+			res.end();
 		});
 	};
 	form.parse(req);
 };
-function sendEntry(entryID, URN) {
+repo.on("entry", function(URN, entryID) {
 	Client.all.forEach(function(client) {
 		var obj = client.query.SQL(2, "\t");
 		sql.debug(repo.db,
@@ -292,7 +238,7 @@ function sendEntry(entryID, URN) {
 			}
 		);
 	});
-}
+});
 
 var ioOpts = {log: false};
 ioServer.listen(server, ioOpts).sockets.on("connection", streamServe);
@@ -303,13 +249,47 @@ function streamServe(socket) {
 		// TODO: Use some sort of global query that filters hidden posts, etc.
 		querylang.parse(str, "lispish", function(err, query) {
 			var client = new Client(socket, query);
-			tagSearch(query, function(err, results) {
-				if(err) console.log(err); // TODO
-				socket.emit("entries", results.rows.map(function(row) {
-					return row.URN;
-				}));
-				if(client.connected) Client.all.push(client); // Start watching for new entries.
-			});
+			var tab, obj;
+			if(params["all"]) { // TODO: I know this is really ugly.
+				tab = "";
+				obj = query.SQL(1, tab+"\t");
+				var stream = repo.db.query(
+					'SELECT e."entryID", \'urn:sha1:\' || e."hash" AS "URN"\n'+
+					'FROM "entries" AS e\n'+
+					'WHERE e."entryID" IN\n'+
+						obj.query+
+					'ORDER BY e."entryID" ASC',
+					obj.parameters
+				);
+				stream.on("row", function(row) {
+					socket.emit("entry", row.URN);
+				});
+				stream.on("end", function() {
+					if(client.connected) Client.all.push(client);
+					// Start watching for new entries.
+				});
+			} else {
+				tab = "\t";
+				obj = query.SQL(1, tab+"\t");
+				repo.db.query(
+					'SELECT * FROM (\n'+
+						tab+'SELECT e."entryID", \'urn:sha1:\' || e."hash" AS "URN"\n'+
+						tab+'FROM "entries" AS e\n'+
+						tab+'WHERE e."entryID" IN\n'+
+							obj.query+
+						tab+'ORDER BY e."entryID" DESC LIMIT 50\n'+
+					') x ORDER BY "entryID" ASC',
+					obj.parameters,
+					function(err, results) {
+						if(err) console.log(err); // TODO
+						socket.emit("entries", results.rows.map(function(row) {
+							return row.URN;
+						}));
+						if(client.connected) Client.all.push(client);
+						// Start watching for new entries.
+					}
+				);
+			}
 		});
 	});
 }
@@ -327,3 +307,14 @@ secureServer.listen(REMOTE_PORT, function() {
 	// We can allow browser clients over our remote address.
 	// There won't be an error if the domain and cert are set up right.
 });
+
+var Remote = require("./classes/Remote");
+repo.db.query(
+	'SELECT "remoteURL", "query" FROM "remotes" WHERE TRUE', [],
+	function(err, results) {
+		if(err) return console.log(err);
+		results.rows.forEach(function(row) {
+			var remote = new Remote(repo, row.remoteURL, row.query);
+		});
+	}
+);

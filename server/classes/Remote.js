@@ -1,0 +1,96 @@
+/* Copyright Ben Trask and other contributors. All rights reserved.
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to
+deal in the Software without restriction, including without limitation the
+rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
+sell copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
+IN THE SOFTWARE. */
+var https = require("https");
+var urlModule = require("url");
+var ioClient = require("socket.io-client");
+var bt = require("../utilities/bt");
+
+function Queue() { // TODO: Put this somewhere.
+	var queue = this;
+	queue.items = [];
+	queue.active = false;
+}
+Queue.prototype.push = function(func/* (done) */) {
+	var queue = this;
+	queue.items.push(func);
+	if(queue.active) return;
+	queue.active = true;
+	bt.asyncLoop(function(next) {
+		queue.items.shift()(function() {
+			if(queue.items.length) return next();
+			queue.active = false;
+		});
+	});
+};
+
+function Remote(repo, url, query) {
+	var remote = this;
+	remote.repo = repo;
+	remote.url = url;
+	remote.query = query;
+	remote.pullQueue = new Queue;
+
+	var socket = ioClient.connect(remote.url);
+	socket.on("connected", function(callback) {
+		callback({"q": remote.query, "all": true});
+	});
+	socket.on("entry", function(URN) {
+		remote.pullQueue.push(function(done) {
+			repo.db.query(
+				'SELECT "uriID" FROM "URIs" WHERE'+
+				' "URI" = $1 AND "entryID" IS NOT NULL', [URN],
+				function(err, results) {
+					if(results.rows.length) return done();
+					remote.pull(URN, done);
+				}
+			);
+		});
+	});
+	socket.on("error", function(err) {
+		throw err;
+		// TODO: Catch and reconnect?
+	});
+}
+Remote.prototype.pull = function(URN, callback/* () */) {
+	var remote = this;
+	var url = urlModule.parse(remote.url);
+	var opts = {
+		hostname: url.hostname,
+		port: url.port,
+		path: "/entry/"+encodeURIComponent(URN),
+//		agent: false,
+//		rejectUnauthorized: false, // TODO: Figure this out.
+//		key: key,
+//		cert: cert,
+//		headers: {
+//			"Accept": "*/*",
+//		},
+	};
+	https.get(opts, function(res) {
+		remote.repo.addEntryStream(
+			res, res.headers["content-type"],
+			function(err, URN, entryID) {
+				if(err) console.log(err);
+				callback();
+			}
+		);
+	});
+};
+
+module.exports = Remote;
