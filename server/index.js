@@ -215,7 +215,7 @@ serve.root.submit = function(req, res, root, submit) {
 		if("entry" !== part.name) return; // TODO: Is skipping other parts a good idea?
 		var ext = pathModule.extname(part.filename);
 		var type = bt.has(MIME, ext) ? MIME[ext] : part.mime; // TODO: Keep charset if possible.
-		repo.addEntryStream(part, type, function(err, primaryURN, entryID) {
+		repo.addEntryStream(part, type, function(err, primaryURN) {
 			if(err) return res.sendError(err);
 			res.writeHead(303, {"Location": primaryURN});
 			res.end();

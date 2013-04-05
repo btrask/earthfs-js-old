@@ -61,7 +61,7 @@ Repo.prototype.pathForEntry = function(dir, hash, type) {
 	if(!bt.has(EXT, t)) throw new Error("Invalid MIME type "+type);
 	return dir+"/"+hash.slice(0, 2)+"/"+hash+"."+EXT[t];
 };
-Repo.prototype.addEntryStream = function(stream, type, callback/* (err, primaryURN, entryID) */) {
+Repo.prototype.addEntryStream = function(stream, type, callback/* (err, primaryURN) */) {
 	if(!Repo.writeable) throw new Error("Repo loaded in read-only mode");
 	var repo = this;
 	var tmp = pathModule.resolve(os.tmpDir(), randomString(32, "0123456789abcdef"));
@@ -76,21 +76,24 @@ Repo.prototype.addEntryStream = function(stream, type, callback/* (err, primaryU
 		length += chunk.length;
 	});
 	stream.on("end", function() {
-		if(!length) return callback(new Error("Null message length"), null, null);
+		if(!length) return callback(new Error("Null message length"), null);
 		h.end();
 		p.end();
 		f.end();
 		var path = repo.pathForEntry(repo.DATA, h.internalHash, type);
 		mkdirp(pathModule.dirname(path), function(err) {
-			if(err) return callback(err, null, null);
+			if(err) return callback(err, null);
 			fsx.moveFile(tmp, path, function(err) {
-				if(err) return callback(err, null, null);
+				if(err) {
+					if("EEXIST" === err.code) return callback(null, h.primaryURN);
+					return callback(err, null);
+				}
 				addEntry(repo, null, type, h, p, callback);
 			});
 		});
 	});
 };
-function addEntry(repo, source, type, h, p, callback/* (err, primaryURN, entryID) */) {
+function addEntry(repo, source, type, h, p, callback/* (err, primaryURN) */) {
 	if(!Repo.writeable) throw new Error("Repo loaded in read-only mode");
 
 	repo.log.write(JSON.stringify({
@@ -105,21 +108,21 @@ function addEntry(repo, source, type, h, p, callback/* (err, primaryURN, entryID
 		' VALUES ($1, $2, to_tsvector(\'english\', $3)) RETURNING "entryID"',
 		[h.internalHash, type, p.fullText],
 		function(err, results) {
-			if(err) return callback(err, null, null);
+			if(err) return callback(err, null);
 			var entryID = results.rows[0].entryID;
 			var allLinks = h.URNs.concat(p.links, p.metaEntries, p.metaLinks).unique();
 			sql.debug(repo.db,
 				'INSERT INTO "URIs" ("URI")'+
 				' VALUES '+sql.list2D(allLinks, 1)+'', allLinks,
 				function(err, results) {
-					if(err) return callback(err, null, null);
+					if(err) return callback(err, null);
 					sql.debug(repo.db,
 						'UPDATE "URIs" SET "entryID" = $1'+
 						' WHERE "URI" IN ('+sql.list1D(h.URNs, 2)+')',
 						[entryID].concat(h.URNs),
 						function(err, results) {
-							if(err) return callback(err, null, null);
-							if(!p.links.length) return callback(null, h.primaryURN, entryID);
+							if(err) return callback(err, null);
+							if(!p.links.length) return callback(null, h.primaryURN);
 							sql.debug(repo.db,
 								'INSERT INTO "links"'+
 								' ("fromEntryID", "toUriID", "direct", "indirect")'+
@@ -127,11 +130,11 @@ function addEntry(repo, source, type, h, p, callback/* (err, primaryURN, entryID
 								' FROM "URIs" WHERE "URI" IN ('+sql.list1D(p.links, 2)+')',
 								[entryID].concat(p.links),
 								function(err, results) {
-									if(err) return callback(err, null, null);
+									if(err) return callback(err, null);
 									// TODO
 									// 1. Add meta-links to the meta-entries
 									// 2. Recurse over links and add indirect rows
-									callback(null, h.primaryURN, entryID);
+									callback(null, h.primaryURN);
 									repo.emit("entry", h.primaryURN, entryID);
 								}
 							);
