@@ -250,7 +250,12 @@ repo.on("entry", function(URN, entryID) {
 	});
 });
 
-var ioOpts = {log: false};
+var ioOpts = {
+	"browser client minification": true,
+	"browser client etag": true,
+	"browser client gzip": true,
+	"log level": 1,
+};
 ioServer.listen(server, ioOpts).sockets.on("connection", streamServe);
 function streamServe(socket) {
 	socket.emit("connected", function(params) {
