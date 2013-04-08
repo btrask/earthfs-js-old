@@ -108,7 +108,7 @@ Stream.prototype.pull = function(history) {
 		if(req.readyState < 3) return;
 		// TODO: This is messy.
 		for(var i; -1 !== (i = req.responseText.indexOf("\n", offset)); offset = i+1) {
-			stream.addURN(req.responseText.slice(offset, i));
+			stream.addURN(req.responseText.slice(offset, i).replace(/^ +/g, ""));
 		}
 		if(4 === req.readyState) {
 			if(200 === req.status) return stream.pull(OVERLAP_ENTRIES);

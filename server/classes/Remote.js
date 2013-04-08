@@ -71,7 +71,7 @@ Remote.prototype.pull = function() {
 			var data = last+chunk, i, j;
 			// TODO: This is messy.
 			for(; -1 !== (i = data.indexOf("\n", j)); j = i+1) {
-				remote.addURN(data.slice(j, i));
+				remote.addURN(data.slice(j, i).replace(/^ +/g, ""));
 			}
 			last = data.slice(j);
 		});
