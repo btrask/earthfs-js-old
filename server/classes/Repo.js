@@ -76,11 +76,16 @@ Repo.prototype.addEntryStream = function(stream, type, callback/* (err, primaryU
 		length += chunk.length;
 	});
 	stream.on("end", function() {
-		if(!length) return callback(new Error("Null message length"), null);
 		h.end();
 		p.end();
 		f.end();
 		f.on("close", function() {
+			if(!length) {
+				// Silently ignore empty files.
+				fs.unlink(tmp);
+				callback(null, null);
+				return;
+			}
 			var path = repo.pathForEntry(repo.DATA, h.internalHash, type);
 			mkdirp(pathModule.dirname(path), function(err) {
 				if(err) return callback(err, null);
