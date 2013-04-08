@@ -16,25 +16,48 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
 FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE. */
-function Client(socket, query) {
+function Client(repo, query, stream) {
 	var client = this;
-	client.socket = socket;
+	client.repo = repo;
 	client.query = query; // TODO: Don't use null as a valid query.
-	client.connected = true;
+	client.stream = stream;
+	client.open = true;
+	client.paused = true;
+	client.queue = [];
 
-	client.socket.on("disconnect", function() {
-		client.connected = false;
-		Client.all.splice(Client.all.indexOf(client), 1);
+	var heartbeat = setInterval(function() {
+		client.stream.write(" ", "utf8");
+	}, 1000 * 30);
+	repo.clients.push(client);
+	client.stream.on("close", function() {
+		client.open = false;
+		repo.clients.splice(repo.clients.indexOf(client), 1);
+		clearInterval(heartbeat);
 	});
 }
 Client.prototype.send = function(URN) {
 	var client = this;
-//	if(tags && client.query && !client.query.test(tags)) return;
-	// TODO: We shouldn't have to check if client.query is null.
-	// TODO: We have to hit the DB in order to perform full-text queries.
-	client.socket.emit("entry", URN);
+	if(!client.open) throw new Error("Writing to closed client");
+	// TODO: Perform filtering here instead of in index.js.
+	client.queue.push(URN);
+	client.flush();
 };
-
-Client.all = []; // TODO: Clients should probably be tracked by the repo instead.
+Client.prototype.flush = function() {
+	var client = this;
+	if(!client.open) return;
+	if(client.paused) return;
+	if(!client.queue.length) return;
+	client.stream.write(client.queue.join("\n")+"\n", "utf8");
+	client.queue.length = 0;
+};
+Client.prototype.pause = function() {
+	var client = this;
+	client.paused = true;
+};
+Client.prototype.resume = function() {
+	var client = this;
+	client.paused = false;
+	client.flush();
+};
 
 module.exports = Client;

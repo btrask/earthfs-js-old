@@ -52,7 +52,7 @@ function Repo(path, config) {
 	repo.log = fs.createWriteStream(repo.LOG, {flags: "a", encoding: "utf8"});
 	repo.db = new pg.Client(repo.config.db); // TODO: Use client pool.
 	repo.db.connect();
-	// TODO: Track clients ourselves.
+	repo.clients = [];
 }
 util.inherits(Repo, EventEmitter);
 

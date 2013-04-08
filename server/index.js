@@ -33,8 +33,6 @@ var https = require("https");
 var pg = require("pg");
 var formidable = require("formidable");
 var mkdirp = require("mkdirp");
-var ioServer = require("socket.io");
-var ioClient = require('socket.io-client');
 
 var bt = require("./utilities/bt");
 var fsx = require("./utilities/fsx");
@@ -236,7 +234,7 @@ serve.root.submit = function(req, res, root, submit) {
 	form.parse(req);
 };
 repo.on("entry", function(URN, entryID) {
-	Client.all.forEach(function(client) {
+	repo.clients.forEach(function(client) {
 		var obj = client.query.SQL(2, "\t");
 		sql.debug(repo.db,
 			'SELECT $1 IN \n'+
@@ -250,58 +248,35 @@ repo.on("entry", function(URN, entryID) {
 	});
 });
 
-var ioOpts = {log: false};
-ioServer.listen(server, ioOpts).sockets.on("connection", streamServe);
-function streamServe(socket) {
-	socket.emit("connected", function(params) {
-		var str = params["q"].split("+").map(decodeURIComponent).join(" ");
-		// TODO: Use some sort of global query that filters hidden posts, etc.
-		querylang.parse(str, "lispish", function(err, query) {
-			var client = new Client(socket, query);
-			var tab, obj;
-			if(params["all"]) { // TODO: I know this is really ugly.
-				tab = "";
-				obj = query.SQL(1, tab+"\t");
-				var stream = repo.db.query(
-					'SELECT e."entryID", \'urn:sha1:\' || e."hash" AS "URN"\n'+
-					'FROM "entries" AS e\n'+
-					'WHERE e."entryID" IN\n'+
-						obj.query+
-					'ORDER BY e."entryID" ASC',
-					obj.parameters
-				);
-				stream.on("row", function(row) {
-					socket.emit("entry", row.URN);
-				});
-				stream.on("end", function() {
-					if(client.connected) Client.all.push(client);
-					// Start watching for new entries.
-				});
-			} else {
-				tab = "\t";
-				obj = query.SQL(1, tab+"\t");
-				repo.db.query(
-					'SELECT * FROM (\n'+
-						tab+'SELECT e."entryID", \'urn:sha1:\' || e."hash" AS "URN"\n'+
-						tab+'FROM "entries" AS e\n'+
-						tab+'WHERE e."entryID" IN\n'+
-							obj.query+
-						tab+'ORDER BY e."entryID" DESC LIMIT 50\n'+
-					') x ORDER BY "entryID" ASC',
-					obj.parameters,
-					function(err, results) {
-						if(err) console.log(err); // TODO
-						socket.emit("entries", results.rows.map(function(row) {
-							return row.URN;
-						}));
-						if(client.connected) Client.all.push(client);
-						// Start watching for new entries.
-					}
-				);
-			}
+serve.root.latest = function(req, res, root, latest) {
+	var opts = latest.options;
+	var queryString = (opts["q"] || "").split("+").map(decodeURIComponent).join(" ");
+	querylang.parse(queryString, "lispish", function(err, query) {
+		var client = new Client(repo, query, res);
+		var tab = "\t";
+		var obj = query.SQL(1, tab+"\t");
+		var history = opts["history"];
+		var limit = "all" === history ? '' : tab+'LIMIT '+(history >>> 0)+'\n';
+		var stream = repo.db.query(
+			'SELECT * FROM (\n'+
+				tab+'SELECT e."entryID", \'urn:sha1:\' || e."hash" AS "URN"\n'+
+				tab+'FROM "entries" AS e\n'+
+				tab+'WHERE e."entryID" IN\n'+
+					obj.query+
+				tab+'ORDER BY e."entryID" DESC\n'+
+					limit+
+			') x ORDER BY "entryID" ASC',
+			obj.parameters
+		);
+		res.writeHead(200, {"Content-Type": "text/json; charset=utf-8"});
+		stream.on("row", function(row) {
+			res.write(row.URN+"\n", "utf8");
+		});
+		stream.on("end", function() {
+			client.resume();
 		});
 	});
-}
+};
 
 var PORT = repo.config.port >>> 0 || 8001;
 server.listen(PORT, function() {

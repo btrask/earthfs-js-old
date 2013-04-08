@@ -25,6 +25,9 @@ marked.setOptions({
 	sanitize: true,
 });
 
+var MAX_ENTRIES = 50;
+var OVERLAP_ENTRIES = 10;
+
 var bt = {}; // TODO: Use separate file.
 bt.has = function(obj, prop) {
 	return Object.prototype.hasOwnProperty.call(obj, prop);
@@ -36,16 +39,15 @@ bt.union = function(target, obj) {
 
 function Stream(query) {
 	var stream = this;
-	stream.element = DOM.clone("stream", this);
-	stream.searchText.value = query;
+	stream.elems = {};
+	stream.element = DOM.clone("stream", this.elems);
+	stream.elems.searchText.value = query;
 	stream.query = query;
 	stream.pinned = true;
 	stream.sidebarSize = 150;
 	stream.editor = null;
-	stream.socket = io.connect("/");
-	stream.socket.on("connected", function(callback) {
-		callback({"q": query});
-	});
+	stream.entries = [];
+	stream.URNs = {};
 
 	var editors = [TextEditor, FileEditor].map(function(Editor) {
 		var editor = new Editor(stream);
@@ -54,25 +56,25 @@ function Stream(query) {
 		button.onclick = function(event) {
 			stream.setEditor(editor);
 		};
-		stream.toolbar.appendChild(button);
+		stream.elems.toolbar.appendChild(button);
 		return editor;
 	});
 
 	function submitQuery(event) {
-		window.location = Stream.location({"q": stream.searchText.value});
+		window.location = Stream.location({"q": stream.elems.searchText.value});
 	}
-	stream.searchText.onkeypress = function(event) {
+	stream.elems.searchText.onkeypress = function(event) {
 		var e = event || window.event;
 		var keyCode = e.keyCode || e.which;
 		if(13 === keyCode || 10 === keyCode) submitQuery();
 	};
-	stream.searchButton.onclick = submitQuery;
+	stream.elems.searchButton.onclick = submitQuery;
 
 	DOM.addListener(window, "resize", function(event) {
 		stream.reflow();
 	});
-	DOM.addListener(stream.toolbar, "mousedown", function(event) {
-		if(event.target !== stream.toolbar || !stream.editor) return;
+	DOM.addListener(stream.elems.toolbar, "mousedown", function(event) {
+		if(event.target !== stream.elems.toolbar || !stream.editor) return;
 		var cursor = stream.element.offsetHeight - event.clientY;
 		var offset = stream.sidebarSize - cursor;
 		var move, end;
@@ -91,44 +93,62 @@ function Stream(query) {
 		if(event.preventDefault) event.preventDefault();
 		return false;
 	});
-	DOM.addListener(stream.content, "scroll", function(event) {
-		var c = stream.content;
+	DOM.addListener(stream.elems.content, "scroll", function(event) {
+		var c = stream.elems.content;
 		stream.pinned = c.scrollTop >= (c.scrollHeight - c.clientHeight);
 	});
 
-	stream.socket.on("entries", function(URNs) {
-		var i = URNs.length, entry;
-		DOM.fill(stream.entries);
-		while(i--) {
-			entry = new Entry(URNs[i]);
-			stream.entries.insertBefore(entry.element, stream.entries.childNodes[0] || null);
-			stream.keepPinned();
-			entry.load(function() {
-				stream.keepPinned();
-			});
-		}
-	});
-	stream.socket.on("entry", function(URN) {
-		var entry = new Entry(URN);
-		stream.entries.appendChild(entry.element);
-		stream.keepPinned();
-		entry.load(function() {
-			stream.keepPinned();
-		});
-	});
+	stream.pull(MAX_ENTRIES);
 }
+Stream.prototype.pull = function(history) {
+	var stream = this;
+	var req = new XMLHttpRequest();
+	var offset = 0;
+	req.onreadystatechange = function() {
+		if(req.readyState < 3) return;
+		// TODO: This is messy.
+		for(var i; -1 !== (i = req.responseText.indexOf("\n", offset)); offset = i+1) {
+			stream.addURN(req.responseText.slice(offset, i));
+		}
+		if(4 === req.readyState) {
+			if(200 === req.status) return stream.pull(OVERLAP_ENTRIES);
+			setTimeout(function() { stream.pull(MAX_ENTRIES); }, 1000 * 5);
+		}
+	};
+	req.open("GET", "/latest/"+query.stringify({
+		"q": stream.query,
+		"history": history,
+		"t": +new Date,
+	}), true);
+	req.send("");
+};
+Stream.prototype.addURN = function(URN) {
+	var stream = this;
+	if(bt.has(stream.URNs, URN)) return; // Duplicate.
+	stream.URNs[URN] = true;
+	while(stream.entries.length > MAX_ENTRIES) {
+		DOM.remove(stream.entries.shift().element);
+	}
+	var entry = new Entry(URN);
+	stream.entries.push(entry);
+	stream.elems.entries.appendChild(entry.element);
+	stream.keepPinned();
+	entry.load(function() {
+		stream.keepPinned();
+	});
+};
 Stream.prototype.reflow = function() {
 	var stream = this;
-	var toolbarHeight = stream.toolbar.offsetHeight;
+	var toolbarHeight = stream.elems.toolbar.offsetHeight;
 	var windowHeight = stream.element.offsetHeight;
 	var clamped = stream.editor ? Math.max(100, Math.min(stream.sidebarSize, windowHeight)) : toolbarHeight;
-	stream.content.style.bottom = clamped+"px";
-	stream.sidebar.style.height = clamped+"px";
+	stream.elems.content.style.bottom = clamped+"px";
+	stream.elems.sidebar.style.height = clamped+"px";
 	stream.keepPinned();
 };
 Stream.prototype.keepPinned = function() {
 	var stream = this;
-	if(stream.pinned) stream.content.scrollTop = stream.content.scrollHeight;
+	if(stream.pinned) stream.elems.content.scrollTop = stream.elems.content.scrollHeight;
 };
 Stream.prototype.setSidebarSize = function(val) {
 	var stream = this;
@@ -144,7 +164,7 @@ Stream.prototype.setEditor = function(editor) {
 	if(stream.editor === editor) stream.editor = null;
 	else stream.editor = editor;
 	if(stream.editor) {
-		stream.sidebar.appendChild(stream.editor.element);
+		stream.elems.sidebar.appendChild(stream.editor.element);
 		DOM.classify(stream.editor.button, "selected", true);
 		stream.editor.activate();
 	}
