@@ -58,6 +58,14 @@ function Remote(repo, url, query) {
 }
 Remote.prototype.pull = function() {
 	var remote = this;
+	var retried = false;
+	function retry() {
+		if(retried) return;
+		retried = true;
+		setTimeout(function() { remote.pull(); }, 1000 * 5);
+		// TODO: Use a compromise between exponential backoff and constant polling.
+		// We don't want to drain the batteries of mobile systems by checking too often.
+	}
 	var url = urlModule.parse(remote.url);
 	var req = remote.module.get({
 		hostname: url.hostname,
@@ -76,12 +84,15 @@ Remote.prototype.pull = function() {
 			last = data.slice(j);
 		});
 		res.on("end", function() {
-			if(200 === res.status) return remote.pull();
-			setTimeout(function() { remote.pull(); }, 1000 * 5);
+			retry();
 		});
 	});
 	req.on("error", function(err) {
-		setTimeout(function() { remote.pull(); }, 1000 * 5); // TODO: Something smarter?
+		retry();
+	});
+	req.setTimeout(1000 * 60, function() {
+		req.destroy();
+		retry();
 	});
 };
 Remote.prototype.addURN = function(URN) {
