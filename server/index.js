@@ -88,16 +88,16 @@ function rest(array) {
 
 var server;
 (function() {
-	try {
+	if(repo.key && repo.cert) {
 		server = https.createServer({
-			key: fs.readFileSync(repo.KEY),
-			cert: fs.readFileSync(repo.CERT),
+			key: repo.key,
+			cert: repo.cert,
 			honorCipherOrder: true,
 		}, serve);
-		server.scheme = "https";
-	} catch(e) {
+		server.protocol = "https:";
+	} else {
 		server = http.createServer(serve);
-		server.scheme = "http";
+		server.protocol = "http:";
 	}
 })();
 function serve(req, res) {
@@ -280,7 +280,7 @@ serve.root.latest = function(req, res, root, latest) {
 
 var PORT = repo.config.port >>> 0 || 8001;
 server.listen(PORT, function() {
-	console.log(""+server.scheme+"://localhost:"+PORT+"/");
+	console.log(""+server.protocol+"//localhost:"+PORT+"/"); // TODO: Use urlModule.format()?
 	// TODO: Optionally set up NAT traversal/UPnP.
 });
 

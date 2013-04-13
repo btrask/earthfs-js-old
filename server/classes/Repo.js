@@ -52,6 +52,8 @@ function Repo(path, config) {
 	repo.log = fs.createWriteStream(repo.LOG, {flags: "a", encoding: "utf8"});
 	repo.db = new pg.Client(repo.config.db); // TODO: Use client pool.
 	repo.db.connect();
+	repo.key = null;
+	repo.cert = null;
 	repo.clients = [];
 }
 util.inherits(Repo, EventEmitter);
@@ -169,12 +171,24 @@ Repo.load = function(path, callback/* (err, repo) */) {
 	var configPath = pathModule.resolve(path, "./EarthFS.json");
 	fs.readFile(configPath, "utf8", function(err, config) {
 		if(err) return callback(err, null);
-		return callback(null, JSON.parse(config));
+		var repo = new Repo(path, JSON.parse(config));
+		var remaining = 2;
+		fs.readFile(repo.KEY, function(err, data) {
+			if(!err) repo.key = data;
+			if(!--remaining) callback(null, repo);
+		});
+		fs.readFile(repo.CERT, function(err, data) {
+			if(!err) repo.cert = data;
+			if(!--remaining) callback(null, repo);
+		});
 	});
 };
 Repo.loadSync = function(path) {
 	var configPath = pathModule.resolve(path, "./EarthFS.json");
-	return new Repo(path, JSON.parse(fs.readFileSync(configPath, "utf8")));
+	var repo = new Repo(path, JSON.parse(fs.readFileSync(configPath, "utf8")));
+	try { repo.key = fs.readFileSync(repo.KEY); } catch(e) {}
+	try { repo.cert = fs.readFileSync(repo.CERT); } catch(e) {}
+	return repo;
 };
 
 module.exports = Repo;
