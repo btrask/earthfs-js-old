@@ -72,6 +72,10 @@ Remote.prototype.pull = function() {
 		port: url.port,
 		path: "/latest/?"+querystring.stringify({"q": remote.query, "history": "all"}),
 		agent: false,
+		key: remote.repo.key,
+		cert: remote.repo.cert,
+//		ca: [], // TODO: I think remotes should have a cert that is known ahead of time.
+		rejectUnauthorized: false, // TODO: Change this to true once we store the cert.
 	}, function(res) {
 		var last = "";
 		res.setEncoding("utf8");
@@ -113,15 +117,16 @@ Remote.prototype.addURN = function(URN) {
 			hostname: url.hostname,
 			port: url.port,
 			path: "/entry/"+encodeURIComponent(URN),
-//			agent: false,
-//			rejectUnauthorized: false, // TODO: Figure this out.
-//			key: key,
-//			cert: cert,
+			agent: false,
+			key: remote.repo.key,
+			cert: remote.repo.cert,
+//			ca: [], // TODO: I think remotes should have a cert that is known ahead of time.
+			rejectUnauthorized: false, // TODO: Change this to true once we store the cert.
 //			headers: {
 //				"Accept": "*/*",
 //			},
 		};
-		https.get(opts, function(res) {
+		var req = remote.module.get(opts, function(res) {
 			remote.repo.addEntryStream(
 				res, res.headers["content-type"],
 				function(err, URN, entryID) {
@@ -130,6 +135,7 @@ Remote.prototype.addURN = function(URN) {
 				}
 			);
 		});
+		// TODO: Handle "error" event.
 	}
 };
 
