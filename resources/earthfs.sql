@@ -208,7 +208,7 @@ ALTER SEQUENCE "sources_sourceID_seq" OWNED BY sources."sourceID";
 CREATE TABLE targets (
     "targetID" bigint NOT NULL,
     "entryID" bigint NOT NULL,
-    "userID" bigint NOT NULL
+    "userID" bigint
 );
 
 
