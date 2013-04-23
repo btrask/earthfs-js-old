@@ -79,7 +79,8 @@ Remote.prototype.pull = function() {
 	}, function(res) {
 		var last = "";
 		res.setEncoding("utf8");
-		res.on("data", function(chunk) {
+		res.on("readable", function() {
+			var chunk = res.read();
 			var data = last+chunk, i, j;
 			// TODO: This is messy.
 			for(; -1 !== (i = data.indexOf("\n", j)); j = i+1) {

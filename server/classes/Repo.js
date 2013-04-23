@@ -71,7 +71,8 @@ Repo.prototype.addEntryStream = function(stream, type, callback/* (err, primaryU
 	var p = new Parsers(type);
 	var f = fs.createWriteStream(tmp);
 	var length = 0;
-	stream.on("data", function(chunk) {
+	stream.on("readable", function() {
+		var chunk = stream.read();
 		h.update(chunk);
 		p.update(chunk);
 		f.write(chunk);
@@ -101,6 +102,7 @@ Repo.prototype.addEntryStream = function(stream, type, callback/* (err, primaryU
 			});
 		});
 	});
+	stream.read(0);
 };
 function addEntry(repo, source, type, h, p, callback/* (err, primaryURN) */) {
 	if(!Repo.writeable) throw new Error("Repo loaded in read-only mode");
