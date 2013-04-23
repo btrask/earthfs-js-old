@@ -168,6 +168,111 @@ ALTER SEQUENCE "remotes_remoteID_seq" OWNED BY remotes."remoteID";
 
 
 --
+-- Name: sources; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
+--
+
+CREATE TABLE sources (
+    "sourceID" bigint NOT NULL,
+    "entryID" bigint NOT NULL,
+    "userID" bigint NOT NULL
+);
+
+
+ALTER TABLE public.sources OWNER TO postgres;
+
+--
+-- Name: sources_sourceID_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE "sources_sourceID_seq"
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public."sources_sourceID_seq" OWNER TO postgres;
+
+--
+-- Name: sources_sourceID_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
+
+ALTER SEQUENCE "sources_sourceID_seq" OWNED BY sources."sourceID";
+
+
+--
+-- Name: targets; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
+--
+
+CREATE TABLE targets (
+    "targetID" bigint NOT NULL,
+    "entryID" bigint NOT NULL,
+    "userID" bigint NOT NULL
+);
+
+
+ALTER TABLE public.targets OWNER TO postgres;
+
+--
+-- Name: targets_targetID_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE "targets_targetID_seq"
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public."targets_targetID_seq" OWNER TO postgres;
+
+--
+-- Name: targets_targetID_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
+
+ALTER SEQUENCE "targets_targetID_seq" OWNED BY targets."targetID";
+
+
+--
+-- Name: users; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
+--
+
+CREATE TABLE users (
+    "userID" bigint NOT NULL,
+    username text NOT NULL,
+    password text NOT NULL,
+    token text NOT NULL,
+    cert text,
+    key text
+);
+
+
+ALTER TABLE public.users OWNER TO postgres;
+
+--
+-- Name: users_userID_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE "users_userID_seq"
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public."users_userID_seq" OWNER TO postgres;
+
+--
+-- Name: users_userID_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
+
+ALTER SEQUENCE "users_userID_seq" OWNED BY users."userID";
+
+
+--
 -- Name: uriID; Type: DEFAULT; Schema: public; Owner: postgres
 --
 
@@ -196,6 +301,27 @@ ALTER TABLE ONLY remotes ALTER COLUMN "remoteID" SET DEFAULT nextval('"remotes_r
 
 
 --
+-- Name: sourceID; Type: DEFAULT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY sources ALTER COLUMN "sourceID" SET DEFAULT nextval('"sources_sourceID_seq"'::regclass);
+
+
+--
+-- Name: targetID; Type: DEFAULT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY targets ALTER COLUMN "targetID" SET DEFAULT nextval('"targets_targetID_seq"'::regclass);
+
+
+--
+-- Name: userID; Type: DEFAULT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY users ALTER COLUMN "userID" SET DEFAULT nextval('"users_userID_seq"'::regclass);
+
+
+--
 -- Name: entryPrimaryKey; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
 --
 
@@ -212,6 +338,38 @@ ALTER TABLE ONLY links
 
 
 --
+-- Name: sourcesUnique; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
+--
+
+ALTER TABLE ONLY sources
+    ADD CONSTRAINT "sourcesUnique" UNIQUE ("entryID", "userID");
+
+
+--
+-- Name: sources_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
+--
+
+ALTER TABLE ONLY sources
+    ADD CONSTRAINT sources_pkey PRIMARY KEY ("sourceID");
+
+
+--
+-- Name: targetsUnique; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
+--
+
+ALTER TABLE ONLY targets
+    ADD CONSTRAINT "targetsUnique" UNIQUE ("entryID", "userID");
+
+
+--
+-- Name: targets_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
+--
+
+ALTER TABLE ONLY targets
+    ADD CONSTRAINT targets_pkey PRIMARY KEY ("targetID");
+
+
+--
 -- Name: uniqueURI; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
 --
 
@@ -225,6 +383,14 @@ ALTER TABLE ONLY "URIs"
 
 ALTER TABLE ONLY "URIs"
     ADD CONSTRAINT "uriPrimaryKey" PRIMARY KEY ("uriID");
+
+
+--
+-- Name: users_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
+--
+
+ALTER TABLE ONLY users
+    ADD CONSTRAINT users_pkey PRIMARY KEY ("userID");
 
 
 --
