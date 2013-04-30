@@ -63,7 +63,7 @@ Repo.prototype.pathForEntry = function(dir, hash, type) {
 	if(!bt.has(EXT, t)) throw new Error("Invalid MIME type "+type);
 	return dir+"/"+hash.slice(0, 2)+"/"+hash+"."+EXT[t];
 };
-Repo.prototype.addEntryStream = function(stream, type, callback/* (err, primaryURN) */) {
+Repo.prototype.addEntryStream = function(stream, type, userID, targets, callback/* (err, primaryURN) */) {
 	if(!Repo.writeable) throw new Error("Repo loaded in read-only mode");
 	var repo = this;
 	var tmp = pathModule.resolve(os.tmpDir(), randomString(32, "0123456789abcdef"));
@@ -97,23 +97,28 @@ Repo.prototype.addEntryStream = function(stream, type, callback/* (err, primaryU
 						if("EEXIST" === err.code) return callback(null, h.primaryURN);
 						return callback(err, null);
 					}
-					addEntry(repo, null, type, h, p, callback);
+					repo.log.write(JSON.stringify({ // TODO: Is this still pulling its weight?
+						"date": new Date().toISOString(),
+						"internalHash": h.internalHash,
+						"type": type,
+						"userID": userID,
+					})+"\n");
+					addEntry(repo, type, h, p, function(err, primaryURN, entryID) {
+						if(err) return callback(err, null);
+						addEntrySource(repo, entryID, userID, targets, function(err) {
+							if(err) return callback(err, null);
+							callback(null, primaryURN);
+							repo.emit("entry", h.primaryURN, entryID);
+						});
+					});
 				});
 			});
 		});
 	});
 	stream.read(0);
 };
-function addEntry(repo, source, type, h, p, callback/* (err, primaryURN) */) {
+function addEntry(repo, type, h, p, callback/* (err, primaryURN, entryID) */) {
 	if(!Repo.writeable) throw new Error("Repo loaded in read-only mode");
-
-	repo.log.write(JSON.stringify({
-		"date": new Date().toISOString(),
-		"internalHash": h.internalHash,
-		"type": type,
-		"source": source,
-	})+"\n");
-
 	sql.debug(repo.db,
 		'INSERT INTO "entries" ("hash", "type", "fulltext")'+
 		' VALUES ($1, $2, to_tsvector(\'english\', $3)) RETURNING "entryID"',
@@ -134,8 +139,7 @@ function addEntry(repo, source, type, h, p, callback/* (err, primaryURN) */) {
 						function(err, results) {
 							if(err) return callback(err, null);
 							if(!p.links.length) {
-								callback(null, h.primaryURN);
-								repo.emit("entry", h.primaryURN, entryID);
+								callback(null, h.primaryURN, entryID);
 								return;
 							}
 							sql.debug(repo.db,
@@ -149,8 +153,7 @@ function addEntry(repo, source, type, h, p, callback/* (err, primaryURN) */) {
 									// TODO
 									// 1. Add meta-links to the meta-entries
 									// 2. Recurse over links and add indirect rows
-									callback(null, h.primaryURN);
-									repo.emit("entry", h.primaryURN, entryID);
+									callback(null, h.primaryURN, entryID);
 								}
 							);
 						}
@@ -159,7 +162,43 @@ function addEntry(repo, source, type, h, p, callback/* (err, primaryURN) */) {
 			);
 		}
 	);
-
+}
+function addEntrySource(repo, entryID, userID, targets, callback/* (err) */) {
+	sql.debug(repo.db,
+		'INSERT INTO "sources" ("entryID", "userID")'+
+		' VALUES ($1, $2)'+
+		' RETURNING "sourceID"',
+		[entryID, userID],
+		function(err, results) {
+			if(err) return callback(err, null);
+			var sourceID = results.rows[0].sourceID;
+			sql.debug(repo.db,
+				'SELECT "userID" FROM "users"'+
+				' WHERE "username" IN ('+sql.list1D(targets, 1)+')'+
+				' UNION'+
+				' SELECT 0 WHERE \'public\' IN ('+sql.list1D(targets, targets.length+1)+')',
+				targets.concat(targets),
+				function(err, results) {
+					if(err) return callback(err, null);
+					var targetIDs = results.rows.map(function(row) {
+						return row.userID;
+					}).concat([userID]).unique();
+					var params = targetIDs.map(function(targetID) {
+						return [entryID, targetID, sourceID];
+					});
+					sql.debug(repo.db,
+						'INSERT INTO "targets" ("entryID", "userID", "sourceID")'+
+						' VALUES '+sql.list2D(params, 1)+'',
+						params,
+						function(err, results) {
+							if(err) return callback(err, null);
+							callback(null);
+						}
+					);
+				}
+			);
+		}
+	);
 }
 
 Repo.writeable = false;

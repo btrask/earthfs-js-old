@@ -17,6 +17,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
 FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE. */
 var sql = exports;
+var EventEmitter = require("events").EventEmitter;
 
 sql.debug = function query(db, str, args, cb) {
 	db.query(str, args, function(err, result) {
@@ -26,6 +27,22 @@ sql.debug = function query(db, str, args, cb) {
 		}
 		cb(err, result);
 	});
+};
+sql.debug2 = function(db, str, args) {
+	var a = db.query(str, args);
+	var b = new EventEmitter;
+	a.on("error", function(err) {
+		err.query = str;
+		err.args = args;
+		b.emit("error", err);
+	});
+	a.on("row", function(row) {
+		b.emit("row", row);
+	});
+	a.on("end", function() {
+		b.emit("end");
+	});
+	return b;
 };
 sql.list1D = function(a, offset, asRows) {
 	var r = [];

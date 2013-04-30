@@ -16,10 +16,13 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
 FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE. */
+var sql = require("../utilities/sql");
+
 function Client(repo, query, stream) {
+	if(!query) throw new Error("Invalid query for Client");
 	var client = this;
 	client.repo = repo;
-	client.query = query; // TODO: Don't use null as a valid query.
+	client.query = query;
 	client.stream = stream;
 	client.open = true;
 	client.paused = true;
@@ -34,11 +37,23 @@ function Client(repo, query, stream) {
 		repo.clients.splice(repo.clients.indexOf(client), 1);
 		clearInterval(heartbeat);
 	});
+
+	var cache = client.query.SQL(2, "\t");
+	repo.on("entry", function(URN, entryID) {
+		sql.debug(repo.db,
+			'SELECT $1 IN \n'+
+				cache.query+
+			'AS matches', [entryID].concat(cache.parameters),
+			function(err, results) {
+				if(err) console.log(err);
+				if(results.rows[0].matches) client.send(URN);
+			}
+		);
+	});
 }
 Client.prototype.send = function(URN) {
 	var client = this;
 	if(!client.open) throw new Error("Writing to closed client");
-	// TODO: Perform filtering here instead of in index.js.
 	client.queue.push(URN);
 	client.flush();
 };

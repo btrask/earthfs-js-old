@@ -25,7 +25,7 @@ var query = exports;
 query.All = function AllQuery() {};
 query.All.prototype.SQL = function(offset, tab) {
 	return {
-		query: tab+'(SELECT "entryID" FROM entries WHERE TRUE)',
+		query: tab+'(SELECT "entryID" FROM entries WHERE TRUE)\n',
 		parameters: [],
 	};
 };
@@ -76,6 +76,30 @@ query.Intersection.prototype.SQL = function(offset, tab) {
 };
 query.Intersection.prototype.toString = function() {
 	return "(* "+this.items.join(" ")+")";
+};
+
+query.User = function UserQuery(userID, subquery) {
+	if(null === userID) throw new Error("Invalid user ID");
+	if(!subquery) subquery = new query.All();
+	var q = this;
+	q.userID = userID;
+	q.subquery = subquery;
+};
+query.User.prototype.SQL = function(offset, tab) {
+	var q = this;
+	var obj = q.subquery.SQL(offset+1, tab+"\t");
+	return {
+		query:
+			tab+'(SELECT "entryID" FROM "targets"\n'+
+			tab+'WHERE "userID" IN (0, $'+offset+') AND "entryID" IN \n'+
+				obj.query+
+			tab+')\n',
+		parameters: [q.userID].concat(obj.parameters),
+	};
+};
+query.User.prototype.toString = function() {
+	var q = this;
+	return "(user "+q.userID+" "+q.subquery.toString()+")";
 };
 
 // TODO

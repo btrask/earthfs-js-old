@@ -34,6 +34,7 @@ var ReadableStream = require("stream").Readable;
 var pg = require("pg");
 var formidable = require("formidable");
 var mkdirp = require("mkdirp");
+var bcrypt = require("bcrypt");
 
 var bt = require("./utilities/bt");
 var fsx = require("./utilities/fsx");
@@ -42,6 +43,7 @@ var sql = require("./utilities/sql");
 
 var formatters = require("./formatters");
 var querylang = require("./query-languages");
+var queryModule = require("./classes/query");
 
 var Client = require("./classes/Client");
 var query = require("./classes/query");
@@ -85,6 +87,38 @@ function first(array) {
 }
 function rest(array) {
 	return array.slice(1);
+}
+
+var O_RDONLY = 1 << 1;
+var O_WRONLY = 1 << 2;
+var O_RDWR = O_RDONLY | O_WRONLY;
+var O_MKUSER = 1 << 3; // TODO
+function authenticate(username, password, mode, callback/* (err, userID) */) {
+	var forbidden = {httpStatusCode: 403, message: "Forbidden"};
+	if(!username) {
+		var publicMode = O_RDONLY; // TODO: Configurable.
+		if((mode & publicMode) !== mode) return callback(forbidden, null);
+		return callback(null, 0);
+	}
+	repo.db.query(
+		'SELECT "userID", "password", "token" FROM "users" WHERE "username" = $1',
+		[username],
+		function(err, results) {
+			if(err) return callback(err, null);
+			var row = results.rows[0];
+			if(results.rows.length < 1) {
+				return callback(forbidden, null);
+			}
+			if(bcrypt.compareSync(password, row.password)) {
+				return callback(null, row.userID);
+			}
+			if((mode & O_RDONLY) !== mode) return callback(forbidden, null);
+			if(bcrypt.compareSync(password, row.token)) {
+				return callback(null, row.userID);
+			}
+			callback(forbidden, null);
+		}
+	);
 }
 
 var server;
@@ -203,78 +237,76 @@ function sendFormatted(req, res, srcPath, srcType, dstTypes, hash) {
 }
 
 serve.root.submit = function(req, res, root, submit) {
-	if("127.0.0.1" !== req.connection.remoteAddress) {
-		res.sendMessage(403, "Forbidden");
-		return;
-	}
 	if("POST" !== req.method) {
 		res.sendMessage(405, "Method Not Allowed");
 		return;
 	}
-	function fail(err) {
-		console.log(err);
-		res.sendMessage(500, "Internal Server Error");
-	}
+	var options = submit.options;
+	var username = options["u"];
+	var password = options["p"]; // TODO: Use HTTP Basic Authentication?
+	authenticate(username, password, O_WRONLY, function(err, userID) {
+		if(err) return res.sendError(err);
+		var targets = String(options["t"] || "").split("\n");
+		addEntry(req, res, userID, targets);
+	});
+};
+function addEntry(req, res, userID, targets) {
 	var form = new formidable.IncomingForm({
 		"keepExtensions": false,
 	});
 	form.addListener("error", function(err) {
-		fail(err);
+		console.log(err);
+		res.sendMessage(500, "Internal Server Error");
 	});
 	var hashes = {};
 	form.onPart = function(part) {
 		if("entry" !== part.name) return; // TODO: Is skipping other parts a good idea?
 		var ext = pathModule.extname(part.filename);
 		var type = bt.has(MIME, ext) ? MIME[ext] : part.mime; // TODO: Keep charset if possible.
-		repo.addEntryStream((new ReadableStream).wrap(part), type, function(err, primaryURN) {
+		repo.addEntryStream(new ReadableStream().wrap(part), type, userID, targets, function(err, primaryURN) {
 			if(err) return res.sendError(err);
 			res.writeHead(303, {"Location": primaryURN});
 			res.end();
 		});
 	};
 	form.parse(req);
-};
-repo.on("entry", function(URN, entryID) {
-	repo.clients.forEach(function(client) {
-		var obj = client.query.SQL(2, "\t");
-		sql.debug(repo.db,
-			'SELECT $1 IN \n'+
-				obj.query+
-			'AS matches', [entryID].concat(obj.parameters),
-			function(err, results) {
-				if(err) console.log(err);
-				if(results.rows[0].matches) client.send(URN);
-			}
-		);
-	});
-});
+}
 
 serve.root.latest = function(req, res, root, latest) {
 	var opts = latest.options;
-	var queryString = (opts["q"] || "").split("+").map(decodeURIComponent).join(" ");
-	querylang.parse(queryString, "lispish", function(err, query) {
-		var client = new Client(repo, query, res);
-		var tab = "\t";
-		var obj = query.SQL(1, tab+"\t");
-		var history = opts["history"];
-		var limit = "all" === history ? '' : tab+'LIMIT '+(history >>> 0)+'\n';
-		var stream = repo.db.query(
-			'SELECT * FROM (\n'+
-				tab+'SELECT e."entryID", \'urn:sha1:\' || e."hash" AS "URN"\n'+
-				tab+'FROM "entries" AS e\n'+
-				tab+'WHERE e."entryID" IN\n'+
-					obj.query+
-				tab+'ORDER BY e."entryID" DESC\n'+
-					limit+
-			') x ORDER BY "entryID" ASC',
-			obj.parameters
-		);
-		res.writeHead(200, {"Content-Type": "text/json; charset=utf-8"});
-		stream.on("row", function(row) {
-			res.write(row.URN+"\n", "utf8");
-		});
-		stream.on("end", function() {
-			client.resume();
+	var username = opts["u"];
+	var password = opts["p"];
+	authenticate(username, password, O_RDONLY, function(err, userID) {
+		if(err) return res.sendError(err);
+		var queryString = (opts["q"] || "").split("+").map(decodeURIComponent).join(" ");
+		querylang.parse(queryString, "lispish", function(err, query) {
+			query = new queryModule.User(userID, query); // TODO: Kind of ugly.
+			var client = new Client(repo, query, res);
+			var tab = "\t";
+			var obj = query.SQL(1, tab+"\t");
+			var history = opts["history"];
+			var limit = "all" === history ? '' : tab+'LIMIT '+(history >>> 0)+'\n';
+			var stream = sql.debug2(repo.db,
+				'SELECT * FROM (\n'+
+					tab+'SELECT e."entryID", \'urn:sha1:\' || e."hash" AS "URN"\n'+
+					tab+'FROM "entries" AS e\n'+
+					tab+'WHERE e."entryID" IN\n'+
+						obj.query+
+					tab+'ORDER BY e."entryID" DESC\n'+
+						limit+
+				') x ORDER BY "entryID" ASC',
+				obj.parameters
+			);
+			res.writeHead(200, {"Content-Type": "text/json; charset=utf-8"});
+			stream.on("row", function(row) {
+				res.write(row.URN+"\n", "utf8");
+			});
+			stream.on("end", function() {
+				client.resume();
+			});
+			stream.on("error", function(err) {
+				console.log(err);
+			});
 		});
 	});
 };
@@ -287,11 +319,11 @@ server.listen(PORT, function() {
 
 var Remote = require("./classes/Remote");
 repo.db.query(
-	'SELECT "remoteURL", "query" FROM "remotes" WHERE TRUE', [],
+	'SELECT "userID", "targets", "remoteURL", "query" FROM "remotes" WHERE TRUE', [],
 	function(err, results) {
 		if(err) return console.log(err);
 		results.rows.forEach(function(row) {
-			var remote = new Remote(repo, row.remoteURL, row.query);
+			var remote = new Remote(repo, row.userID, row.targets, row.remoteURL, row.query);
 		});
 	}
 );

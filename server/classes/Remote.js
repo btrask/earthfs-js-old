@@ -40,9 +40,11 @@ Queue.prototype.push = function(func/* (done) */) {
 	});
 };
 
-function Remote(repo, url, query) {
+function Remote(repo, userID, targets, url, query) {
 	var remote = this;
 	remote.repo = repo;
+	remote.userID = userID;
+	remote.targets = targets;
 	remote.url = url;
 	remote.query = query;
 	remote.pullQueue = new Queue;
@@ -129,7 +131,7 @@ Remote.prototype.addURN = function(URN) {
 		};
 		var req = remote.module.get(opts, function(res) {
 			remote.repo.addEntryStream(
-				res, res.headers["content-type"],
+				res, res.headers["content-type"], remote.userID, remote.targets.split("\n"),
 				function(err, URN, entryID) {
 					if(err) console.log(err);
 					callback();

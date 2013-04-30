@@ -139,6 +139,8 @@ ALTER SEQUENCE "links_linkID_seq" OWNED BY links."linkID";
 
 CREATE TABLE remotes (
     "remoteID" bigint NOT NULL,
+    "userID" bigint NOT NULL,
+    targets text NOT NULL,
     "remoteURL" text NOT NULL,
     query text NOT NULL
 );
@@ -174,7 +176,8 @@ ALTER SEQUENCE "remotes_remoteID_seq" OWNED BY remotes."remoteID";
 CREATE TABLE sources (
     "sourceID" bigint NOT NULL,
     "entryID" bigint NOT NULL,
-    "userID" bigint NOT NULL
+    "userID" bigint NOT NULL,
+    "submissionTime" timestamp without time zone DEFAULT now() NOT NULL
 );
 
 
@@ -208,7 +211,8 @@ ALTER SEQUENCE "sources_sourceID_seq" OWNED BY sources."sourceID";
 CREATE TABLE targets (
     "targetID" bigint NOT NULL,
     "entryID" bigint NOT NULL,
-    "userID" bigint
+    "userID" bigint,
+    "sourceID" bigint NOT NULL
 );
 
 
@@ -245,7 +249,8 @@ CREATE TABLE users (
     password text NOT NULL,
     token text NOT NULL,
     cert text,
-    key text
+    key text,
+    CONSTRAINT "usernameNotPublic" CHECK ((username <> 'public'::text))
 );
 
 
@@ -338,11 +343,11 @@ ALTER TABLE ONLY links
 
 
 --
--- Name: sourcesUnique; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
+-- Name: remotes_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
 --
 
-ALTER TABLE ONLY sources
-    ADD CONSTRAINT "sourcesUnique" UNIQUE ("entryID", "userID");
+ALTER TABLE ONLY remotes
+    ADD CONSTRAINT remotes_pkey PRIMARY KEY ("remoteID");
 
 
 --
@@ -351,14 +356,6 @@ ALTER TABLE ONLY sources
 
 ALTER TABLE ONLY sources
     ADD CONSTRAINT sources_pkey PRIMARY KEY ("sourceID");
-
-
---
--- Name: targetsUnique; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
---
-
-ALTER TABLE ONLY targets
-    ADD CONSTRAINT "targetsUnique" UNIQUE ("entryID", "userID");
 
 
 --
@@ -383,6 +380,14 @@ ALTER TABLE ONLY "URIs"
 
 ALTER TABLE ONLY "URIs"
     ADD CONSTRAINT "uriPrimaryKey" PRIMARY KEY ("uriID");
+
+
+--
+-- Name: usersUniqueName; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
+--
+
+ALTER TABLE ONLY users
+    ADD CONSTRAINT "usersUniqueName" UNIQUE (username);
 
 
 --
