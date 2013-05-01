@@ -189,7 +189,7 @@ function addEntrySource(repo, entryID, userID, targets, callback/* (err) */) {
 					sql.debug(repo.db,
 						'INSERT INTO "targets" ("entryID", "userID", "sourceID")'+
 						' VALUES '+sql.list2D(params, 1)+'',
-						params,
+						sql.flatten(params),
 						function(err, results) {
 							if(err) return callback(err, null);
 							callback(null);
