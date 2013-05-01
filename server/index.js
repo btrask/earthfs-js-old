@@ -241,12 +241,12 @@ serve.root.submit = function(req, res, root, submit) {
 		res.sendMessage(405, "Method Not Allowed");
 		return;
 	}
-	var options = submit.options;
-	var username = options["u"];
-	var password = options["p"]; // TODO: Use HTTP Basic Authentication?
+	var opts = submit.options;
+	var username = opts["u"];
+	var password = opts["p"];
 	authenticate(username, password, O_WRONLY, function(err, userID) {
 		if(err) return res.sendError(err);
-		var targets = String(options["t"] || "").split("\n");
+		var targets = String(opts["t"] || "").split("\n");
 		addEntry(req, res, userID, targets);
 	});
 };
@@ -254,10 +254,10 @@ function addEntry(req, res, userID, targets) {
 	var form = new formidable.IncomingForm({
 		"keepExtensions": false,
 	});
-	form.addListener("error", function(err) {
-		console.log(err);
-		res.sendMessage(500, "Internal Server Error");
-	});
+//	form.addListener("error", function(err) {
+//		console.log("hmm", err);
+//		res.sendMessage(500, "Internal Server Error");
+//	});
 	var hashes = {};
 	form.onPart = function(part) {
 		if("entry" !== part.name) return; // TODO: Is skipping other parts a good idea?
@@ -269,7 +269,9 @@ function addEntry(req, res, userID, targets) {
 			res.end();
 		});
 	};
+	req.pause(); // HACK. Stream2 old-mode emits "data" before formidable is ready.
 	form.parse(req);
+	req.resume();
 }
 
 serve.root.latest = function(req, res, root, latest) {
@@ -286,7 +288,7 @@ serve.root.latest = function(req, res, root, latest) {
 			var obj = query.SQL(1, tab+"\t");
 			var history = opts["history"];
 			var limit = "all" === history ? '' : tab+'LIMIT '+(history >>> 0)+'\n';
-			var stream = sql.debug2(repo.db,
+			var fullSQL =
 				'SELECT * FROM (\n'+
 					tab+'SELECT e."entryID", \'urn:sha1:\' || e."hash" AS "URN"\n'+
 					tab+'FROM "entries" AS e\n'+
@@ -294,7 +296,9 @@ serve.root.latest = function(req, res, root, latest) {
 						obj.query+
 					tab+'ORDER BY e."entryID" DESC\n'+
 						limit+
-				') x ORDER BY "entryID" ASC',
+				') x ORDER BY "entryID" ASC';
+			var stream = sql.debug2(repo.db,
+				fullSQL,
 				obj.parameters
 			);
 			res.writeHead(200, {"Content-Type": "text/json; charset=utf-8"});

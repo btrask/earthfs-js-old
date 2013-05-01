@@ -23,8 +23,12 @@ query.parse = function(str) {
 	return r;
 };
 query.stringify = function(obj) {
-	var has = Object.prototype.hasOwnProperty, fields = [];
-	for(var prop in obj) if(has.call(obj, prop)) fields.push(query.encode(prop)+"="+query.encode(obj[prop]));
+	var has = Object.prototype.hasOwnProperty, fields = [], val;
+	for(var key in obj) if(has.call(obj, key)) {
+		val = obj[key];
+		if(undefined === val || null === val) continue;
+		fields.push(query.encode(key)+"="+query.encode(val));
+	}
 	if(!fields.length) return "";
 	return "?"+fields.join("&");
 };

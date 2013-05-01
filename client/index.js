@@ -46,10 +46,15 @@ function Stream(query) {
 	stream.pinned = true;
 	stream.sidebarSize = 150;
 	stream.editor = null;
-	stream.entries = [];
-	stream.URNs = {};
 
-	var editors = [TextEditor, FileEditor].map(function(Editor) {
+	stream.entries = null;
+	stream.URNs = null;
+	stream.req = null;
+	stream.retry = null;
+	stream.username = null;
+	stream.password = null;
+
+	var editors = [TextEditor, FileEditor, AccountEditor].map(function(Editor) {
 		var editor = new Editor(stream);
 		var button = editor.button = DOM.clone("modeButton");
 		button.setAttribute("value", editor.label);
@@ -98,27 +103,54 @@ function Stream(query) {
 		stream.pinned = c.scrollTop >= (c.scrollHeight - c.clientHeight);
 	});
 
-	stream.pull(MAX_ENTRIES);
+	stream.load();
 }
+Stream.prototype.load = function() {
+	var stream = this;
+	if(stream.req) {
+		var req = stream.req;
+		stream.req = null;
+		req.abort();
+	}
+	if(stream.retry) {
+		clearTimeout(stream.retry);
+		stream.retry = null;
+	}
+	DOM.fill(stream.elems.entries);
+	stream.pinned = true;
+	stream.entries = [];
+	stream.URNs = {};
+	stream.pull(MAX_ENTRIES);
+};
 Stream.prototype.pull = function(history) {
 	var stream = this;
-	var req = new XMLHttpRequest();
+	if(stream.req) throw new Error("Already pulling (req)");
+	if(stream.retry) throw new Error("Already pulling (retry timeout)");
 	var offset = 0;
+	var req = stream.req = new XMLHttpRequest();
 	req.onreadystatechange = function() {
+		if(!stream.req) return; // We've been canceled.
+		if(stream.req !== req) throw new Error("Invalid request update");
 		if(req.readyState < 3) return;
 		// TODO: This is messy.
 		for(var i; -1 !== (i = req.responseText.indexOf("\n", offset)); offset = i+1) {
 			stream.addURN(req.responseText.slice(offset, i).replace(/^ +/g, ""));
 		}
 		if(4 === req.readyState) {
+			stream.req = null;
 			if(200 === req.status) return stream.pull(OVERLAP_ENTRIES);
-			setTimeout(function() { stream.pull(MAX_ENTRIES); }, 1000 * 5);
+			stream.retry = setTimeout(function() {
+				stream.retry = null;
+				stream.pull(MAX_ENTRIES);
+			}, 1000 * 5);
 		}
 	};
-	req.open("GET", "/latest/"+query.stringify({
+	req.open("GET", "/latest"+query.stringify({
 		"q": stream.query,
 		"history": history,
 		"t": +new Date,
+		"u": stream.username,
+		"p": stream.password,
 	}), true);
 	req.send("");
 };
@@ -187,12 +219,16 @@ Stream.prototype.upload = function(blob) {
 		// TODO
 		console.log("status", req.status);
 	};
-	req.open("POST", "/submit");
+	req.open("POST", "/submit"+query.stringify({
+		"u": stream.username,
+		"p": stream.password,
+	}));
 	req.send(form);
 };
 Stream.location = function(params) {
 	return "/"+query.stringify(params);
 };
+Stream.current = null;
 
 function TextEditor(stream) {
 	var editor = this;
@@ -237,6 +273,27 @@ function FileEditor(stream) {
 	};
 }
 FileEditor.prototype.activate = function() {};
+
+function AccountEditor(stream) {
+	var editor = this;
+	editor.element = DOM.clone("accountEditor", this);
+	editor.label = "Account";
+	editor.submit.onclick = function(event) {
+		// TODO: Should we pre-load account details?
+		// - Readable/writable permissions
+		// - Other account settings?
+		// - Easier to handle login errors
+		stream.username = editor.username.value;
+		stream.password = editor.password.value;
+		stream.load();
+		editor.username.value = "";
+		editor.password.value = "";
+	};
+}
+AccountEditor.prototype.activate = function() {
+	var editor = this;
+	editor.username.focus();
+};
 
 var IMAGE_TYPES = {
 	"image/jpeg": 1,
@@ -332,6 +389,6 @@ Entry.parseHTML = function(html) {
 
 
 var inputQuery = query.parse(window.location.search);
-var stream = new Stream(undefined === inputQuery.q ? "" : inputQuery.q);
-document.body.appendChild(stream.element);
-stream.reflow();
+Stream.current = new Stream(undefined === inputQuery.q ? "" : inputQuery.q);
+document.body.appendChild(Stream.current.element);
+Stream.current.reflow();
