@@ -42,6 +42,7 @@ function randomString(length, charset) { // TODO: Put this somewhere.
 function Repo(path, config) {
 	var repo = this;
 	EventEmitter.call(this);
+//	repo.setMaxListeners(0);
 	repo.PATH = path;
 	repo.config = config;
 	repo.DATA = pathModule.resolve(repo.PATH, config["dataPath"] || "./data");

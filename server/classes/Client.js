@@ -35,11 +35,12 @@ function Client(repo, query, stream) {
 	client.stream.on("close", function() {
 		client.open = false;
 		repo.clients.splice(repo.clients.indexOf(client), 1);
+		repo.removeListener("entry", sendEntry);
 		clearInterval(heartbeat);
 	});
 
 	var cache = client.query.SQL(2, "\t");
-	repo.on("entry", function(URN, entryID) {
+	function sendEntry(URN, entryID) {
 		sql.debug(repo.db,
 			'SELECT $1 IN \n'+
 				cache.query+
@@ -49,7 +50,8 @@ function Client(repo, query, stream) {
 				if(results.rows[0].matches) client.send(URN);
 			}
 		);
-	});
+	}
+	repo.on("entry", sendEntry);
 }
 Client.prototype.send = function(URN) {
 	var client = this;
