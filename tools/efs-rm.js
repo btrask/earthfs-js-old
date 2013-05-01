@@ -27,9 +27,9 @@ function exit(msg) {
 	process.exit();
 }
 repo.db.query(
-	'SELECT u."entryID", e."hash", e."type"'+
-	' FROM "URIs" AS u'+
-	' LEFT JOIN "entries" AS e ON (u."entryID" = e."entryID")'+
+	'SELECT e."entryID", e."hash", e."type"'+
+	' FROM "entries" AS e'+
+	' LEFT JOIN "URIs" AS u ON (e."entryID" = u."entryID")'+
 	' WHERE u."URI" = $1', [URN],
 	function(err, results) {
 		if(err) exit(err);
