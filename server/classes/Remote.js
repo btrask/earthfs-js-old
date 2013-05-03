@@ -40,13 +40,15 @@ Queue.prototype.push = function(func/* (done) */) {
 	});
 };
 
-function Remote(repo, userID, targets, url, query) {
+function Remote(repo, userID, targets, url, query, username, password) {
 	var remote = this;
 	remote.repo = repo;
 	remote.userID = userID;
 	remote.targets = targets;
 	remote.url = url;
 	remote.query = query;
+	remote.username = username;
+	remote.password = password;
 	remote.pullQueue = new Queue;
 
 	var protocol = urlModule.parse(remote.url).protocol;
@@ -72,7 +74,12 @@ Remote.prototype.pull = function() {
 	var req = remote.module.get({
 		hostname: url.hostname,
 		port: url.port,
-		path: "/latest/?"+querystring.stringify({"q": remote.query, "history": "all"}),
+		path: "/latest/?"+querystring.stringify({
+			"q": remote.query,
+			"history": "all",
+			"u": remote.username,
+			"p": remote.password,
+		}),
 		agent: false,
 		key: remote.repo.key,
 		cert: remote.repo.cert,
@@ -119,7 +126,10 @@ Remote.prototype.addURN = function(URN) {
 		var opts = {
 			hostname: url.hostname,
 			port: url.port,
-			path: "/entry/"+encodeURIComponent(URN),
+			path: "/entry/"+encodeURIComponent(URN)+"?"+querystring.stringify({
+				"u": remote.username,
+				"p": remote.password,
+			}),
 			agent: false,
 			key: remote.repo.key,
 			cert: remote.repo.cert,

@@ -323,11 +323,19 @@ server.listen(PORT, function() {
 
 var Remote = require("./classes/Remote");
 repo.db.query(
-	'SELECT "userID", "targets", "remoteURL", "query" FROM "remotes" WHERE TRUE', [],
+	'SELECT "userID", "targets", "remoteURL", "query", "username", "password" FROM "remotes" WHERE TRUE', [],
 	function(err, results) {
 		if(err) return console.log(err);
 		results.rows.forEach(function(row) {
-			var remote = new Remote(repo, row.userID, row.targets, row.remoteURL, row.query);
+			var remote = new Remote(
+				repo,
+				row.userID,
+				row.targets,
+				row.remoteURL,
+				row.query,
+				row.username,
+				row.password
+			); // TODO: These arguments are getting a little unwieldy...
 		});
 	}
 );

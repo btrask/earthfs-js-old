@@ -142,7 +142,9 @@ CREATE TABLE remotes (
     "userID" bigint NOT NULL,
     targets text NOT NULL,
     "remoteURL" text NOT NULL,
-    query text NOT NULL
+    query text NOT NULL,
+    username text,
+    password text
 );
 
 
