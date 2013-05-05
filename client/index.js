@@ -37,6 +37,22 @@ bt.union = function(target, obj) {
 	return target;
 };
 
+var http = {}; // TODO: Drop-in browser Node-style http class?
+http.request = function(opts, callback) {
+	var req = new XMLHttpRequest(), h = opts.headers;
+	req.open(opts.method || "GET", opts.url, true);
+	req.onreadystatechange = callback;
+	if(h) for(var x in h) if(bt.has(h, x)) {
+		req.setRequestHeader(x, h[x]);
+	}
+	return req;
+};
+http.get = function(opts, callback) {
+	var req = http.request(opts, callback);
+	req.send("");
+	return req;
+};
+
 function Stream(query) {
 	var stream = this;
 	stream.elems = {};
@@ -306,30 +322,46 @@ function Entry(URN) {
 	entry.elems = {};
 	entry.element = DOM.clone("entry", this.elems);
 	entry.URN = URN;
-	DOM.fill(entry.elems.URN, entry.URN);
 	DOM.fill(entry.elems.content, "Loading…");
-	entry.elems.URN.href = Stream.location({"q": entry.URN});
-	entry.elems.raw.href = "/entry/"+encodeURIComponent(entry.URN);
+	entry.addURN(URN);
 }
+Entry.prototype.addURN = function(URN) {
+	var entry = this;
+	var elems = {}, e = DOM.clone("entryURN", elems);
+	DOM.fill(elems.URN, entry.URN);
+	elems.URN.href = Stream.location({"q": entry.URN});
+	elems.raw.href = "/entry/"+encodeURIComponent(entry.URN);
+	entry.elems["URNs"].appendChild(e);
+};
 Entry.prototype.load = function(callback) {
 	var entry = this;
-	var url = "/entry/"+encodeURIComponent(entry.URN);
-	var req = new XMLHttpRequest();
-	req.open("GET", url, true);
-	req.onreadystatechange = function() {
-		if(4 !== req.readyState) return;
-		switch(req.status) {
+	var remaining = 2;
+	var metaReq = http.get({
+		url: "/meta/"+encodeURIComponent(entry.URN),
+	}, function() {
+		if(4 !== metaReq.readyState) return;
+		var obj = JSON.parse(metaReq.responseText);
+		var URNs = obj["URNs"] || [];
+		for(var i = 0; i < URNs.length; ++i) entry.addURN(URNs[i]);
+		DOM.fill(entry.elems["sources"], obj["sources"].join(", "));
+		DOM.fill(entry.elems["targets"], obj["targets"].join(", ")); // TODO: Sort, "public" first?
+		if(!--remaining) callback();
+	});
+	var entryReq = http.get({
+		url: "/entry/"+encodeURIComponent(entry.URN),
+		headers: {"Accept": "text/html"},
+	}, function() {
+		if(4 !== entryReq.readyState) return;
+		switch(entryReq.status) {
 			case 200: // OK
-				DOM.fill(entry.elems.content, Entry.parseHTML(req.responseText));
+				DOM.fill(entry.elems.content, Entry.parseHTML(entryReq.responseText));
 				break;
 			case 406: // Not Acceptable
 				DOM.fill(entry.elems.content, DOM.clone("noPreviewMessage"));
 				break;
 		}
-		callback();
-	};
-	req.setRequestHeader("Accept", "text/html");
-	req.send("");
+		if(!--remaining) callback();
+	});
 };
 Entry.parseHTML = function(html) {
 	function linkifyTextNode(text) {

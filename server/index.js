@@ -199,6 +199,7 @@ serve.root.meta = function(req, res, root, entry) {
 					res.sendJSON(200, "OK", {
 						"sources": sources,
 						"targets": targets,
+						"URNs": [],
 						// TODO: Alternate URNs, earliest submission date?
 					});
 				}

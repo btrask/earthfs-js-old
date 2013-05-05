@@ -131,8 +131,8 @@ a:hover {
 /* Entry content (including preview) */
 
 .entryContent {
-	padding-left: 14px;
-	padding-right: 14px;
+	padding-left: 1em;
+	padding-right: 1em;
 	font-family: "Helvetica Neue", Helvetica, sans-serif;
 	font-size: 16px;
 	line-height: 1.5em;
@@ -148,8 +148,22 @@ a:hover {
 .entryContent h4,
 .entryContent h5,
 .entryContent h6 {
-	margin-top: 14px;
-	margin-bottom: 14px;
+	margin-top: 1em;
+	margin-bottom: 1em;
+}
+.noMargin blockquote,
+.noMargin ul,
+.noMargin ol,
+.noMargin p,
+.noMargin div,
+.noMargin h1,
+.noMargin h2,
+.noMargin h3,
+.noMargin h4,
+.noMargin h5,
+.noMargin h6 {
+	margin-top: 0;
+	margin-bottom: 0;
 }
 .entryContent blockquote {
 	margin-left: 7px;
