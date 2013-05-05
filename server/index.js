@@ -167,6 +167,45 @@ serve.root = function(req, res, root) {
 		"options": root.options,
 	});
 };
+serve.root.meta = function(req, res, root, entry) {
+	var URN = first(entry.components);
+	if(!URN) {
+		res.sendMessage(400, "Bad Request");
+		return;
+	}
+	// TODO: Man these queries are redundant. We should probably look up the entry ID separately, at least.
+	repo.db.query(
+		'SELECT DISTINCT COALESCE(u."username", \'public\') AS "source"'+
+		' FROM "sources" AS s'+
+		' LEFT JOIN "users" AS u ON (u."userID" = s."userID")'+
+		' LEFT JOIN "URIs" AS n ON (n."entryID" = s."entryID")'+
+		' WHERE (u."username" IS NOT NULL OR s."userID" = 0) AND n."URI" = $1', [URN],
+		function(err, results) {
+			if(err) return res.sendError(err);
+			var sources = results.rows.map(function(row) {
+				return row.source;
+			});
+			repo.db.query(
+				'SELECT DISTINCT COALESCE(u."username", \'public\') AS "target"'+
+				' FROM "targets" AS t'+
+				' LEFT JOIN "users" AS u ON (u."userID" = t."userID")'+
+				' LEFT JOIN "URIs" AS n ON (n."entryID" = t."entryID")'+
+				' WHERE (u."username" IS NOT NULL OR t."userID" = 0) AND n."URI" = $1', [URN],
+				function(err, results) {
+					if(err) return res.sendError(err);
+					var targets = results.rows.map(function(row) {
+						return row.target;
+					});
+					res.sendJSON(200, "OK", {
+						"sources": sources,
+						"targets": targets,
+						// TODO: Alternate URNs, earliest submission date?
+					});
+				}
+			);
+		}
+	);
+};
 serve.root.entry = function(req, res, root, entry) {
 	var URN = first(entry.components);
 	if(!URN) {
