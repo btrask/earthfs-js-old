@@ -28,7 +28,7 @@ function escapeHTML(HTML) {
 ometa markup {
 	main = [hash:hash] [content:body end] -> hash+body,
 	hash = htmlEnc*:x end -> "<a href=\"/id/"+x.join("")+"\">#"+x.join("")+"</a>\n\n",
-	content = markup*:x -> "<pre>"+x.join("")+"</pre>",
+	content = markup*:x -> "<pre class=\"noMargin\">"+x.join("")+"</pre>",
 	markup = blockquote | inlinequote | linequote | anchor | htmlEnc,
 
 	blockquote = br (seq('Quote:') | seq("Reply:")) br br bqcontent:content (bqendquote | bqcite):cite br -> "\n<blockquote>"+content+cite+"</blockquote>",
