@@ -29,8 +29,10 @@ function exit(msg) {
 }
 var username = process.argv[3];
 var password = bcrypt.hashSync(process.argv[4], 10);
-var token = crypto.randomBytes(12).toString("base64");
+var rawToken = crypto.randomBytes(12).toString("base64");
+var token = bcrypt.hashSync(rawToken, 10);
 
+console.log("Read-only token: "+rawToken);
 repo.db.query(
 	'INSERT INTO "users" ("username", "password", "token") VALUES ($1, $2, $3)',
 	[username, password, token],
