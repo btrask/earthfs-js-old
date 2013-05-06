@@ -218,7 +218,7 @@ Stream.prototype.setEditor = function(editor) {
 	}
 	stream.reflow();
 };
-Stream.prototype.upload = function(blob) {
+Stream.prototype.upload = function(blob, targets) {
 	if(!blob) throw new Error("Bad upload");
 	var stream = this;
 	var form = new FormData();
@@ -238,6 +238,7 @@ Stream.prototype.upload = function(blob) {
 	req.open("POST", "/submit"+query.stringify({
 		"u": stream.username,
 		"p": stream.password,
+		"t": targets.join("\n"),
 	}));
 	req.send(form);
 };
@@ -269,8 +270,9 @@ function TextEditor(stream) {
 			stream.upload(new Blob(
 				[trimBlankLines(editor.textarea.value)],
 				{"type": "text/markdown"}
-			));
+			), editor.targets.value.split(/,\s*/g));
 			// TODO: Selectable MIME types.
+			// TODO: Share target code with FileEditor.
 		}
 		editor.textarea.value = "";
 		DOM.fill(editor.preview);

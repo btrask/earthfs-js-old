@@ -92,6 +92,11 @@ a:hover {
 	margin: 4px;
 	height: 22px;
 	padding: 0 3px;
+	font-size: 14px;
+}
+.toolbar > .label {
+	margin: 6px 4px;
+	font-size: 14px;
 }
 
 /* Stream */
