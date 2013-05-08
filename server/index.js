@@ -32,7 +32,7 @@ var https = require("https");
 var ReadableStream = require("stream").Readable;
 
 var pg = require("pg");
-var formidable = require("formidable");
+var multiparty = require("multiparty");
 var mkdirp = require("mkdirp");
 var bcrypt = require("bcrypt");
 
@@ -291,27 +291,23 @@ serve.root.submit = function(req, res, root, submit) {
 	});
 };
 function addEntry(req, res, userID, targets) {
-	var form = new formidable.IncomingForm({
-		"keepExtensions": false,
+	var form = new multiparty.Form();
+	form.on("part", function(part) {
+		if("entry" !== part.name) return; // TODO: Is skipping other parts a good idea?
+		var ext = pathModule.extname(part.filename);
+		var type = bt.has(MIME, ext) ? MIME[ext] : part.headers["content-type"];
+		// TODO: Keep charset if possible.
+		repo.addEntryStream(part, type, userID, targets, function(err, primaryURN) {
+			if(err) return res.sendError(err);
+			res.writeHead(303, {"Location": primaryURN});
+			res.end();
+		});
 	});
 //	form.addListener("error", function(err) {
 //		console.log("hmm", err);
 //		res.sendMessage(500, "Internal Server Error");
 //	});
-	var hashes = {};
-	form.onPart = function(part) {
-		if("entry" !== part.name) return; // TODO: Is skipping other parts a good idea?
-		var ext = pathModule.extname(part.filename);
-		var type = bt.has(MIME, ext) ? MIME[ext] : part.mime; // TODO: Keep charset if possible.
-		repo.addEntryStream(new ReadableStream().wrap(part), type, userID, targets, function(err, primaryURN) {
-			if(err) return res.sendError(err);
-			res.writeHead(303, {"Location": primaryURN});
-			res.end();
-		});
-	};
-	req.pause(); // HACK. Stream2 old-mode emits "data" before formidable is ready.
 	form.parse(req);
-	req.resume();
 }
 
 serve.root.latest = function(req, res, root, latest) {
