@@ -18,26 +18,18 @@ FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE. */
 var fs = require("fs");
 var pathModule = require("path");
-var os = require("os");
 var EventEmitter = require("events").EventEmitter;
 var util = require("util");
+var crypto = require("crypto");
 
 var pg = require("pg");
-var mkdirp = require("mkdirp");
+var bcrypt = require("bcrypt");
 
 var bt = require("../utilities/bt");
-var sql = require("../utilities/sql");
-var fsx = require("../utilities/fsx");
 
 var EXT = require("../utilities/ext.json");
 
-var Hashers, Parsers; // Only loaded once the Repo.makeWriteable() is called.
-
-function randomString(length, charset) { // TODO: Put this somewhere.
-	var chars = [], i;
-	for(i = 0; i < length; ++i) chars.push(charset[Math.floor(Math.random() * charset.length)]);
-	return chars.join("");
-}
+var FORBIDDEN = {httpStatusCode: 403, message: "Forbidden"};
 
 function Repo(path, config) {
 	var repo = this;
@@ -64,151 +56,84 @@ Repo.prototype.pathForEntry = function(dir, hash, type) {
 	if(!bt.has(EXT, t)) throw new Error("Invalid MIME type "+type);
 	return dir+"/"+hash.slice(0, 2)+"/"+hash+"."+EXT[t];
 };
-Repo.prototype.addEntryStream = function(stream, type, userID, targets, callback/* (err, primaryURN) */) {
-	if(!Repo.writeable) throw new Error("Repo loaded in read-only mode");
+
+Repo.prototype.authUser = function(username, password, remember, mode, callback/* (err, userID, session, mode) */) {
 	var repo = this;
-	var tmp = pathModule.resolve(os.tmpDir(), randomString(32, "0123456789abcdef"));
-	var h = new Hashers(type);
-	var p = new Parsers(type);
-	var f = fs.createWriteStream(tmp);
-	var length = 0;
-	stream.on("readable", function() {
-		var chunk = stream.read();
-		h.update(chunk);
-		p.update(chunk);
-		f.write(chunk);
-		length += chunk.length;
-	});
-	stream.on("end", function() {
-		h.end();
-		p.end();
-		f.end();
-		f.on("close", function() {
-			if(!length) {
-				// Silently ignore empty files.
-				fs.unlink(tmp);
-				callback(null, null);
-				return;
-			}
-			var path = repo.pathForEntry(repo.DATA, h.internalHash, type);
-			mkdirp(pathModule.dirname(path), function(err) {
-				if(err) return callback(err, null);
-				fsx.moveFile(tmp, path, function(err) {
-					if(err) {
-						if("EEXIST" === err.code) return callback(null, h.primaryURN);
-						return callback(err, null);
-					}
-					repo.log.write(JSON.stringify({ // TODO: Is this still pulling its weight?
-						"date": new Date().toISOString(),
-						"internalHash": h.internalHash,
-						"type": type,
-						"userID": userID,
-					})+"\n");
-					addEntry(repo, type, h, p, function(err, primaryURN, entryID) {
-						if(err) return callback(err, null);
-						addEntrySource(repo, entryID, userID, targets, function(err) {
-							if(err) return callback(err, null);
-							callback(null, primaryURN);
-							repo.emit("entry", h.primaryURN, entryID);
-						});
-					});
+	repo.db.query(
+		'SELECT "userID", "passwordHash", "tokenHash"'+
+		' FROM "users" WHERE "username" = $1',
+		[username],
+		function(err, results) {
+			var row = results.rows[0];
+			if(err) return callback(FORBIDDEN, null, null, Repo.O_NONE);
+			if(results.rows.length < 1) return callback(FORBIDDEN, null, null, Repo.O_NONE);
+			if(bcrypt.compareSync(password, row.passwordHash)) {
+				return createSession(repo, row.userID, Repo.O_RDWR, remember, function(err, session, sessionMode) {
+					if(err) return callback(err, null, null, Repo.O_NONE);
+					callback(null, row.userID, session, sessionMode);
 				});
-			});
-		});
-	});
-	stream.read(0);
+			}
+			if((mode & Repo.O_RDONLY) !== mode) return callback(FORBIDDEN, null, null, Repo.O_NONE);
+			if(bcrypt.compareSync(password, row.tokenHash)) {
+				return createSession(repo, row.userID, Repo.O_RDONLY, remember, function(err, session, sessionMode) {
+					if(err) return callback(err, null, null, Repo.O_NONE);
+					callback(null, row.userID, session, sessionMode);
+				});
+			}
+			callback(FORBIDDEN, null, null, Repo.O_NONE);
+		}
+	);
 };
-function addEntry(repo, type, h, p, callback/* (err, primaryURN, entryID) */) {
-	if(!Repo.writeable) throw new Error("Repo loaded in read-only mode");
-	sql.debug(repo.db,
-		'INSERT INTO "entries" ("hash", "type", "fulltext")'+
-		' VALUES ($1, $2, to_tsvector(\'english\', $3)) RETURNING "entryID"',
-		[h.internalHash, type, p.fullText],
+Repo.prototype.authSession = function(sessionBlob, mode, callback/* (err, userID, session, mode) */) {
+	var repo = this;
+	var match = /(\d+):(.*)+/.exec(sessionBlob);
+	if(!match) return callback(new Error("Invalid session"), null, null, Repo.O_NONE);
+	var sessionID = match[1];
+	var session = match[2];
+	repo.db.query(
+		'SELECT "sessionHash", "userID", "modeRead", "modeWrite" FROM "sessions"'+
+		' WHERE "sessionID" = $1 AND "sessionTime" > NOW() - INTERVAL \'14 days\'',
+		[sessionID],
 		function(err, results) {
-			if(err) return callback(err, null);
-			var entryID = results.rows[0].entryID;
-			var allLinks = h.URNs.concat(p.links, p.metaEntries, p.metaLinks).unique();
-			sql.debug(repo.db,
-				'INSERT INTO "URIs" ("URI")'+
-				' VALUES '+sql.list2D(allLinks, 1)+'', allLinks,
-				function(err, results) {
-					if(err) return callback(err, null);
-					sql.debug(repo.db,
-						'UPDATE "URIs" SET "entryID" = $1'+
-						' WHERE "URI" IN ('+sql.list1D(h.URNs, 2)+')',
-						[entryID].concat(h.URNs),
-						function(err, results) {
-							if(err) return callback(err, null);
-							if(!p.links.length) {
-								callback(null, h.primaryURN, entryID);
-								return;
-							}
-							sql.debug(repo.db,
-								'INSERT INTO "links"'+
-								' ("fromEntryID", "toUriID", "direct", "indirect")'+
-								' SELECT $1, "uriID", true, 1'+
-								' FROM "URIs" WHERE "URI" IN ('+sql.list1D(p.links, 2)+')',
-								[entryID].concat(p.links),
-								function(err, results) {
-									if(err) return callback(err, null);
-									// TODO
-									// 1. Add meta-links to the meta-entries
-									// 2. Recurse over links and add indirect rows
-									callback(null, h.primaryURN, entryID);
-								}
-							);
-						}
-					);
-				}
-			);
+			var row = results.rows[0];
+			var sessionMode = 
+				(row.modeRead ? Repo.O_RDONLY : 0) |
+				(row.modeWrite ? Repo.O_WRONLY : 0);
+			if(err) return callback(err, null, null, Repo.O_NONE);
+			// TODO: If FORBIDDEN, tell the client to clear the cookie?
+			// Not in the case of insufficient mode though.
+			if(results.rows.length < 1) return callback(FORBIDDEN, null, null, Repo.O_NONE);
+			if((mode & sessionMode) !== mode) return callback(FORBIDDEN, null, null, Repo.O_NONE);
+			if(bcrypt.compareSync(session, row.sessionHash)) {
+				return callback(null, row.userID, sessionBlob, sessionMode);
+			}
+			callback(FORBIDDEN, null, null, Repo.O_NONE);
 		}
 	);
-}
-function addEntrySource(repo, entryID, userID, targets, callback/* (err) */) {
-	sql.debug(repo.db,
-		'INSERT INTO "sources" ("entryID", "userID")'+
-		' VALUES ($1, $2)'+
-		' RETURNING "sourceID"',
-		[entryID, userID],
-		function(err, results) {
-			if(err) return callback(err, null);
-			var sourceID = results.rows[0].sourceID;
-			sql.debug(repo.db,
-				'SELECT "userID" FROM "users"'+
-				' WHERE "username" IN ('+sql.list1D(targets, 1)+')'+
-				' UNION'+
-				' SELECT 0 WHERE \'public\' IN ('+sql.list1D(targets, targets.length+1)+')',
-				targets.concat(targets),
-				function(err, results) {
-					if(err) return callback(err, null);
-					var targetIDs = results.rows.map(function(row) {
-						return row.userID;
-					}).concat([userID]).unique();
-					var params = targetIDs.map(function(targetID) {
-						return [entryID, targetID, sourceID];
-					});
-					sql.debug(repo.db,
-						'INSERT INTO "targets" ("entryID", "userID", "sourceID")'+
-						' VALUES '+sql.list2D(params, 1)+'',
-						sql.flatten(params),
-						function(err, results) {
-							if(err) return callback(err, null);
-							callback(null);
-						}
-					);
-				}
-			);
-		}
-	);
+};
+Repo.prototype.authPublic = function(mode, callback/* (err, userID, session, mode) */) {
+	var repo = this;
+	var publicMode = Repo.O_RDONLY; // TODO: Configurable.
+	if((mode & publicMode) !== mode) return callback(FORBIDDEN, null, null, Repo.O_NONE);
+	callback(null, 0, null, publicMode);
+};
+function createSession(repo, userID, mode, remember, callback/* (err, session, mode) */) {
+	crypto.randomBytes(20, function(err, buffer) {
+		var session = buffer.toString("base64");
+		var sessionHash = bcrypt.hashSync(session, 10);
+		repo.db.query(
+			'INSERT INTO "sessions" ("sessionHash", "userID", "modeRead", "modeWrite")'+
+			' VALUES ($1, $2, $3, $4) RETURNING "sessionID"',
+			[sessionHash, userID, Boolean(mode & Repo.O_RDONLY), Boolean(mode & Repo.O_WRONLY)],
+			function(err, result) {
+				var row = result.rows[0];
+				if(err) return callback(err, null);
+				callback(null, row.sessionID+":"+session, mode);
+			}
+		);
+	});
 }
 
-Repo.writeable = false;
-Repo.makeWriteable = function() {
-	if(Repo.writeable) return;
-	Repo.writeable = true;
-	Hashers = require("../hashers");
-	Parsers = require("../parsers");
-};
 Repo.load = function(path, callback/* (err, repo) */) {
 	var configPath = pathModule.resolve(path, "./EarthFS.json");
 	fs.readFile(configPath, "utf8", function(err, config) {
@@ -232,5 +157,10 @@ Repo.loadSync = function(path) {
 	try { repo.cert = fs.readFileSync(repo.CERT); } catch(e) {}
 	return repo;
 };
+
+Repo.O_NONE = 0;
+Repo.O_RDONLY = 1 << 0;
+Repo.O_WRONLY = 1 << 1;
+Repo.O_RDWR = Repo.O_RDONLY | Repo.O_WRONLY;
 
 module.exports = Repo;

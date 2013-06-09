@@ -40,10 +40,9 @@ Queue.prototype.push = function(func/* (done) */) {
 	});
 };
 
-function Remote(repo, userID, targets, url, query, username, password) {
+function Remote(session, targets, url, query, username, password) {
 	var remote = this;
-	remote.repo = repo;
-	remote.userID = userID;
+	remote.session = session;
 	remote.targets = targets;
 	remote.url = url;
 	remote.query = query;
@@ -81,8 +80,8 @@ Remote.prototype.pull = function() {
 			"p": remote.password,
 		}),
 		agent: false,
-		key: remote.repo.key,
-		cert: remote.repo.cert,
+		key: remote.session.repo.key,
+		cert: remote.session.repo.cert,
 //		ca: [], // TODO: I think remotes should have a cert that is known ahead of time.
 		rejectUnauthorized: false, // TODO: Change this to true once we store the cert.
 	}, function(res) {
@@ -112,7 +111,7 @@ Remote.prototype.pull = function() {
 Remote.prototype.addURN = function(URN) {
 	var remote = this;
 	remote.pullQueue.push(function(done) {
-		remote.repo.db.query(
+		remote.session.db.query(
 			'SELECT "uriID" FROM "URIs" WHERE'+
 			' "URI" = $1 AND "entryID" IS NOT NULL', [URN],
 			function(err, results) {
@@ -131,8 +130,8 @@ Remote.prototype.addURN = function(URN) {
 				"p": remote.password,
 			}),
 			agent: false,
-			key: remote.repo.key,
-			cert: remote.repo.cert,
+			key: remote.session.repo.key,
+			cert: remote.session.repo.cert,
 //			ca: [], // TODO: I think remotes should have a cert that is known ahead of time.
 			rejectUnauthorized: false, // TODO: Change this to true once we store the cert.
 //			headers: {
@@ -140,8 +139,8 @@ Remote.prototype.addURN = function(URN) {
 //			},
 		};
 		var req = remote.module.get(opts, function(res) {
-			remote.repo.addEntryStream(
-				res, res.headers["content-type"], remote.userID, remote.targets.split("\n"),
+			remote.session.addEntryStream(
+				res, res.headers["content-type"], remote.targets.split("\n"),
 				function(err, URN, entryID) {
 					if(err) console.log(err);
 					callback();

@@ -172,6 +172,43 @@ ALTER SEQUENCE "remotes_remoteID_seq" OWNED BY remotes."remoteID";
 
 
 --
+-- Name: sessions; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
+--
+
+CREATE TABLE sessions (
+    "sessionID" bigint NOT NULL,
+    "sessionHash" text NOT NULL,
+    "userID" bigint NOT NULL,
+    "modeRead" boolean NOT NULL,
+    "modeWrite" boolean NOT NULL,
+    "sessionTime" timestamp without time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.sessions OWNER TO postgres;
+
+--
+-- Name: sessions_sessionID_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE "sessions_sessionID_seq"
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public."sessions_sessionID_seq" OWNER TO postgres;
+
+--
+-- Name: sessions_sessionID_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
+
+ALTER SEQUENCE "sessions_sessionID_seq" OWNED BY sessions."sessionID";
+
+
+--
 -- Name: sources; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
 --
 
@@ -248,10 +285,11 @@ ALTER SEQUENCE "targets_targetID_seq" OWNED BY targets."targetID";
 CREATE TABLE users (
     "userID" bigint NOT NULL,
     username text NOT NULL,
-    password text NOT NULL,
-    token text NOT NULL,
+    "passwordHash" text NOT NULL,
+    "tokenHash" text NOT NULL,
     cert text,
     key text,
+    "userTime" timestamp without time zone DEFAULT now() NOT NULL,
     CONSTRAINT "usernameNotPublic" CHECK ((username <> 'public'::text))
 );
 
@@ -308,6 +346,13 @@ ALTER TABLE ONLY remotes ALTER COLUMN "remoteID" SET DEFAULT nextval('"remotes_r
 
 
 --
+-- Name: sessionID; Type: DEFAULT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY sessions ALTER COLUMN "sessionID" SET DEFAULT nextval('"sessions_sessionID_seq"'::regclass);
+
+
+--
 -- Name: sourceID; Type: DEFAULT; Schema: public; Owner: postgres
 --
 
@@ -350,6 +395,14 @@ ALTER TABLE ONLY links
 
 ALTER TABLE ONLY remotes
     ADD CONSTRAINT remotes_pkey PRIMARY KEY ("remoteID");
+
+
+--
+-- Name: sessions_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
+--
+
+ALTER TABLE ONLY sessions
+    ADD CONSTRAINT sessions_pkey PRIMARY KEY ("sessionID");
 
 
 --

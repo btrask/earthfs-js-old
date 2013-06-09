@@ -35,6 +35,7 @@ var pg = require("pg");
 var multiparty = require("multiparty");
 var mkdirp = require("mkdirp");
 var bcrypt = require("bcrypt");
+var cookie = require("cookie");
 
 var bt = require("./utilities/bt");
 var fsx = require("./utilities/fsx");
@@ -48,7 +49,7 @@ var queryModule = require("./classes/query");
 var Client = require("./classes/Client");
 var query = require("./classes/query");
 var Repo = require("./classes/Repo");
-Repo.makeWriteable();
+var Session = require("./classes/Session");
 
 var CLIENT = __dirname+"/../build";
 
@@ -89,36 +90,35 @@ function rest(array) {
 	return array.slice(1);
 }
 
-var O_RDONLY = 1 << 1;
-var O_WRONLY = 1 << 2;
-var O_RDWR = O_RDONLY | O_WRONLY;
-var O_MKUSER = 1 << 3; // TODO
-function authenticate(username, password, mode, callback/* (err, userID) */) {
-	var forbidden = {httpStatusCode: 403, message: "Forbidden"};
-	if(!username) {
-		var publicMode = O_RDONLY; // TODO: Configurable.
-		if((mode & publicMode) !== mode) return callback(forbidden, null);
-		return callback(null, 0);
+function auth(req, res, repo, mode, callback/* (session) */) {
+	var opts = urlModule.parse(req.url, true).query;
+	var remember = bt.has(opts, "r") && opts["r"];
+	if(bt.has(opts, "u") && bt.has(opts, "p")) {
+		var username = opts["u"];
+		var password = opts["p"];
+		return repo.authUser(username, password, remember, mode, function(err, userID, session, mode) {
+			if(err) return res.sendError(err);
+			res.setHeader("Set-Cookie", cookie.serialize("s", session, {
+				maxAge: remember ? 14 * 24 * 60 * 60 : 0,
+				httpOnly: true,
+				secure: "https:" === server.protocol, // TODO: Hack.
+				path: "/",
+			}));
+			callback(null, new Session(repo, userID, mode));
+		});
 	}
-	repo.db.query(
-		'SELECT "userID", "password", "token" FROM "users" WHERE "username" = $1',
-		[username],
-		function(err, results) {
-			if(err) return callback(err, null);
-			var row = results.rows[0];
-			if(results.rows.length < 1) {
-				return callback(forbidden, null);
-			}
-			if(bcrypt.compareSync(password, row.password)) {
-				return callback(null, row.userID);
-			}
-			if((mode & O_RDONLY) !== mode) return callback(forbidden, null);
-			if(bcrypt.compareSync(password, row.token)) {
-				return callback(null, row.userID);
-			}
-			callback(forbidden, null);
-		}
-	);
+	var cookies = cookie.parse(req.headers["cookie"] || "");
+	if(bt.has(cookies, "s")) {
+		var session = cookies["s"];
+		return repo.authSession(session, mode, function(err, userID, session, mode) {
+			if(err) return res.sendError(err);
+			callback(null, new Session(repo, userID, mode));
+		});
+	}
+	repo.authPublic(mode, function(err, userID, session, mode) {
+		if(err) return res.sendError(err);
+		callback(null, new Session(repo, userID, mode));
+	});
 }
 
 var server;
@@ -174,6 +174,7 @@ serve.root.meta = function(req, res, root, entry) {
 		return;
 	}
 	// TODO: Man these queries are redundant. We should probably look up the entry ID separately, at least.
+	// TODO: Authenticate.
 	repo.db.query(
 		'SELECT DISTINCT COALESCE(u."username", \'public\') AS "source"'+
 		' FROM "sources" AS s'+
@@ -213,6 +214,7 @@ serve.root.entry = function(req, res, root, entry) {
 		res.sendMessage(400, "Bad Request");
 		return;
 	}
+	// TODO: Authenticate.
 	repo.db.query(
 		'SELECT e."entryID", e."hash", e."type"'+
 		' FROM "entries" AS e'+
@@ -282,22 +284,20 @@ serve.root.submit = function(req, res, root, submit) {
 		return;
 	}
 	var opts = submit.options;
-	var username = opts["u"];
-	var password = opts["p"];
-	authenticate(username, password, O_WRONLY, function(err, userID) {
+	auth(req, res, repo, Repo.O_WRONLY, function(err, session) {
 		if(err) return res.sendError(err);
 		var targets = String(opts["t"] || "").split("\n");
-		addEntry(req, res, userID, targets);
+		addEntry(req, res, session, targets);
 	});
 };
-function addEntry(req, res, userID, targets) {
+function addEntry(req, res, session, targets) {
 	var form = new multiparty.Form();
 	form.on("part", function(part) {
 		if("entry" !== part.name) return; // TODO: Is skipping other parts a good idea?
 		var ext = pathModule.extname(part.filename);
 		var type = bt.has(MIME, ext) ? MIME[ext] : part.headers["content-type"];
 		// TODO: Keep charset if possible.
-		repo.addEntryStream(part, type, userID, targets, function(err, primaryURN) {
+		session.addEntryStream(part, type, targets, function(err, primaryURN) {
 			if(err) return res.sendError(err);
 			res.writeHead(303, {"Location": primaryURN});
 			res.end();
@@ -312,13 +312,11 @@ function addEntry(req, res, userID, targets) {
 
 serve.root.latest = function(req, res, root, latest) {
 	var opts = latest.options;
-	var username = opts["u"];
-	var password = opts["p"];
-	authenticate(username, password, O_RDONLY, function(err, userID) {
+	auth(req, res, repo, Repo.O_RDONLY, function(err, session) {
 		if(err) return res.sendError(err);
 		var queryString = (opts["q"] || "").split("+").map(decodeURIComponent).join(" ");
 		querylang.parse(queryString, "lispish", function(err, query) {
-			query = new queryModule.User(userID, query); // TODO: Kind of ugly.
+			query = new queryModule.User(session.userID, query); // TODO: Kind of ugly.
 			var client = new Client(repo, query, res);
 			var tab = "\t";
 			var obj = query.SQL(1, tab+"\t");
@@ -364,8 +362,7 @@ repo.db.query(
 		if(err) return console.log(err);
 		results.rows.forEach(function(row) {
 			var remote = new Remote(
-				repo,
-				row.userID,
+				new Session(repo, row.userID, Repo.O_WRONLY),
 				row.targets,
 				row.remoteURL,
 				row.query,
