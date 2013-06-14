@@ -315,7 +315,7 @@ serve.root.latest = function(req, res, root, latest) {
 	auth(req, res, repo, Repo.O_RDONLY, function(err, session) {
 		if(err) return res.sendError(err);
 		var queryString = (opts["q"] || "").split("+").map(decodeURIComponent).join(" ");
-		querylang.parse(queryString, "lispish", function(err, query) {
+		querylang.parse(queryString, "simple", function(err, query) {
 			query = new queryModule.User(session.userID, query); // TODO: Kind of ugly.
 			var client = new Client(repo, query, res);
 			var tab = "\t";

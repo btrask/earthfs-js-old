@@ -40,7 +40,7 @@ query.Term.prototype.SQL = function(offset, tab) {
 	return {
 		query:
 			tab+'(SELECT "entryID" FROM "entries"\n'+
-			tab+'WHERE "fulltext" @@ to_tsquery(\'english\', $'+offset+'))\n',
+			tab+'WHERE "fulltext" @@ plainto_tsquery(\'english\', $'+offset+'))\n',
 		parameters: [q.term],
 	};
 };
@@ -103,5 +103,5 @@ query.User.prototype.toString = function() {
 };
 
 // TODO
-query.Union = function UnionQuery() {};
-query.Negative = function NegativeQuery() {};
+query.Union = function UnionQuery(items) { return items[0]; }; // Hack.
+query.Negative = function NegativeQuery(item) {};
