@@ -19,6 +19,7 @@ IN THE SOFTWARE. */
 
 start
 	= space? x:union { return x; }
+	/ space? { return {type: "All", args: []}; }
 
 union
 	= a:intersection b:unionPart* { return {type: "Union", args: [[a].concat(b)]}; }
