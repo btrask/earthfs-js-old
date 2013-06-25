@@ -34,7 +34,7 @@ var token = bcrypt.hashSync(rawToken, 10);
 
 console.log("Read-only token: "+rawToken);
 repo.db.query(
-	'INSERT INTO "users" ("username", "password", "token") VALUES ($1, $2, $3)',
+	'INSERT INTO "users" ("username", "passwordHash", "tokenHash") VALUES ($1, $2, $3)',
 	[username, password, token],
 	function(err, results) {
 		if(err) console.error(err);
