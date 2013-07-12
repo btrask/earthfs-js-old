@@ -98,7 +98,7 @@ Repo.prototype.authSession = function(sessionBlob, mode, callback/* (err, userID
 			if(err) return callback(err, null, null, Repo.O_NONE);
 			if(results.rows.length < 1) return callback(FORBIDDEN, null, null, Repo.O_NONE);
 			var row = results.rows[0];
-			var sessionMode = 
+			var sessionMode =
 				(row.modeRead ? Repo.O_RDONLY : 0) |
 				(row.modeWrite ? Repo.O_WRONLY : 0);
 			// TODO: If FORBIDDEN, tell the client to clear the cookie?
