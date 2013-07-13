@@ -306,7 +306,12 @@ function addEntry(req, res, session, targets) {
 
 var PORT = repo.config.port >>> 0 || 8001;
 server.listen(PORT, function() {
-	console.log(""+server.protocol+"//localhost:"+PORT+"/"); // TODO: Use urlModule.format()?
+	console.log(urlModule.format({
+		protocol: server.protocol,
+		hostname: "localhost",
+		port: PORT,
+		pathname: "/",
+	}));
 	// TODO: Optionally set up NAT traversal/UPnP.
 });
 
