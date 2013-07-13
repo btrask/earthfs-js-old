@@ -161,7 +161,7 @@ Stream.prototype.pull = function(history) {
 			}, 1000 * 5);
 		}
 	};
-	req.open("GET", "/latest"+query.stringify({
+	req.open("GET", "/api/latest"+query.stringify({
 		"q": stream.query,
 		"history": history,
 		"t": +new Date,
@@ -332,14 +332,14 @@ Entry.prototype.addURN = function(URN) {
 	var elems = {}, e = DOM.clone("entryURN", elems);
 	DOM.fill(elems.URN, entry.URN);
 	elems.URN.href = Stream.location({"q": entry.URN});
-	elems.raw.href = "/entry/"+encodeURIComponent(entry.URN);
+	elems.raw.href = "/api/entry/"+encodeURIComponent(entry.URN);
 	entry.elems["URNs"].appendChild(e);
 };
 Entry.prototype.load = function(callback) {
 	var entry = this;
 	var remaining = 2;
 	var metaReq = http.get({
-		url: "/meta/"+encodeURIComponent(entry.URN),
+		url: "/api/entry/"+encodeURIComponent(entry.URN)+"/meta/",
 	}, function() {
 		if(4 !== metaReq.readyState) return;
 		var obj = JSON.parse(metaReq.responseText);
@@ -350,7 +350,7 @@ Entry.prototype.load = function(callback) {
 		if(!--remaining) callback();
 	});
 	var entryReq = http.get({
-		url: "/entry/"+encodeURIComponent(entry.URN),
+		url: "/api/entry/"+encodeURIComponent(entry.URN), // TODO: Use private API
 		headers: {"Accept": "text/html"},
 	}, function() {
 		if(4 !== entryReq.readyState) return;
@@ -398,7 +398,7 @@ Entry.parseHTML = function(html) {
 			}
 			x = a[i].getAttribute("src");
 			if(x && /^urn:/.test(x)) {
-				a[i].setAttribute("src", "/entry/"+encodeURIComponent(x));
+				a[i].setAttribute("src", "/api/entry/"+encodeURIComponent(x));
 			}
 			convertURNs(a[i]);
 		}

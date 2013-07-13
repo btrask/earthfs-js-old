@@ -63,33 +63,6 @@ function has(obj, prop) {
 	return Object.prototype.hasOwnProperty.call(obj, prop);
 }
 
-function componentsFromPath(path) {
-	var l = path.length;
-	var a = "/" === path[0] ? 1 : 0;
-	var b = "/" === path[l-1] ? 1 : 0;
-	if(a+b >= l) return [];
-	return path.slice(a, -b || undefined).split("/").map(function(x) {
-		return decodeURIComponent(x);
-	});
-}
-function pathFromComponents(components) {
-	if(!components.length) return "";
-	return "/"+components.map(function(x) {
-		return encodeURIComponent(x);
-	}).join("/");
-}
-function lookup(obj, prop) {
-	if(!obj || !prop) return null; // TODO: Be more robust.
-	if(has(obj, prop)) return obj[prop];
-	return null;
-}
-function first(array) {
-	return array.length ? array[0] : null;
-}
-function rest(array) {
-	return array.slice(1);
-}
-
 function auth(req, res, repo, mode, callback/* (session) */) {
 	var opts = urlModule.parse(req.url, true).query;
 	var remember = bt.has(opts, "r") && opts["r"];
@@ -122,57 +95,44 @@ function auth(req, res, repo, mode, callback/* (session) */) {
 }
 
 var server;
-(function() {
-	if(repo.key && repo.cert) {
-		server = https.createServer({
-			key: repo.key,
-			cert: repo.cert,
-			honorCipherOrder: true,
-		}, serve);
-		server.protocol = "https:";
-	} else {
-		server = http.createServer(serve);
-		server.protocol = "http:";
-	}
-})();
-function serve(req, res) {
-	var obj = urlModule.parse(req.url, true);
-	var path = obj.pathname;
-	var options = obj.query;
-	var components = componentsFromPath(path);
-	if(-1 !== components.indexOf("..")) {
-		res.sendMessage(400, "Bad Request");
-		return;
-	}
-	serve.root(req, res, {
-		"path": path,
-		"components": components,
-		"options": options,
-	});
+if(repo.key && repo.cert) {
+	server = https.createServer({
+		key: repo.key,
+		cert: repo.cert,
+		honorCipherOrder: true,
+	}, dispatch);
+	server.protocol = "https:";
+} else {
+	server = http.createServer(dispatch);
+	server.protocol = "http:";
 }
-serve.root = function(req, res, root) {
-	var components = root.components;
-	var imp = lookup(serve.root, first(components));
-	if(!imp) {
-		var path = CLIENT+root.path;
-		fs.stat(path, function(err, stats) {
-			if(err) return res.sendError(err);
-			res.sendFile(stats.isDirectory() ? path+"/index.html" : path);
-		});
+
+
+var handlers = [];
+function dispatch(req, res) {
+	var url = urlModule.parse(req.url, true);
+	var i, handler, method, path;
+	for(i = 0; i < handlers.length; ++i) {
+		handler = handlers[i];
+		method = handler.method.exec(req.method);
+		if(!method) continue;
+		path = handler.path.exec(url.pathname);
+		if(!path) continue;
+		handler.func.apply(this,
+			[req, res, url]
+			.concat(method.slice(1))
+			.concat(path.slice(1))
+		);
 		return;
 	}
-	imp(req, res, root, {
-		"path": pathFromComponents(components),
-		"components": rest(components),
-		"options": root.options,
-	});
-};
-serve.root.meta = function(req, res, root, entry) {
-	var URN = first(entry.components);
-	if(!URN) {
-		res.sendMessage(400, "Bad Request");
-		return;
-	}
+	res.sendMessage(404, "Not Found");
+}
+function register(method, path, func/* (req, res, url, arg1, arg2, etc) */) {
+	handlers.push({method: method, path: path, func: func});
+}
+
+register(/^GET$/, /^\/api\/entry\/([\w\d:%]+)\/meta\/?$/, function(req, res, url, encodedURN) {
+	var URN = decodeURIComponent(encodedURN);
 	// TODO: Man these queries are redundant. We should probably look up the entry ID separately, at least.
 	// TODO: Authenticate.
 	repo.db.query(
@@ -207,13 +167,9 @@ serve.root.meta = function(req, res, root, entry) {
 			);
 		}
 	);
-};
-serve.root.entry = function(req, res, root, entry) {
-	var URN = first(entry.components);
-	if(!URN) {
-		res.sendMessage(400, "Bad Request");
-		return;
-	}
+});
+register(/^GET$/, /^\/api\/entry\/([\w\d:%]+)\/?$/, function(req, res, url, encodedURN) {
+	var URN = decodeURIComponent(encodedURN);
 	// TODO: Authenticate.
 	repo.db.query(
 		'SELECT e."entryID", e."hash", e."type"'+
@@ -236,7 +192,62 @@ serve.root.entry = function(req, res, root, entry) {
 			sendFormatted(req, res, srcPath, srcType, dstTypes, row.hash);
 		}
 	);
-};
+});
+register(/^POST$/, /^\/api\/entry\/?$/, function(req, res, url) {
+	auth(req, res, repo, Repo.O_WRONLY, function(err, session) {
+		if(err) return res.sendError(err);
+		var targets = String(url.query["t"] || "").split("\n");
+		addEntry(req, res, session, targets);
+	});
+});
+register(/^GET$/, /^\/api\/latest\/?$/, function(req, res, url) {
+	auth(req, res, repo, Repo.O_RDONLY, function(err, session) {
+		if(err) return res.sendError(err);
+		var queryString = (url.query["q"] || "").split("+").map(decodeURIComponent).join(" ");
+		querylang.parse(queryString, "simple", function(err, query) {
+			query = new queryModule.User(session.userID, query); // TODO: Kind of ugly.
+			var client = new Client(repo, query, res);
+			var tab = "\t";
+			var obj = query.SQL(1, tab+"\t");
+			var history = url.query["history"];
+			var limit = "all" === history ? '' : tab+'LIMIT '+(history >>> 0)+'\n';
+			var fullSQL =
+				'SELECT * FROM (\n'+
+					tab+'SELECT e."entryID", \'urn:sha1:\' || e."hash" AS "URN"\n'+
+					tab+'FROM "entries" AS e\n'+
+					tab+'WHERE e."entryID" IN\n'+
+						obj.query+
+					tab+'ORDER BY e."entryID" DESC\n'+
+						limit+
+				') x ORDER BY "entryID" ASC';
+			var stream = sql.debug2(repo.db,
+				fullSQL,
+				obj.parameters
+			);
+			res.writeHead(200, {"Content-Type": "text/json; charset=utf-8"});
+			stream.on("row", function(row) {
+				res.write(row.URN+"\n", "utf8");
+			});
+			stream.on("end", function() {
+				client.resume();
+			});
+			stream.on("error", function(err) {
+				console.log(err);
+			});
+		});
+	});
+});
+
+// Last
+register(/^GET$/, /.*/, function(req, res, url) {
+	if(-1 !== url.pathname.indexOf("..")) return res.sendMessage(400, "Bad Request");
+	var path = CLIENT+url.pathname;
+	fs.stat(path, function(err, stats) {
+		if(err) return res.sendError(err);
+		res.sendFile(stats.isDirectory() ? path+"/index.html" : path);
+	});
+});
+
 function sendFormatted(req, res, srcPath, srcType, dstTypes, hash) {
 	var obj = formatters.select(srcType, dstTypes);
 	if(!obj) {
@@ -277,19 +288,6 @@ function sendFormatted(req, res, srcPath, srcType, dstTypes, hash) {
 		}
 	});
 }
-
-serve.root.submit = function(req, res, root, submit) {
-	if("POST" !== req.method) {
-		res.sendMessage(405, "Method Not Allowed");
-		return;
-	}
-	var opts = submit.options;
-	auth(req, res, repo, Repo.O_WRONLY, function(err, session) {
-		if(err) return res.sendError(err);
-		var targets = String(opts["t"] || "").split("\n");
-		addEntry(req, res, session, targets);
-	});
-};
 function addEntry(req, res, session, targets) {
 	var form = new multiparty.Form();
 	form.on("part", function(part) {
@@ -309,45 +307,6 @@ function addEntry(req, res, session, targets) {
 //	});
 	form.parse(req);
 }
-
-serve.root.latest = function(req, res, root, latest) {
-	var opts = latest.options;
-	auth(req, res, repo, Repo.O_RDONLY, function(err, session) {
-		if(err) return res.sendError(err);
-		var queryString = (opts["q"] || "").split("+").map(decodeURIComponent).join(" ");
-		querylang.parse(queryString, "simple", function(err, query) {
-			query = new queryModule.User(session.userID, query); // TODO: Kind of ugly.
-			var client = new Client(repo, query, res);
-			var tab = "\t";
-			var obj = query.SQL(1, tab+"\t");
-			var history = opts["history"];
-			var limit = "all" === history ? '' : tab+'LIMIT '+(history >>> 0)+'\n';
-			var fullSQL =
-				'SELECT * FROM (\n'+
-					tab+'SELECT e."entryID", \'urn:sha1:\' || e."hash" AS "URN"\n'+
-					tab+'FROM "entries" AS e\n'+
-					tab+'WHERE e."entryID" IN\n'+
-						obj.query+
-					tab+'ORDER BY e."entryID" DESC\n'+
-						limit+
-				') x ORDER BY "entryID" ASC';
-			var stream = sql.debug2(repo.db,
-				fullSQL,
-				obj.parameters
-			);
-			res.writeHead(200, {"Content-Type": "text/json; charset=utf-8"});
-			stream.on("row", function(row) {
-				res.write(row.URN+"\n", "utf8");
-			});
-			stream.on("end", function() {
-				client.resume();
-			});
-			stream.on("error", function(err) {
-				console.log(err);
-			});
-		});
-	});
-};
 
 var PORT = repo.config.port >>> 0 || 8001;
 server.listen(PORT, function() {
