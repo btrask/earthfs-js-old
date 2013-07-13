@@ -235,7 +235,7 @@ Stream.prototype.upload = function(blob, targets) {
 		// TODO
 		console.log("status", req.status);
 	};
-	req.open("POST", "/submit"+query.stringify({
+	req.open("POST", "/api/entry/"+query.stringify({
 		"u": stream.username,
 		"p": stream.password,
 		"t": targets.join("\n"),
@@ -350,8 +350,7 @@ Entry.prototype.load = function(callback) {
 		if(!--remaining) callback();
 	});
 	var entryReq = http.get({
-		url: "/api/entry/"+encodeURIComponent(entry.URN), // TODO: Use private API
-		headers: {"Accept": "text/html"},
+		url: "/private/entry/"+encodeURIComponent(entry.URN)+"/html/",
 	}, function() {
 		if(4 !== entryReq.readyState) return;
 		switch(entryReq.status) {

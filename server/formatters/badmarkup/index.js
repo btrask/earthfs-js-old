@@ -23,11 +23,10 @@ var bt = require("../../utilities/bt");
 var ometajs = require("ometajs");
 var markup = require("./markup.ometajs").markup;
 
-exports.negotiateTypes = function(srcType, dstTypes) {
-	if(!bt.negotiateTypes([srcType], ["text/x-bad-markup"])) return null;
-	return bt.negotiateTypes(dstTypes, ["text/html"]);
+exports.acceptsType = function(type) {
+	return "text/x-bad-markup" === type;
 };
-exports.format = function(srcPath, srcType, dstPath, dstType, callback/* (err) */) {
+exports.format = function(srcPath, srcType, dstPath, callback/* (err) */) {
 	fs.readFile(srcPath, "utf8", function(err, str) {
 		if(err) return callback(err);
 		fs.writeFile(dstPath, markup.matchAll(str, "content"), "utf8", function(err) {

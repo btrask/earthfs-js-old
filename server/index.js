@@ -168,31 +168,67 @@ register(/^GET$/, /^\/api\/entry\/([\w\d:%]+)\/meta\/?$/, function(req, res, url
 		}
 	);
 });
+
 register(/^GET$/, /^\/api\/entry\/([\w\d:%]+)\/?$/, function(req, res, url, encodedURN) {
-	var URN = decodeURIComponent(encodedURN);
-	// TODO: Authenticate.
-	repo.db.query(
-		'SELECT e."entryID", e."hash", e."type"'+
-		' FROM "entries" AS e'+
-		' LEFT JOIN "URIs" AS u ON (u."entryID" = e."entryID")'+
-		' WHERE u."URI" = $1', [URN],
-		function(err, results) {
-			if(err) {
-				res.sendError(err);
-				return;
-			}
-			if(!results.rows.length) {
-				res.sendMessage(404, "Not Found");
-				return;
-			}
-			var row = results.rows[0];
-			var srcType = row.type;
-			var srcPath = repo.pathForEntry(repo.DATA, row.hash, srcType);
-			var dstTypes = (req.headers.accept || "*/*").split(",");
-			sendFormatted(req, res, srcPath, srcType, dstTypes, row.hash);
-		}
-	);
+	entryForURN(req, res, url, encodedURN, function(err, entryID, hash, path, type) {
+		sendFile(req, res, path, type, function(err) {
+			if(!err) return;
+			res.sendError(err);
+		});
+	});
 });
+register(/^GET$/, /^\/private\/entry\/([\w\d:%]+)\/html\/?$/, function(req, res, url, encodedURN) {
+	entryForURN(req, res, url, encodedURN, function(err, entryID, hash, srcPath, srcType) {
+		var dstType = "text/html; charset=utf-8";
+		var dstPath = repo.pathForEntry(repo.CACHE, hash, dstType);
+		sendFile(req, res, dstPath, dstType, function(err) {
+			if(!err) return;
+			if("ENOENT" !== err.code) return res.sendError(err);
+			var format = formatters.select(srcType);
+			if(!format) return res.sendMessage(406, "Not Acceptable"); // TODO: Better status code?
+			format(srcPath, srcType, dstPath, function(err) {
+				if(err) return res.sendError(err);
+				sendFile(req, res, dstPath, dstType, function(err) {
+					if(!err) return;
+					res.sendError(err);
+				});
+			});
+		});
+	});
+});
+function entryForURN(req, res, url, encodedURN, callback/* (err, entryID, hash, path, type) */) {
+	auth(req, res, repo, Repo.O_RDONLY, function(err, session) {
+		var URN = decodeURIComponent(encodedURN);
+		repo.db.query(
+			'SELECT e."entryID", e."hash", e."type"'+
+			' FROM "entries" AS e'+
+			' LEFT JOIN "URIs" AS u ON (u."entryID" = e."entryID")'+
+			' LEFT JOIN "targets" AS t ON (u."entryID" = t."entryID")'+
+			' WHERE u."URI" = $1 AND t."userID" = $2', [URN, session.userID],
+			function(err, results) {
+				if(err) return callback(err, null, null, null);
+				if(!results.rows.length) return callback({}, null, null, null);
+				var row = results.rows[0];
+				var path = repo.pathForEntry(repo.DATA, row.hash, row.type);
+				callback(null, row.entryID, row.hash, path, row.type);
+			}
+		);
+	});
+}
+function sendFile(req, res, path, type, callback/* (err) */) {
+	fs.stat(path, function(err, stats) {
+		if(err) return callback(err);
+		var stream = fs.createReadStream(path);
+		res.writeHead(200, {
+			"Content-Type": type,
+			"Content-Length": stats.size,
+		});
+		stream.pipe(res);
+		stream.on("error", callback);
+		stream.on("end", callback);
+	});
+}
+
 register(/^POST$/, /^\/api\/entry\/?$/, function(req, res, url) {
 	auth(req, res, repo, Repo.O_WRONLY, function(err, session) {
 		if(err) return res.sendError(err);
@@ -248,46 +284,6 @@ register(/^GET$/, /.*/, function(req, res, url) {
 	});
 });
 
-function sendFormatted(req, res, srcPath, srcType, dstTypes, hash) {
-	var obj = formatters.select(srcType, dstTypes);
-	if(!obj) {
-		res.sendMessage(406, "Not Acceptable");
-		return;
-	}
-	var dstType = obj.dstType;
-	var dstPath = dstType === srcType ? srcPath : repo.pathForEntry(repo.CACHE, hash, dstType);
-	var format = obj.format;
-	if("text/" === dstType.slice(0, 5)) dstType += "; charset=utf-8";
-
-	function sendFile(path, stats) {
-		var stream = fs.createReadStream(dstPath);
-		res.writeHead(200, {
-			"Content-Type": dstType,
-			"Content-Length": stats.size,
-		});
-		stream.pipe(res);
-	}
-
-	fs.stat(dstPath, function(err, stats) {
-		if(!err) {
-			sendFile(dstPath, stats);
-		} else if("ENOENT" === err.code) {
-			if(!format) return res.sendError(err);
-			mkdirp(pathModule.dirname(dstPath), function(err) {
-				if(err) return res.sendError(err);
-				format(srcPath, dstPath, function(err) {
-					if(err) return res.sendError(err);
-					fs.stat(dstPath, function(err, stats) {
-						if(err) return res.sendError(err);
-						sendFile(dstPath, stats);
-					});
-				});
-			});
-		} else {
-			res.sendError(err);
-		}
-	});
-}
 function addEntry(req, res, session, targets) {
 	var form = new multiparty.Form();
 	form.on("part", function(part) {

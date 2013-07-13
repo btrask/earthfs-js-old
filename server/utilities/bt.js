@@ -21,20 +21,6 @@ var bt = exports;
 bt.has = function(obj, prop) {
 	return Object.prototype.hasOwnProperty.call(obj, prop);
 };
-bt.negotiateTypes = function(a1, b1) { // TODO: Put this somewhere better. MIME module?
-	var rx = /([\w*]+)\/([\w\d\-+*]+)/;
-	var a2 = a1.map(function(x) { return rx.exec(x); });
-	var b2 = b1.map(function(x) { return rx.exec(x); });
-	for(var i = 0; i < b2.length; ++i) {
-		for(var j = 0; j < a2.length; ++j) {
-			if("*" === a2[j][1]) return b2[i][0];
-			if(b2[i][1] !== a2[j][1]) continue;
-			if("*" === a2[j][2]) return b2[i][0];
-			if(b2[i][2] === a2[j][2]) return b2[i][0];
-		}
-	}
-	return null;
-};
 bt.asyncLoop = function(func/* (next) */) {
 	var called, finished;
 	for(;;) {

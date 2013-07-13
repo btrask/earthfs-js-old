@@ -21,23 +21,14 @@ var bt = require("../utilities/bt");
 
 var TYPE_NAMES = {
 	"text/markdown": "markdown",
-	"text/html": "html",
 };
-var SRC_TYPES = [
-	"text/markdown",
-];
-var DST_TYPES = [
-	"text/html",
-];
 
-exports.negotiateTypes = function(srcType, dstTypes) {
-	if(!bt.negotiateTypes(SRC_TYPES, [srcType])) return null;
-	return bt.negotiateTypes(dstTypes, DST_TYPES);
+exports.acceptsType = function(type) {
+	return bt.has(TYPE_NAMES, type);
 };
-exports.format = function(srcPath, srcType, dstPath, dstType, callback/* (err) */) {
-	srcType = srcType.split(";")[0];
-	dstType = dstType.split(";")[0]; // TODO: Handle charsets?
-	var task = cp.spawn("pandoc", ["-f", TYPE_NAMES[srcType], "-t", TYPE_NAMES[dstType], "-o", dstPath, srcPath]);
+exports.format = function(srcPath, srcType, dstPath, callback/* (err) */) {
+	srcType = srcType.split(";")[0]; // TODO: Handle charsets?
+	var task = cp.spawn("pandoc", ["-f", TYPE_NAMES[srcType], "-t", "html", "-o", dstPath, srcPath]);
 	task.on("exit", function(status) {
 		callback(status ? new Error(status) : null);
 	});

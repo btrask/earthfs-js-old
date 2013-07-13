@@ -19,18 +19,17 @@ IN THE SOFTWARE. */
 var fs = require("fs");
 var bt = require("../utilities/bt");
 
-var SRC_TYPES = [
-	"image/jpeg",
-	"image/jpg",
-	"image/png",
-	"image/gif",
-];
-
-exports.negotiateTypes = function(srcType, dstTypes) {
-	if(!bt.negotiateTypes(SRC_TYPES, [srcType])) return null;
-	return bt.negotiateTypes(dstTypes, ["text/html"]);
+var SRC_TYPES = {
+	"image/jpeg": true,
+	"image/jpg": true,
+	"image/png": true,
+	"image/gif": true,
 };
-exports.format = function(srcPath, srcType, dstPath, dstType, callback) {
+
+exports.acceptsType = function(type) {
+	return bt.has(SRC_TYPES, type);
+};
+exports.format = function(srcPath, srcType, dstPath, callback) {
 	fs.readFile(srcPath, "base64", function(err, buffer) {
 		if(err) return callback(err);
 		var html = "<img src=\"data:"+srcType+";base64,"+buffer+"\">";

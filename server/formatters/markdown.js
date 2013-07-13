@@ -20,11 +20,10 @@ var fs = require("fs");
 var markdown = require("markdown").markdown;
 var bt = require("../utilities/bt");
 
-exports.negotiateTypes = function(srcType, dstTypes) {
-	if(!bt.negotiateTypes(["text/markdown"], [srcType])) return null;
-	return bt.negotiateTypes(dstTypes, ["text/html"]);
+exports.acceptsType = function(type) {
+	return "text/markdown" === type;
 };
-exports.format = function(srcPath, srcType, dstPath, dstType, callback) {
+exports.format = function(srcPath, srcType, dstPath, callback) {
 	fs.readFile(srcPath, "utf8", function(err, str) {
 		if(err) return callback(err);
 		var ast = markdown.toHTMLTree(str);

@@ -72,22 +72,13 @@ cluster.setupMaster({
 });
 start(os.cpus().length*2); // Simple heuristic.
 
-formatters.select = function(srcType, dstTypes) {
-	if(bt.negotiateTypes(dstTypes, [srcType])) return {
-		dstType: srcType,
-		format: null,
-	};
+formatters.select = function(srcType) {
 	var formatter, dstType, dstPath;
 	for(var i = 0; i < modules.length; ++i) {
 		formatter = modules[i];
-		dstType = formatter.negotiateTypes(srcType, dstTypes);
-		if(null === dstType) continue;
-		if(!bt.has(EXT, dstType)) continue;
-		return {
-			dstType: dstType,
-			format: function(srcPath, dstPath, callback/* (err) */) {
-				enqueue([formatter.path, srcPath, srcType, dstPath, dstType], callback);
-			},
+		if(!formatter.acceptsType(srcType)) continue;
+		return function(srcPath, srcType, dstPath, callback/* (err) */) {
+			enqueue([formatter.path, srcPath, srcType, dstPath], callback);
 		};
 	}
 	return null;
@@ -97,11 +88,16 @@ formatters.select = function(srcType, dstTypes) {
 })(); else (function() {
 
 
+var pathModule = require("path");
+var mkdirp = require("mkdirp");
+
 process.on("message", function(msg) {
-	(function(module, srcPath, srcType, dstPath, dstType) {
+	(function(module, srcPath, srcType, dstPath) {
 		var formatter = require(module);
-		formatter.format(srcPath, srcType, dstPath, dstType, function(err, tags) {
-			process.send([err, tags]);
+		mkdirp(pathModule.dirname(dstPath), function(err) {
+			formatter.format(srcPath, srcType, dstPath, function(err, tags) {
+				process.send([err, tags]);
+			});
 		});
 	}).apply(this, msg);
 });
