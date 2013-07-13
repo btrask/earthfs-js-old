@@ -21,10 +21,11 @@ var bt = require("../utilities/bt");
 
 var TYPE_NAMES = {
 	"text/markdown": "markdown",
+	"text/markdown; charset=utf-8": "markdown",
 };
 
 exports.acceptsType = function(type) {
-	return bt.has(TYPE_NAMES, type);
+	return bt.has(TYPE_NAMES, type.toLowerCase());
 };
 exports.format = function(srcPath, srcType, dstPath, callback/* (err) */) {
 	srcType = srcType.split(";")[0]; // TODO: Handle charsets?

@@ -21,7 +21,7 @@ var markdown = require("markdown").markdown;
 var bt = require("../utilities/bt");
 
 exports.acceptsType = function(type) {
-	return "text/markdown" === type;
+	return "text/markdown" === type.toLowerCase() || "text/markdown; charset=utf-8" === type.toLowerCase();
 };
 exports.format = function(srcPath, srcType, dstPath, callback) {
 	fs.readFile(srcPath, "utf8", function(err, str) {

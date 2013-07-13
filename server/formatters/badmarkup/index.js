@@ -24,7 +24,7 @@ var ometajs = require("ometajs");
 var markup = require("./markup.ometajs").markup;
 
 exports.acceptsType = function(type) {
-	return "text/x-bad-markup" === type;
+	return "text/x-bad-markup" === type.toLowerCase() || "text/x-bad-markup; charset=utf-8" === type.toLowerCase();
 };
 exports.format = function(srcPath, srcType, dstPath, callback/* (err) */) {
 	fs.readFile(srcPath, "utf8", function(err, str) {
