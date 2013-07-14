@@ -81,6 +81,22 @@ Repo.prototype.submit = function(path, callback/* (err, URN) */) {
 		req.end();
 	});
 };
+Repo.prototype.read = function(URN, callback/* (err, stream) */) {
+	var repo = this;
+	var req = repo.client.get({
+		hostname: repo.url.hostname,
+		port: repo.url.port,
+		path: "/api/entry/"+encodeURIComponent(URN)+"/?"+querystring.stringify({"u": repo.user, "p": repo.pass}),
+		rejectUnauthorized: false, // TODO: HACK, INSECURE
+	});
+	req.on("error", function(err) {
+		callback(err, null);
+	});
+	req.on("response", function(res) {
+		if(200 !== res.statusCode) return callback({httpStatusCode: res.statusCode}, null);
+		callback(null, res);
+	});
+};
 
 Repo.load = function() {
 	return new Repo(config["repo-url"], config["username"], config["password"]);
