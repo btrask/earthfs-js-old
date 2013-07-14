@@ -293,8 +293,9 @@ function addEntry(req, res, session, targets) {
 		// TODO: Keep charset if possible.
 		session.addEntryStream(part, type, targets, function(err, primaryURN) {
 			if(err) return res.sendError(err);
-			res.writeHead(303, {"Location": primaryURN});
-			res.end();
+			res.sendJSON(200, "OK", {
+				"urn": primaryURN,
+			});
 		});
 	});
 //	form.addListener("error", function(err) {

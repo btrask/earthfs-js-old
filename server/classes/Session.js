@@ -28,7 +28,9 @@ var fsx = require("../utilities/fsx");
 var Hashers = require("../hashers");
 var Parsers = require("../parsers");
 
-function randomString(length, charset) { // TODO: Put this somewhere.
+// TODO: Put this somewhere.
+// TODO: Use crypto module instead.
+function randomString(length, charset) {
 	var chars = [], i;
 	for(i = 0; i < length; ++i) chars.push(charset[Math.floor(Math.random() * charset.length)]);
 	return chars.join("");
