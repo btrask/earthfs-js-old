@@ -73,7 +73,7 @@ Remote.prototype.pull = function() {
 	var req = remote.module.get({
 		hostname: url.hostname,
 		port: url.port,
-		path: "/latest/?"+querystring.stringify({
+		path: "/api/latest/?"+querystring.stringify({
 			"q": remote.query,
 			"history": "all",
 			"u": remote.username,
@@ -125,7 +125,7 @@ Remote.prototype.addURN = function(URN) {
 		var opts = {
 			hostname: url.hostname,
 			port: url.port,
-			path: "/entry/"+encodeURIComponent(URN)+"?"+querystring.stringify({
+			path: "/api/entry/"+encodeURIComponent(URN)+"/?"+querystring.stringify({
 				"u": remote.username,
 				"p": remote.password,
 			}),
