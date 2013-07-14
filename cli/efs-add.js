@@ -19,26 +19,33 @@ FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE. */
 var pathModule = require("path");
 
+var bt = require("../server/utilities/bt"); // TODO: Move this module into a shared folder.
 var shared = require("./shared");
 var Repo = shared.Repo;
 
 var args = process.argv;
 if(args.length <= 2) { // TODO: Use node-optimist.
-	console.error("Usage: efs-add [options] [path]");
+	console.error("Usage: efs-add [options] [path...]");
 	console.error("Options:");
 	console.error("\t--repo [url]");
 	console.error("\t--user [user]");
 	console.error("\t--pass [pass]");
 	process.exit();
 }
-var path = pathModule.resolve(process.cwd(), args[2]);
-
+var cwd = process.cwd();
+var paths = args.slice(2), i = 0;
 var repo = Repo.load();
-repo.submit(path, function(err, URN) {
-	if(err) {
-		console.error("Error: "+err);
-		process.exit(1);
-	} else {
-		console.error(URN);
-	}
+
+bt.asyncLoop(function(next) {
+	if(i >= paths.length) return;
+	repo.submit(pathModule.resolve(cwd, paths[i]), function(err, URN) {
+		if(err) {
+			console.error(paths[i], err);
+			process.exit(1);
+		} else {
+			console.error(paths[i], URN);
+			++i;
+			next();
+		}
+	});
 });

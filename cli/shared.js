@@ -74,6 +74,9 @@ Repo.prototype.submit = function(path, callback/* (err, URN) */) {
 	req.write('\r\n', "utf8");
 	var file = fs.createReadStream(path);
 	file.pipe(req, {end: false});
+	file.on("error", function(err) {
+		callback(err, null);
+	});
 	file.on("end", function() {
 		req.write('\r\n', "utf8");
 		req.write('\r\n', "utf8");
