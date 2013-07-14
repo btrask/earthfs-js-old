@@ -17,28 +17,45 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
 FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE. */
+var cp = require("child_process");
+var crypto = require("crypto");
+var fs = require("fs");
+var os = require("os");
 var pathModule = require("path");
 
 var shared = require("./shared");
 var Repo = shared.Repo;
 
 var args = process.argv;
-if(args.length <= 2) { // TODO: Use node-optimist.
-	console.error("Usage: efs-add [options] [path]");
+if(args.length <= 1) { // TODO: Use node-optimist.
+	console.error("Usage: efs-create [options]");
 	console.error("Options:");
 	console.error("\t--repo [url]");
 	console.error("\t--user [user]");
 	console.error("\t--pass [pass]");
 	process.exit();
 }
-var path = pathModule.resolve(process.cwd(), args[2]);
 
 var repo = Repo.load();
-repo.submit(path, function(err, URN) {
-	if(err) {
-		console.error("Error: "+err);
-		process.exit(1);
-	} else {
-		console.error(URN);
+var path = os.tmpdir()+"/"+crypto.randomBytes(12).toString("hex")+".md";
+// TODO: Customizable file extension/MIME types?
+fs.writeFileSync(path, "", {"encoding": "utf8", "mode": parseInt("0600", 8)});
+var editor = cp.spawn(process.env.EDITOR, [path], {"stdio": "inherit"});
+editor.on("exit", function(status) {
+	var stats = fs.statSync(path);
+	if(!stats.size) {
+		console.error("Empty file.");
+		fs.unlinkSync(path);
+		return;
 	}
+	repo.submit(path, function(err, URN) {
+		if(err) {
+			console.error(err);
+			console.error("Leaving file at '"+path+"'");
+			process.exit(1);
+		} else {
+			console.error(URN);
+			fs.unlinkSync(path);
+		}
+	});
 });
