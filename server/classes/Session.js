@@ -76,12 +76,6 @@ Session.prototype.addEntryStream = function(stream, type, targets, callback/* (e
 						if("EEXIST" === err.code) return callback(null, h.primaryURN);
 						return callback(err, null);
 					}
-					session.repo.log.write(JSON.stringify({ // TODO: Is this still pulling its weight?
-						"date": new Date().toISOString(),
-						"internalHash": h.internalHash,
-						"type": type,
-						"userID": session.userID,
-					})+"\n");
 					addEntry(session, type, h, p, function(err, primaryURN, entryID) {
 						if(err) return callback(err, null);
 						addEntrySource(session, entryID, targets, function(err) {

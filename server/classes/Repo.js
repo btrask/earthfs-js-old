@@ -39,10 +39,8 @@ function Repo(path, config) {
 	repo.config = config;
 	repo.DATA = pathModule.resolve(repo.PATH, config["dataPath"] || "./data");
 	repo.CACHE = pathModule.resolve(repo.PATH, config["cachePath"] || "./cache");
-	repo.LOG = pathModule.resolve(repo.PATH, config["logPath"] || "./entries.log");
 	repo.KEY = pathModule.resolve(repo.PATH, config["keyPath"] || "./server.key");
 	repo.CERT = pathModule.resolve(repo.PATH, config["certPath"] || "./server.crt");
-	repo.log = fs.createWriteStream(repo.LOG, {flags: "a", encoding: "utf8"});
 	repo.db = new pg.Client(repo.config.db); // TODO: Use client pool.
 	repo.db.connect();
 	repo.key = null;
