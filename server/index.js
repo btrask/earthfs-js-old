@@ -171,6 +171,7 @@ register(/^GET$/, /^\/api\/entry\/([\w\d:%]+)\/meta\/?$/, function(req, res, url
 
 register(/^GET$/, /^\/api\/entry\/([\w\d:%]+)\/?$/, function(req, res, url, encodedURN) {
 	entryForURN(req, res, url, encodedURN, function(err, entryID, hash, path, type) {
+		if(err) return res.sendError(err);
 		sendFile(req, res, path, type, function(err) {
 			if(!err) return;
 			res.sendError(err);
@@ -179,6 +180,7 @@ register(/^GET$/, /^\/api\/entry\/([\w\d:%]+)\/?$/, function(req, res, url, enco
 });
 register(/^GET$/, /^\/private\/entry\/([\w\d:%]+)\/html\/?$/, function(req, res, url, encodedURN) {
 	entryForURN(req, res, url, encodedURN, function(err, entryID, hash, srcPath, srcType) {
+		if(err) return res.sendError(err);
 		var dstType = "text/html; charset=utf-8";
 		var dstPath = repo.pathForEntry(repo.CACHE, hash, dstType);
 		sendFile(req, res, dstPath, dstType, function(err) {
@@ -199,7 +201,7 @@ register(/^GET$/, /^\/private\/entry\/([\w\d:%]+)\/html\/?$/, function(req, res,
 function entryForURN(req, res, url, encodedURN, callback/* (err, entryID, hash, path, type) */) {
 	auth(req, res, repo, Repo.O_RDONLY, function(err, session) {
 		var URN = decodeURIComponent(encodedURN);
-		repo.db.query(
+		sql.debug(repo.db,
 			'SELECT e."entryID", e."hash", e."type"'+
 			' FROM "entries" AS e'+
 			' LEFT JOIN "URIs" AS u ON (u."entryID" = e."entryID")'+
@@ -207,7 +209,7 @@ function entryForURN(req, res, url, encodedURN, callback/* (err, entryID, hash, 
 			' WHERE u."URI" = $1 AND t."userID" = $2', [URN, session.userID],
 			function(err, results) {
 				if(err) return callback(err, null, null, null);
-				if(!results.rows.length) return callback({}, null, null, null);
+				if(!results.rows.length) return callback({httpStatusCode: 404, message: "Not Found"}, null, null, null);
 				var row = results.rows[0];
 				var path = repo.pathForEntry(repo.DATA, row.hash, row.type);
 				callback(null, row.entryID, row.hash, path, row.type);
