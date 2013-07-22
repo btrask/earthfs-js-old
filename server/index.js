@@ -238,43 +238,69 @@ register(/^POST$/, /^\/api\/entry\/?$/, function(req, res, url) {
 		addEntry(req, res, session, targets);
 	});
 });
+
 register(/^GET$/, /^\/api\/latest\/?$/, function(req, res, url) {
 	auth(req, res, repo, Repo.O_RDONLY, function(err, session) {
 		if(err) return res.sendError(err);
-		var queryString = (url.query["q"] || "").split("+").map(decodeURIComponent).join(" ");
-		querylang.parse(queryString, "simple", function(err, query) {
-			query = new queryModule.User(session.userID, query); // TODO: Kind of ugly.
+		parseQuery(url, session, function(err, query) {
+			if(err) return res.sendError(err);
 			var client = new Client(repo, query, res);
-			var tab = "\t";
-			var obj = query.SQL(1, tab+"\t");
-			var history = url.query["history"];
-			var limit = "all" === history ? '' : tab+'LIMIT '+(history >>> 0)+'\n';
-			var fullSQL =
-				'SELECT * FROM (\n'+
-					tab+'SELECT e."entryID", \'urn:sha1:\' || e."hash" AS "URN"\n'+
-					tab+'FROM "entries" AS e\n'+
-					tab+'WHERE e."entryID" IN\n'+
-						obj.query+
-					tab+'ORDER BY e."entryID" DESC\n'+
-						limit+
-				') x ORDER BY "entryID" ASC';
-			var stream = sql.debug2(repo.db,
-				fullSQL,
-				obj.parameters
-			);
-			res.writeHead(200, {"Content-Type": "text/json; charset=utf-8"});
-			stream.on("row", function(row) {
-				res.write(row.URN+"\n", "utf8");
-			});
-			stream.on("end", function() {
+			search(req, res, url, session, query, function(err) {
+				if(err) return console.log(err);
 				client.resume();
-			});
-			stream.on("error", function(err) {
-				console.log(err);
 			});
 		});
 	});
 });
+register(/^GET$/, /^\/api\/history\/?$/, function(req, res, url) {
+	auth(req, res, repo, Repo.O_RDONLY, function(err, session) {
+		if(err) return res.sendError(err);
+		parseQuery(url, session, function(err, query) {
+			if(err) return res.sendError(err);
+			// TODO: Parse pagination etc.
+			search(req, res, url, session, query, function(err) {
+				if(err) return console.log(err);
+				res.end();
+			});
+		});
+	});
+});
+function parseQuery(url, session, callback/* (err, query) */) {
+	var queryString = (url.query["q"] || "").split("+").map(decodeURIComponent).join(" ");
+	querylang.parse(queryString, "simple", function(err, query) {
+		if(err) return callback(err, null);
+		callback(null, new queryModule.User(session.userID, query));
+	});
+}
+function search(req, res, url, session, query, callback/* (err) */) {
+	var tab = "\t";
+	var obj = query.SQL(1, tab+"\t");
+	var history = url.query["history"];
+	var limit = "all" === history ? '' : tab+'LIMIT '+(history >>> 0)+'\n';
+	var fullSQL =
+		'SELECT * FROM (\n'+
+			tab+'SELECT e."entryID", \'urn:sha1:\' || e."hash" AS "URN"\n'+
+			tab+'FROM "entries" AS e\n'+
+			tab+'WHERE e."entryID" IN\n'+
+				obj.query+
+			tab+'ORDER BY e."entryID" DESC\n'+
+				limit+
+		') x ORDER BY "entryID" ASC';
+	var stream = sql.debug2(repo.db,
+		fullSQL,
+		obj.parameters
+	);
+	res.writeHead(200, {"Content-Type": "text/json; charset=utf-8"});
+	stream.on("row", function(row) {
+		res.write(row.URN+"\n", "utf8");
+	});
+	stream.on("end", function() {
+		callback(null);
+	});
+	stream.on("error", function(err) {
+		callback(err);
+	});
+}
 
 // Last
 register(/^GET$/, /.*/, function(req, res, url) {
