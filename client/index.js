@@ -150,7 +150,7 @@ Stream.prototype.pull = function(history) {
 		if(req.readyState < 3) return;
 		// TODO: This is messy.
 		for(var i; -1 !== (i = req.responseText.indexOf("\n", offset)); offset = i+1) {
-			stream.addURN(req.responseText.slice(offset, i).replace(/^ +/g, ""));
+			stream.addURN(req.responseText.slice(offset, i));
 		}
 		if(4 === req.readyState) {
 			stream.req = null;
@@ -172,6 +172,7 @@ Stream.prototype.pull = function(history) {
 };
 Stream.prototype.addURN = function(URN) {
 	var stream = this;
+	if("" === URN) return; // Ignore blank lines (heartbeat).
 	if(bt.has(stream.URNs, URN)) return; // Duplicate.
 	stream.URNs[URN] = true;
 	while(stream.entries.length > MAX_ENTRIES) {

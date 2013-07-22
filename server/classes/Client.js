@@ -29,7 +29,7 @@ function Client(repo, query, stream) {
 	client.queue = [];
 
 	var heartbeat = setInterval(function() {
-		client.stream.write(" ", "utf8");
+		client.stream.write("\n", "utf8");
 	}, 1000 * 30);
 	repo.clients.push(client);
 	client.stream.on("close", function() {
