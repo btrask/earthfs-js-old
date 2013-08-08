@@ -67,11 +67,18 @@ function dispatch(req, res) {
 	var i, handler, method, path;
 	for(i = 0; i < handlers.length; ++i) {
 		handler = handlers[i];
-		if(handler.method !== req.method) continue;
+		if("string" === typeof handler.method) {
+			if(handler.method !== req.method) continue;
+			method = [];
+		} else {
+			method = handler.method.exec(req.method);
+			if(!method) continue;
+		}
 		path = handler.path.exec(url.pathname);
 		if(!path) continue;
 		handler.func.apply(this,
 			[req, res, url]
+			.concat(method.slice(1))
 			.concat(path.slice(1))
 		);
 		return;
@@ -91,11 +98,13 @@ register("GET", /^\/api\/entry\/([\w\d:%]+)\/meta\/?$/, function(req, res, url, 
 		});
 	});
 });
-register("GET", /^\/api\/entry\/([\w\d:%]+)\/?$/, function(req, res, url, encodedURN) {
+register(/^(GET|HEAD)$/, /^\/api\/entry\/([\w\d:%]+)\/?$/, function(req, res, url, method, encodedURN) {
 	repo.auth(req, res, Repo.O_RDONLY, function(err, session) {
+		if(err) return res.sendError(err);
 		var URN = decodeURIComponent(encodedURN);
 		session.entryForURN(URN, function(err, entryID, hash, path, type) {
 			if(err) return res.sendError(err);
+			if("HEAD" === method) return res.sendMessage(200, "OK");
 			sendFile(req, res, path, type, function(err) {
 				if(err) res.sendError(err);
 			});
