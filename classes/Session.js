@@ -109,7 +109,7 @@ Session.prototype.addIncomingFile = function(file, callback/* (err, fileID) */) 
 			tasks.push(queryF(session.db, "ROLLBACK", []));
 			if(file.internalPath) tasks.push(unlinkF(file.internalPath));
 			Future.wait(tasks);
-			return null;
+			throw err;
 		}
 	}, function(err, fileID) {
 		callback(err, fileID);
