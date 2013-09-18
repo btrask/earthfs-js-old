@@ -138,7 +138,8 @@ register("POST", /^\/api\/file\/?$/, function(req, res, url) {
 			file.loadFromStream(part, function(err) {
 				if(err) return res.sendError(err);
 				session.addIncomingFile(file, function(err, fileID) {
-					res.sendMessage(200, "OK");
+					if(err) res.sendError(err);
+					res.sendJSON(200, "OK", file);
 				});
 			});
 		});

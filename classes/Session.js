@@ -86,8 +86,8 @@ Session.prototype.parseQuery = function(string, language, callback/* (err, query
 	callback(new Error("Invalid language"), null);
 };
 Session.prototype.addIncomingFile = function(file, callback/* (err, fileID) */) {
+	var session = this;
 	run(function() {
-		var session = this;
 		if(!(session.mode & Session.O_WRONLY)) throw new Error("No permission");
 		if(!file.size) throw new Error("Empty file");
 		queryF(session.db, "BEGIN TRANSACTION", []).wait();
@@ -117,8 +117,8 @@ Session.prototype.addIncomingFile = function(file, callback/* (err, fileID) */) 
 	});
 };
 Session.prototype.submissionsForHash = function(algorithm, hash, callback/* (err, submissions) */) {
+	var session = this;
 	run(function() {
-		var session = this;
 		if(!(session.mode & Session.O_RDONLY)) throw new Error("No permission");
 		return queryF(session.db,
 			'SELECT s."submissionID, u."username", s."timestamp""\n'
@@ -135,8 +135,8 @@ Session.prototype.submissionsForHash = function(algorithm, hash, callback/* (err
 	}, callback);
 };
 Session.prototype.fileForSubmissionID = function(submissionID, callback/* (err, file) */) {
+	var session = this;
 	run(function() {
-		var session = this;
 		if(!(session.mode & Session.O_RDONLY)) throw new Error("No permission");
 		var repo = session.repo;
 		var file = queryF(session.db,
