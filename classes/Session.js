@@ -141,7 +141,7 @@ Session.prototype.fileForSubmissionID = function(submissionID, callback/* (err, 
 		var repo = session.repo;
 		var file = queryF(session.db,
 			'SELECT\n\t'
-				+'f."fileID", f."type", f."internalHash", f."size",\n\t'
+				+'f."fileID", f."internalHash", f."type", f."size",\n\t'
 				+'s."timestamp"\n\t'
 				+'u."username" AS "source"\n'
 			+'FROM "files" AS f\n'
@@ -169,9 +169,9 @@ Session.prototype.fileForSubmissionID = function(submissionID, callback/* (err, 
 		return {
 			submissionID: submissionID,
 			fileID: file.fileID,
-			type: file.type,
 			internalHash: file.internalHash,
 			internalPath: repo.internalPathForHash(file.internalHash),
+			type: file.type,
 			size: file.size,
 			source: file.source,
 			targets: targets,
@@ -183,10 +183,10 @@ Session.prototype.fileForSubmissionID = function(submissionID, callback/* (err, 
 function addFileRow(session, file, callback/* (err, fileID) */) {
 	run(function() {
 		return queryF(session.db,
-			'INSERT INTO "files" ("type", "internalHash", "size")\n'
+			'INSERT INTO "files" ("internalHash", "type", "size")\n'
 			+'VALUES ($1, $2, $3)\n'
 			+'RETURNING "fileID"',
-			[file.type, file.internalHash, file.size]).wait().rows[0].fileID;
+			[file.internalHash, file.type, file.size]).wait().rows[0].fileID;
 	}, callback);
 }
 function addFileSubmission(session, fileID, callback/* (err, submissionID) */) {
@@ -243,7 +243,7 @@ function addFileLinks(session, fileID, file, callback) {
 		});
 		if(!vals.length) return;
 		queryF(session.db,
-			'INSERT INTO "fileLinks" ("fileID", "link")\n'
+			'INSERT INTO "fileLinks" ("fileID", "normalizedURI")\n'
 			+'VALUES '+sql.list2D(vals, 1)+'',
 			sql.flatten(vals)).wait();
 	}, callback);

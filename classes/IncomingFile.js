@@ -109,13 +109,14 @@ IncomingFile.prototype.load = function(path, stream, callback/* (err) */) {
 	file.originalPath = path;
 	createHashes(stream, type, collection.add(function(hashes) {
 		var internalHash = hashes["sha1"][0];
+		if(!internalHash) throw new Error("Internal hash algorithm missing");
 		file.hashes = hashes;
 		file.internalHash = internalHash;
 		file.internalPath = repo.internalPathForHash(internalHash);
 	}));
 	createIndex(streamCopy(stream), type, collection.add(function(index) {
 		file.index = index;
-		// TODO: Parse for links.
+		// TODO: Parse for links. Make sure to normalize them.
 	}));
 	streamLength(streamCopy(stream), collection.add(function(size) {
 		file.size = size;

@@ -63,6 +63,40 @@ ALTER SEQUENCE "fileHashes_fileHashID_seq" OWNED BY "fileHashes"."fileHashID";
 
 
 --
+-- Name: fileIndexes; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
+--
+
+CREATE TABLE "fileIndexes" (
+    "indexID" bigint NOT NULL,
+    "fileID" bigint NOT NULL,
+    index tsvector NOT NULL
+);
+
+
+ALTER TABLE public."fileIndexes" OWNER TO postgres;
+
+--
+-- Name: fileIndexes_indexID_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE "fileIndexes_indexID_seq"
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public."fileIndexes_indexID_seq" OWNER TO postgres;
+
+--
+-- Name: fileIndexes_indexID_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
+
+ALTER SEQUENCE "fileIndexes_indexID_seq" OWNED BY "fileIndexes"."indexID";
+
+
+--
 -- Name: fileLinks; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
 --
 
@@ -103,8 +137,8 @@ ALTER SEQUENCE "fileLinks_fileLinkID_seq" OWNED BY "fileLinks"."fileLinkID";
 CREATE TABLE files (
     "fileID" bigint NOT NULL,
     "internalHash" text NOT NULL,
-    "MIMEType" text NOT NULL,
-    fulltext tsvector
+    type text NOT NULL,
+    size bigint NOT NULL
 );
 
 
@@ -213,7 +247,7 @@ CREATE TABLE sessions (
     "userID" bigint NOT NULL,
     "modeRead" boolean NOT NULL,
     "modeWrite" boolean NOT NULL,
-    "sessionTime" timestamp without time zone DEFAULT now() NOT NULL
+    "timestamp" timestamp without time zone DEFAULT now() NOT NULL
 );
 
 
@@ -241,18 +275,18 @@ ALTER SEQUENCE "sessions_sessionID_seq" OWNED BY sessions."sessionID";
 
 
 --
--- Name: sources; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
+-- Name: submissions; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
 --
 
-CREATE TABLE sources (
-    "sourceID" bigint NOT NULL,
+CREATE TABLE submissions (
+    "submissionID" bigint NOT NULL,
     "fileID" bigint NOT NULL,
     "userID" bigint NOT NULL,
-    "submissionTime" timestamp without time zone DEFAULT now() NOT NULL
+    "timestamp" timestamp without time zone DEFAULT now() NOT NULL
 );
 
 
-ALTER TABLE public.sources OWNER TO postgres;
+ALTER TABLE public.submissions OWNER TO postgres;
 
 --
 -- Name: sources_sourceID_seq; Type: SEQUENCE; Schema: public; Owner: postgres
@@ -272,7 +306,7 @@ ALTER TABLE public."sources_sourceID_seq" OWNER TO postgres;
 -- Name: sources_sourceID_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
 --
 
-ALTER SEQUENCE "sources_sourceID_seq" OWNED BY sources."sourceID";
+ALTER SEQUENCE "sources_sourceID_seq" OWNED BY submissions."submissionID";
 
 
 --
@@ -281,9 +315,8 @@ ALTER SEQUENCE "sources_sourceID_seq" OWNED BY sources."sourceID";
 
 CREATE TABLE targets (
     "targetID" bigint NOT NULL,
-    "fileID" bigint NOT NULL,
-    "userID" bigint,
-    "sourceID" bigint NOT NULL
+    "submissionID" bigint NOT NULL,
+    "userID" bigint
 );
 
 
@@ -321,7 +354,7 @@ CREATE TABLE users (
     "tokenHash" text NOT NULL,
     cert text,
     key text,
-    "userTime" timestamp without time zone DEFAULT now() NOT NULL,
+    "timestamp" timestamp without time zone DEFAULT now() NOT NULL,
     CONSTRAINT "usernameNotPublic" CHECK ((username <> 'public'::text))
 );
 
@@ -354,6 +387,13 @@ ALTER SEQUENCE "users_userID_seq" OWNED BY users."userID";
 --
 
 ALTER TABLE ONLY "fileHashes" ALTER COLUMN "fileHashID" SET DEFAULT nextval('"fileHashes_fileHashID_seq"'::regclass);
+
+
+--
+-- Name: indexID; Type: DEFAULT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY "fileIndexes" ALTER COLUMN "indexID" SET DEFAULT nextval('"fileIndexes_indexID_seq"'::regclass);
 
 
 --
@@ -392,10 +432,10 @@ ALTER TABLE ONLY sessions ALTER COLUMN "sessionID" SET DEFAULT nextval('"session
 
 
 --
--- Name: sourceID; Type: DEFAULT; Schema: public; Owner: postgres
+-- Name: submissionID; Type: DEFAULT; Schema: public; Owner: postgres
 --
 
-ALTER TABLE ONLY sources ALTER COLUMN "sourceID" SET DEFAULT nextval('"sources_sourceID_seq"'::regclass);
+ALTER TABLE ONLY submissions ALTER COLUMN "submissionID" SET DEFAULT nextval('"sources_sourceID_seq"'::regclass);
 
 
 --
@@ -418,6 +458,14 @@ ALTER TABLE ONLY users ALTER COLUMN "userID" SET DEFAULT nextval('"users_userID_
 
 ALTER TABLE ONLY "fileHashes"
     ADD CONSTRAINT "fileHashesPrimaryKey" PRIMARY KEY ("fileHashID");
+
+
+--
+-- Name: fileIndexesPrimaryKey; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
+--
+
+ALTER TABLE ONLY "fileIndexes"
+    ADD CONSTRAINT "fileIndexesPrimaryKey" PRIMARY KEY ("indexID");
 
 
 --
@@ -449,7 +497,7 @@ ALTER TABLE ONLY files
 --
 
 ALTER TABLE ONLY files
-    ADD CONSTRAINT "filesUniqueHashAndType" UNIQUE ("internalHash", "MIMEType");
+    ADD CONSTRAINT "filesUniqueHashAndType" UNIQUE ("internalHash", type);
 
 
 --
@@ -485,11 +533,11 @@ ALTER TABLE ONLY sessions
 
 
 --
--- Name: sources_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
+-- Name: submissionsPrimaryKey; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
 --
 
-ALTER TABLE ONLY sources
-    ADD CONSTRAINT sources_pkey PRIMARY KEY ("sourceID");
+ALTER TABLE ONLY submissions
+    ADD CONSTRAINT "submissionsPrimaryKey" PRIMARY KEY ("submissionID");
 
 
 --
@@ -517,13 +565,6 @@ ALTER TABLE ONLY users
 
 
 --
--- Name: fulltextIndex; Type: INDEX; Schema: public; Owner: postgres; Tablespace: 
---
-
-CREATE INDEX "fulltextIndex" ON files USING gin (fulltext);
-
-
---
 -- Name: hashesIndex; Type: INDEX; Schema: public; Owner: postgres; Tablespace: 
 --
 
@@ -541,7 +582,7 @@ CREATE RULE "fileLinksOnDuplicateDoNothing" AS ON INSERT TO "fileLinks" WHERE (E
 -- Name: filesOnDuplicateDoNothing; Type: RULE; Schema: public; Owner: postgres
 --
 
-CREATE RULE "filesOnDuplicateDoNothing" AS ON INSERT TO files WHERE (EXISTS (SELECT 1 FROM files old WHERE ((old."internalHash" = new."internalHash") AND (old."MIMEType" = new."MIMEType")))) DO INSTEAD NOTHING;
+CREATE RULE "filesOnDuplicateDoNothing" AS ON INSERT TO files WHERE (EXISTS (SELECT 1 FROM files old WHERE ((old."internalHash" = new."internalHash") AND (old.type = new.type)))) DO INSTEAD NOTHING;
 
 
 --
