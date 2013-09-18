@@ -103,14 +103,14 @@ Repo.prototype.authUser = function(db, username, password, remember, mode, callb
 			if(err) return callback(FORBIDDEN, null, null, Session.O_NONE);
 			if(results.rows.length < 1) return callback(FORBIDDEN, null, null, Session.O_NONE);
 			if(bcrypt.compareSync(password, row.passwordHash)) {
-				return createSession(repo, row.userID, Session.O_RDWR, remember, function(err, session, sessionMode) {
+				return createSession(repo, db, row.userID, Session.O_RDWR, remember, function(err, session, sessionMode) {
 					if(err) return callback(err, null, null, Session.O_NONE);
 					callback(null, row.userID, session, sessionMode);
 				});
 			}
 			if((mode & Session.O_RDONLY) !== mode) return callback(FORBIDDEN, null, null, Session.O_NONE);
 			if(bcrypt.compareSync(password, row.tokenHash)) {
-				return createSession(repo, row.userID, Session.O_RDONLY, remember, function(err, session, sessionMode) {
+				return createSession(repo, db, row.userID, Session.O_RDONLY, remember, function(err, session, sessionMode) {
 					if(err) return callback(err, null, null, Session.O_NONE);
 					callback(null, row.userID, session, sessionMode);
 				});
@@ -152,7 +152,7 @@ Repo.prototype.authPublic = function(db, mode, callback/* (err, userID, session,
 	if((mode & publicMode) !== mode) return callback(FORBIDDEN, null, null, Session.O_NONE);
 	callback(null, 0, null, publicMode);
 };
-function createSession(repo, userID, mode, remember, callback/* (err, session, mode) */) {
+function createSession(repo, db, userID, mode, remember, callback/* (err, session, mode) */) {
 	crypto.randomBytes(20, function(err, buffer) {
 		var session = buffer.toString("base64");
 		var sessionHash = bcrypt.hashSync(session, 10);

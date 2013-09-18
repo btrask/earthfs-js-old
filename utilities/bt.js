@@ -18,7 +18,7 @@ FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE. */
 var bt = exports;
 
-bt.has = function(obj, prop) {
+bt.has = function(obj, prop) { // TODO: Use has.js instead.
 	return Object.prototype.hasOwnProperty.call(obj, prop);
 };
 bt.asyncLoop = function(func/* (next) */) {

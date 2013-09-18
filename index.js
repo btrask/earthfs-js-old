@@ -38,6 +38,7 @@ var Client = require("./classes/Client"); // TODO: We shouldn't need this once w
 var query = require("./classes/query");
 var Repo = require("./classes/Repo");
 var Session = require("./classes/Session"); // TODO: We shouldn't need this once we handle remotes better.
+var IncomingFile = require("./classes/IncomingFile");
 
 var repo = Repo.loadSync(process.argv[2] || "/etc/earthfs");
 
@@ -124,6 +125,7 @@ register(/^(GET|HEAD)$/, /^\/api\/file\/([^\/]+)\/([^\/]+)\/?$/, function(req, r
 		});
 	});
 });
+
 register("POST", /^\/api\/file\/?$/, function(req, res, url) {
 	repo.auth(req, res, Repo.O_WRONLY, function(err, session) {
 		if(err) return res.sendError(err);
@@ -132,7 +134,7 @@ register("POST", /^\/api\/file\/?$/, function(req, res, url) {
 		form.on("part", function(part) {
 			if("file" !== part.name) return;
 			var type = part.headers["content-type"];
-			var file = new IncoingFile(repo, type, targets);
+			var file = new IncomingFile(repo, type, targets);
 			file.loadFromStream(part, function(err) {
 				if(err) return res.sendError(err);
 				session.addIncomingFile(file, function(err, fileID) {

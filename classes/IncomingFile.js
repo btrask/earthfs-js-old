@@ -20,12 +20,15 @@ module.exports = IncomingFile;
 
 var fs = require("fs");
 var os = require("os");
+var crypto = require("crypto");
+var util = require("util");
 var PassThroughStream = require("stream").PassThrough;
 
 var plugins = require("../plugins");
 var hashers = plugins.hashers;
 var indexers = plugins.indexers;
 
+var has = require("../utilities/has");
 
 // TODO: Put this somewhere. Or use a real library that does the same thing.
 function AsyncCollection() {
@@ -107,14 +110,14 @@ IncomingFile.prototype.load = function(path, stream, callback/* (err) */) {
 	var repo = file.repo;
 	var collection = new AsyncCollection;
 	file.originalPath = path;
-	createHashes(stream, type, collection.add(function(hashes) {
+	createHashes(stream, file.type, collection.add(function(hashes) {
+		if(!has(hashes, "sha1") || !hashes["sha1"].length) throw new Error("Internal hash algorithm missing "+util.inspect(hashes));
 		var internalHash = hashes["sha1"][0];
-		if(!internalHash) throw new Error("Internal hash algorithm missing");
 		file.hashes = hashes;
 		file.internalHash = internalHash;
 		file.internalPath = repo.internalPathForHash(internalHash);
 	}));
-	createIndex(streamCopy(stream), type, collection.add(function(index) {
+	createIndex(streamCopy(stream), file.type, collection.add(function(index) {
 		file.index = index;
 		// TODO: Parse for links. Make sure to normalize them.
 	}));

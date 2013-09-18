@@ -85,7 +85,7 @@ Session.prototype.parseQuery = function(string, language, callback/* (err, query
 	}
 	callback(new Error("Invalid language"), null);
 };
-Session.prototype.addIncomingFile = function(file, targets, callback/* (err, fileID) */) {
+Session.prototype.addIncomingFile = function(file, callback/* (err, fileID) */) {
 	run(function() {
 		var session = this;
 		if(!(session.mode & Session.O_WRONLY)) throw new Error("No permission");

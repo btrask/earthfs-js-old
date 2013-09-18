@@ -24,7 +24,7 @@ exports.createHashes = function(stream, type, callback/* (array) */) {
 	stream.pipe(sha1);
 	stream.on("end", function() {
 		var hash = sha1.read();
-		callback([
+		callback(null, [
 			hash.toString("hex"),
 			hash.toString("base64"),
 		]);
