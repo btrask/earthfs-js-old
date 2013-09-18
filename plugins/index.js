@@ -16,46 +16,20 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
 FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE. */
+var plugins = exports;
 var fs = require("fs");
-var crypto = require("crypto");
-//var encdec = require("encdec");
-//var base32 = encdec.create("ABCDEFGHIJKLMNOPQRSTUVWXYZ234567");
-var bt = require("../../utilities/bt");
-var hashers = exports;
 
-var plugins = require("../../utilities/plugins");
-var modules = plugins.load(__dirname, "Hashers");
-
-function HasherCollection(type) {
-	var hc = this;
-	hc.internalHash = null;
-	hc.URNs = null;
-
-	hc._sha1 = crypto.createHash("sha1");
-	hc._hashers = modules.map(function(Module) {
-		return new Module(type);
+function requiredir(dir) {
+	return fs.readdirSync(dir).filter(function(filename) {
+		if(/^\./.test(filename)) return false;
+		return true;
+	}).map(function(filename) {
+		return require(dir+"/"+filename);
 	});
 }
-HasherCollection.prototype.update = function(chunk) {
-	var hc = this;
-	hc._sha1.update(chunk);
-	hc._hashers.forEach(function(hasher) {
-		hasher.update(chunk);
-	});
-};
-HasherCollection.prototype.end = function() {
-	var hc = this;
-	var sha1 = new Buffer(hc._sha1.digest("binary"), "binary"); // Hack for 0.8.x.
-	hc.internalHash = sha1.toString("hex");
-	hc.primaryURN = "urn:sha1:"+hc.internalHash;
-	hc.URNs = [
-		hc.primaryURN,
-//		"urn:sha1:"+base32.encode(sha1),
-	];
-	hc._hashers.forEach(function(hasher) {
-		hasher.end();
-		hc.URNs.push.apply(hc.URNs, hasher.URNs);
-	});
-};
 
-module.exports = HasherCollection;
+// TODO: Export `requiredir()` and let clients do this themselves.
+plugins.hashers = requiredir(__dirname+"/hashers");
+plugins.indexers = requiredir(__dirname+"/indexers");
+plugins.parsers = requiredir(__dirname+"/parsers");
+

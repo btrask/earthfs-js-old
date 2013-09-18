@@ -39,8 +39,6 @@ var query = require("./classes/query");
 var Repo = require("./classes/Repo");
 var Session = require("./classes/Session"); // TODO: We shouldn't need this once we handle remotes better.
 
-var MIME = require("./utilities/mime.json"); // TODO: It'd be nice to get rid of this.
-
 var repo = Repo.loadSync(process.argv[2] || "/etc/earthfs");
 
 function has(obj, prop) {
@@ -89,42 +87,56 @@ function register(method, path, func/* (req, res, url, arg1, arg2, etc) */) {
 	handlers.push({method: method, path: path, func: func});
 }
 
-register("GET", /^\/api\/entry\/([\w\d:%]+)\/meta\/?$/, function(req, res, url, encodedURN) {
-	repo.auth(req, res, Repo.O_RDONLY, function(err, session) {
-		var URN = decodeURIComponent(encodedURN);
-		session.metadataForURN(URN, function(err, info) {
-			if(err) return res.sendError(err);
-			res.sendJSON(200, "OK", info);
-		});
-	});
-});
-register(/^(GET|HEAD)$/, /^\/api\/entry\/([\w\d:%]+)\/?$/, function(req, res, url, method, encodedURN) {
+
+register(/^(GET|HEAD)$/, /^\/api\/submission\/(\d+)\/?$/, function(req, res, url, method, submissionIDString) {
 	repo.auth(req, res, Repo.O_RDONLY, function(err, session) {
 		if(err) return res.sendError(err);
-		var URN = decodeURIComponent(encodedURN);
-		session.entryForURN(URN, function(err, entryID, hash, path, type) {
+		var submissionID = parseInt(submissionIDString, 10);
+		session.fileForSubmissionID(submissionID, function(err, file) {
 			if(err) return res.sendError(err);
-			if("HEAD" === method) return res.sendMessage(200, "OK");
-			sendFile(req, res, path, type, function(err) {
-				if(err) res.sendError(err);
+			res.writeHead(200, {
+				"Content-Type": file.type,
+				"Content-Length": file.size,
+				"X-Source": file.source,
+				"X-Targets": file.targets.join(", "),
+				"X-Date": file.timestamp, // TODO: Okay to use regular Date header?
+				"X-URIs": file.URIs,
 			});
+			if("HEAD" === method) res.end();
+			else fs.createReadStream(file.internalPath).pipe(res);
 		});
 	});
 });
-register("POST", /^\/api\/entry\/?$/, function(req, res, url) {
+register(/^(GET|HEAD)$/, /^\/api\/file\/([^\/]+)\/([^\/]+)\/?$/, function(req, res, url, method, encodedAlgorithm, encodedHash) {
+	repo.auth(req, res, Repo.O_RDONLY, function(err, session) {
+		if(err) return res.sendError(err);
+		var algorithm = decodeURIComponent(encodedAlgorithm);
+		var hash = decodeURIComponent(encodedHash);
+		session.submissionsForHash(algorithm, hash, function(err, submissions) {
+			if(err) return res.sendError(err);
+			var buf = new Buffer(JSON.stringify(submissions), "utf8");
+			res.writeHead(200, {
+				"Content-Type": "text/json; charset=utf-8",
+				"Content-Length": buf.length,
+			});
+			if("HEAD" === method) res.end();
+			else res.end(buf);
+		});
+	});
+});
+register("POST", /^\/api\/file\/?$/, function(req, res, url) {
 	repo.auth(req, res, Repo.O_WRONLY, function(err, session) {
 		if(err) return res.sendError(err);
 		var targets = String(url.query["t"] || "").split("\n");
 		var form = new multiparty.Form();
 		form.on("part", function(part) {
-			if("entry" !== part.name) return; // TODO: Is skipping other parts a good idea?
-			var ext = pathModule.extname(part.filename);
-			var type = bt.has(MIME, ext) ? MIME[ext] : part.headers["content-type"];
-			// TODO: Keep charset if possible.
-			session.addEntryStream(part, type, targets, function(err, primaryURN) {
+			if("file" !== part.name) return;
+			var type = part.headers["content-type"];
+			var file = new IncoingFile(repo, type, targets);
+			file.loadFromStream(part, function(err) {
 				if(err) return res.sendError(err);
-				res.sendJSON(200, "OK", {
-					"urn": primaryURN,
+				session.addIncomingFile(file, function(err, fileID) {
+					res.sendMessage(200, "OK");
 				});
 			});
 		});
@@ -164,19 +176,6 @@ register("GET", /^\/api\/history\/?$/, function(req, res, url) {
 	});
 });
 
-function sendFile(req, res, path, type, callback/* (err) */) {
-	fs.stat(path, function(err, stats) {
-		if(err) return callback(err);
-		var stream = fs.createReadStream(path);
-		res.writeHead(200, {
-			"Content-Type": type,
-			"Content-Length": stats.size,
-		});
-		stream.pipe(res);
-		stream.on("error", callback);
-		stream.on("end", callback);
-	});
-}
 function search(req, res, url, session, query, callback/* (err) */) {
 	var tab = "\t";
 	var obj = query.SQL(1, tab+"\t");
@@ -207,7 +206,7 @@ function search(req, res, url, session, query, callback/* (err) */) {
 	});
 }
 
-var PORT = repo.config["port"] >>> 0 || 8001;
+var PORT = parseInt(repo.config["port"], 10) || 8001;
 server.listen(PORT, function() {
 	console.log(urlModule.format({
 		protocol: server.protocol,
@@ -220,7 +219,8 @@ server.listen(PORT, function() {
 
 var Remote = require("./classes/Remote");
 repo.db.query(
-	'SELECT "userID", "targets", "remoteURL", "query", "username", "password" FROM "remotes" WHERE TRUE', [],
+	'SELECT "userID", "targets", "remoteURL", "query", "username", "password"\n'
+	+'FROM "remotes" WHERE TRUE', [],
 	function(err, results) {
 		if(err) return console.log(err);
 		results.rows.forEach(function(row) {

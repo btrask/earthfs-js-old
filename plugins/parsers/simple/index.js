@@ -17,19 +17,28 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
 FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE. */
 var fs = require("fs");
-var bt = require("../../utilities/bt");
-var queryModule = require("../../classes/query");
-var plugins = require("../../utilities/plugins");
-var modules = plugins.load(__dirname, "Query languages");
+var util = require("util");
+var PEG = require("pegjs");
+var parser = PEG.buildParser(fs.readFileSync(__dirname+"/parser.pegjs", "utf8"));
+var queryModule = require("../../../classes/query");
 
-exports.parse = function(str, language, userID, callback/* (err, query) */) {
-	for(var i = 0; i < modules.length; ++i) {
-		if(!modules[i].supports(language)) continue;
-		modules[i].parse(str, function(err, query) {
-			if(err) return callback(err, null);
-			callback(null, new queryModule.User(userID, query));
-		});
-		return;
-	}
-	return callback(new Error("Invalid language"), null);
+exports.acceptsLanguage = function(language) {
+	return "simple" === language;
 };
+exports.parseQuery = function(query, language, callback/* (err, query) */) {
+	setImmediate(function() {
+		callback(null, translate(parser.parse(str)));
+	});
+};
+
+function translate(x) {
+	if("string" === typeof x) return x;
+	if(Array.isArray(x)) return x.map(translate);
+	return newApply(query[x.type], translate(x.args));
+}
+function newApply(Class, args) {
+	// http://stackoverflow.com/a/8843181
+	// Use of .apply() with 'new' operator. Is this possible?
+	return new (Function.prototype.bind.apply(Class, [null].concat(args)));
+}
+

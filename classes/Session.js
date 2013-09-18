@@ -24,231 +24,247 @@ var pathModule = require("path");
 var os = require("os");
 
 var mkdirp = require("mkdirp");
+var Fiber = require("fibers");
+var Future = require("fibers/future");
 
 var sql = require("../utilities/sql");
 var fsx = require("../utilities/fsx");
 
 var Repo = require("./Repo");
+var IncomingFile = require("./IncomingFile");
 
-var Hashers = require("../plugins/hashers");
-var Parsers = require("../plugins/parsers");
-var Queries = require("../plugins/queries");
+var queryModule = require("./query");
+var plugins = require("../plugins");
+var parsers = plugins.parsers;
 
-function Session(repo, userID, mode) {
+var queryF = Future.wrap(sql.debug);
+var mkdirpF = Future.wrap(mkdirp);
+var unlinkF = Future.wrap(fs.unlink);
+
+var addFileRowF = Future.wrap(addFileRow);
+var addFileSubmissionF = Future.wrap(addFileSubmission);
+var addFileDataF = Future.wrap(addFileData);
+var addFileHashesF = Future.wrap(addFileHashes);
+var addFileIndexF = Future.wrap(addFileIndex);
+var addFileLinksF = Future.wrap(addFileLinks);
+var addFileSubmissionTargetsF = Future.wrap(addFileSubmissionTargets);
+
+function run(func, callback) {
+	Fiber(function() {
+		var val;
+		try { val = func(); } 
+		catch(err) { return callback(err, null); }
+		callback(null, val);
+	}).run();
+}
+
+function Session(repo, db, userID, mode) {
 	var session = this;
 	session.repo = repo;
-	session.db = repo.db;
+	session.db = db;
 	session.userID = userID;
 	session.mode = mode;
 }
-Session.prototype.addEntryStream = function(stream, type, targets, callback/* (err, primaryURN) */) {
+Session.prototype.close = function() {
 	var session = this;
-	if(!(session.mode & Repo.O_WRONLY)) return callback(new Error("No permission"), null);
-	crypto.randomBytes(24, function(err, buf) {
-		if(err) return callback(err, null);
-		var tmp = pathModule.resolve(os.tmpDir(), buf.toString("hex"));
-		addEntryStream(session, tmp, stream, type, targets, callback);
-	});
-};
-function addEntryStream(session, tmp, stream, type, targets, callback/* (err, primaryURN) */) {
-	var h = new Hashers(type);
-	var p = new Parsers(type);
-	var f = fs.createWriteStream(tmp);
-	var length = 0;
-	stream.on("readable", function() {
-		var chunk = stream.read();
-		h.update(chunk);
-		p.update(chunk);
-		f.write(chunk);
-		length += chunk.length;
-	});
-	stream.on("end", function() {
-		h.end();
-		p.end();
-		f.end();
-		f.on("close", function() {
-			if(!length) {
-				// Silently ignore empty files.
-				fs.unlink(tmp);
-				callback(null, null);
-				return;
-			}
-			var path = session.repo.pathForEntry(h.internalHash);
-			mkdirp(pathModule.dirname(path), function(err) {
-				if(err) return callback(err, null);
-				fsx.moveFile(tmp, path, function(err) {
-					if(err) {
-						if("EEXIST" === err.code) return callback(null, h.primaryURN);
-						return callback(err, null);
-					}
-					addEntry(session, type, h, p, function(err, primaryURN, entryID) {
-						if(err) return callback(err, null);
-						addEntrySource(session, entryID, targets, function(err) {
-							if(err) return callback(err, null);
-							callback(null, primaryURN);
-							session.repo.emit("entry", h.primaryURN, entryID);
-						});
-					});
-				});
-			});
-		});
-	});
-	stream.read(0);
-}
-function addEntry(session, type, h, p, callback/* (err, primaryURN, entryID) */) {
-	sql.debug(session.db,
-		'INSERT INTO "entries" ("hash", "type", "fulltext")'+
-		' VALUES ($1, $2, to_tsvector(\'english\', $3)) RETURNING "entryID"',
-		[h.internalHash, type, p.fullText],
-		function(err, results) {
-			if(err) return callback(err, null);
-			var entryID = results.rows[0].entryID;
-			var allLinks = h.URNs.concat(p.links, p.metaEntries, p.metaLinks).unique();
-			sql.debug(session.db,
-				'INSERT INTO "URIs" ("URI")'+
-				' VALUES '+sql.list2D(allLinks, 1)+'', allLinks,
-				function(err, results) {
-					if(err) return callback(err, null);
-					sql.debug(session.db,
-						'UPDATE "URIs" SET "entryID" = $1'+
-						' WHERE "URI" IN ('+sql.list1D(h.URNs, 2)+')',
-						[entryID].concat(h.URNs),
-						function(err, results) {
-							if(err) return callback(err, null);
-							if(!p.links.length) {
-								callback(null, h.primaryURN, entryID);
-								return;
-							}
-							sql.debug(session.db,
-								'INSERT INTO "links"'+
-								' ("fromEntryID", "toUriID", "direct", "indirect")'+
-								' SELECT $1, "uriID", true, 1'+
-								' FROM "URIs" WHERE "URI" IN ('+sql.list1D(p.links, 2)+')',
-								[entryID].concat(p.links),
-								function(err, results) {
-									if(err) return callback(err, null);
-									// TODO
-									// 1. Add meta-links to the meta-entries
-									// 2. Recurse over links and add indirect rows
-									callback(null, h.primaryURN, entryID);
-								}
-							);
-						}
-					);
-				}
-			);
-		}
-	);
-}
-function addEntrySource(session, entryID, targets, callback/* (err) */) {
-	sql.debug(session.db,
-		'INSERT INTO "sources" ("entryID", "userID")'+
-		' VALUES ($1, $2)'+
-		' RETURNING "sourceID"',
-		[entryID, session.userID],
-		function(err, results) {
-			if(err) return callback(err, null);
-			var sourceID = results.rows[0].sourceID;
-			sql.debug(session.db,
-				'SELECT "userID" FROM "users"'+
-				' WHERE "username" IN ('+sql.list1D(targets, 1)+')'+
-				' UNION'+
-				' SELECT 0 WHERE \'public\' IN ('+sql.list1D(targets, targets.length+1)+')',
-				targets.concat(targets),
-				function(err, results) {
-					if(err) return callback(err, null);
-					var targetIDs = results.rows.map(function(row) {
-						return row.userID;
-					}).concat([session.userID]).unique();
-					var params = targetIDs.map(function(targetID) {
-						return [entryID, targetID, sourceID];
-					});
-					sql.debug(session.db,
-						'INSERT INTO "targets" ("entryID", "userID", "sourceID")'+
-						' VALUES '+sql.list2D(params, 1)+'',
-						sql.flatten(params),
-						function(err, results) {
-							if(err) return callback(err, null);
-							callback(null);
-						}
-					);
-				}
-			);
-		}
-	);
-}
-
-Session.prototype.entryForURN = function(URN, callback/* (err, entryID, hash, path, type) */) {
-	var session = this;
-	if(!(session.mode & Repo.O_RDONLY)) return callback(new Error("No permission"), null);
-	sql.debug(session.db,
-		'SELECT e."entryID", e."hash", e."type"'+
-		' FROM "entries" AS e'+
-		' LEFT JOIN "URIs" AS u ON (u."entryID" = e."entryID")'+
-		' LEFT JOIN "targets" AS t ON (u."entryID" = t."entryID")'+
-		' WHERE u."URI" = $1 AND t."userID" = $2', [URN, session.userID],
-		function(err, results) {
-			if(err) return callback(err, null, null, null);
-			if(!results.rows.length) return callback({httpStatusCode: 404, message: "Not Found"}, null, null, null);
-			var row = results.rows[0];
-			var path = session.repo.pathForEntry(row.hash);
-			callback(null, row.entryID, row.hash, path, row.type);
-		}
-	);
-};
-Session.prototype.metadataForURN = function(URN, callback/* (err, info) */) {
-	var session = this;
-	if(!(session.mode & Repo.O_RDONLY)) return callback(new Error("No permission"), null);
-	// TODO: Reduce redundancy.
-	sql.debug(session.db,
-		'SELECT DISTINCT COALESCE(u."username", \'public\') AS "source"'+
-		' FROM "sources" AS x'+
-		' LEFT JOIN "users" AS u ON (u."userID" = x."userID")'+
-		' LEFT JOIN "URIs" AS n ON (n."entryID" = x."entryID")'+
-		' LEFT JOIN "targets" AS t ON (t."entryID" = x."entryID")'+
-		' WHERE'+
-			' (u."username" IS NOT NULL OR x."userID" = 0)'+
-			' AND n."URI" = $1'+
-			' AND t."userID" = $2',
-		[URN, session.userID],
-		function(err, results) {
-			if(err) return callback(err, null);
-			var sources = results.rows.map(function(row) {
-				return row.source;
-			});
-			sql.debug(session.db,
-				'SELECT DISTINCT COALESCE(u."username", \'public\') AS "target"'+
-				' FROM "targets" AS x'+
-				' LEFT JOIN "users" AS u ON (u."userID" = x."userID")'+
-				' LEFT JOIN "URIs" AS n ON (n."entryID" = x."entryID")'+
-				' LEFT JOIN "targets" AS t ON (t."entryID" = x."entryID")'+
-				' WHERE'+
-					' (u."username" IS NOT NULL OR x."userID" = 0)'+
-					' AND n."URI" = $1'+
-					' AND t."userID" = $2',
-				[URN, session.userID],
-				function(err, results) {
-					if(err) return callback(err, null);
-					var targets = results.rows.map(function(row) {
-						return row.target;
-					});
-					callback({
-						"sources": sources,
-						"targets": targets,
-						"URNs": [],
-						// TODO: Alternate URNs, earliest submission date?
-						// Possibly list of submission dates with full meta-data for each?
-					});
-				}
-			);
-		}
-	);
+	session.repo = null;
+	session.db.end();
+	session.userID = null;
+	session.mode = Session.O_NONE;
 };
 
-var util = require("util");
 Session.prototype.parseQuery = function(string, language, callback/* (err, query) */) {
 	var session = this;
-	if(!(session.mode & Repo.O_RDONLY)) return callback(new Error("No permission"), null);
-	Queries.parse(string, language, session.userID, callback);
+	if(!(session.mode & Session.O_RDONLY)) return callback(new Error("No permission"), null);
+	for(var i = 0; i < parsers.length; ++i) {
+		if(!parsers[i].acceptsLanguage(language)) continue;
+		return parsers[i].parseQuery(query, language, function(err, query) {
+			if(err) return callback(err, null);
+			callback(null, new queryModule.User(session.userID, query));
+		});
+	}
+	callback(new Error("Invalid language"), null);
 };
+Session.prototype.addIncomingFile = function(file, targets, callback/* (err, fileID) */) {
+	run(function() {
+		var session = this;
+		if(!(session.mode & Session.O_WRONLY)) throw new Error("No permission");
+		if(!file.size) throw new Error("Empty file");
+		queryF(session.db, "BEGIN TRANSACTION", []).wait();
+		try {
+			var fileID = addFileRowF(session, file).wait();
+			var submissionID = addFileSubmissionF(session, fileID).wait();
+			var tasks = [];
+			tasks.push(addFileDataF(session, file));
+			tasks.push(addFileHashesF(session, fileID, file));
+			tasks.push(addFileIndexF(session, fileID, file));
+			tasks.push(addFileLinksF(session, fileID, file));
+			tasks.push(addFileSubmissionTargetsF(session, submissionID, file));
+			Future.wait(tasks);
+			queryF(session.db, "COMMIT", []).wait();
+			file.fileID = fileID;
+			return fileID;
+		} catch(err) {
+			var tasks = [];
+			tasks.push(queryF(session.db, "ROLLBACK", []));
+			if(file.internalPath) tasks.push(unlinkF(file.internalPath));
+			Future.wait(tasks);
+			return null;
+		}
+	}, function(err, fileID) {
+		callback(err, fileID);
+		if(!err) session.repo.emit("submission", file);
+	});
+};
+Session.prototype.submissionsForHash = function(algorithm, hash, callback/* (err, submissions) */) {
+	run(function() {
+		var session = this;
+		if(!(session.mode & Session.O_RDONLY)) throw new Error("No permission");
+		return queryF(session.db,
+			'SELECT s."submissionID, u."username", s."timestamp""\n'
+			+'FROM "submissions" AS s\n'
+			+'INNER JOIN "hashes" AS h ON (h."fileID" = s."fileID")\n'
+			+'INNER JOIN "targets" AS t ON (t."submissionID" = s."submissionID")\n'
+			+'INNER JOIN "users" AS u ON (u."userID" = s."userID")\n'
+			+'WHERE\n\t'
+				+'h."algorithm" = $1 AND h."hash" = $2\n'
+			+'AND\n\t'
+				+'t."userID" = $3\n'
+			+'ORDER BY s."submissionID" ASC',
+			[algorithm, hash, session.userID]).wait().rows;
+	}, callback);
+};
+Session.prototype.fileForSubmissionID = function(submissionID, callback/* (err, file) */) {
+	run(function() {
+		var session = this;
+		if(!(session.mode & Session.O_RDONLY)) throw new Error("No permission");
+		var repo = session.repo;
+		var file = queryF(session.db,
+			'SELECT\n\t'
+				+'f."fileID", f."type", f."internalHash", f."size",\n\t'
+				+'s."timestamp"\n\t'
+				+'u."username" AS "source"\n'
+			+'FROM "files" AS f\n'
+			+'INNER JOIN "submissions" AS s ON (s."fileID" = f."fileID")\n'
+			+'INNER JOIN "targets" AS t ON (t."submissionID" = s."submissionID")\n'
+			+'INNER JOIN "users" AS u ON (u."userID" = s."userID")\n'
+			+'WHERE s."submissionID" = $1 AND t."userID" = $2',
+			[submissionID, session.userID]).wait().rows[0];
+		var URIs = queryF(session.db,
+			'SELECT h."algorithm", h."hash"\n'
+			+'FROM "hashes" AS h\n'
+			+'INNER JOIN "fileHashes" AS f ON (f."hashID" = h."hashID")\n'
+			+'WHERE f."fileID" = $1',
+			[file.fileID]).wait().rows.map(function(row) {
+				return "earth://"+row.algorithm+"/"+row.hash;
+			});
+		var targets = queryF(session.db,
+			'SELECT u."username"\n'
+			+'FROM "targets" AS t\n'
+			+'INNER JOIN "users" AS u ON (u."userID" = t."userID")\n'
+			+'WHERE t."submissionID" = $1 AND t."userID" != $2',
+			[submissionID, session.userID]).wait().rows.map(function(row) {
+				return row.username;
+			});
+		return {
+			submissionID: submissionID,
+			fileID: file.fileID,
+			type: file.type,
+			internalHash: file.internalHash,
+			internalPath: repo.internalPathForHash(file.internalHash),
+			size: file.size,
+			source: file.source,
+			targets: targets,
+			URIs: URIs,
+		};
+	}, callback);
+};
+
+function addFileRow(session, file, callback/* (err, fileID) */) {
+	run(function() {
+		return queryF(session.db,
+			'INSERT INTO "files" ("type", "internalHash", "size")\n'
+			+'VALUES ($1, $2, $3)\n'
+			+'RETURNING "fileID"',
+			[file.type, file.internalHash, file.size]).wait().rows[0].fileID;
+	}, callback);
+}
+function addFileSubmission(session, fileID, callback/* (err, submissionID) */) {
+	run(function() {
+		return queryF(session.db,
+			'INSERT INTO "submissions" ("fileID", "userID")\n'
+			+'VALUES ($1, $2)\n'
+			+'RETURNING "submissionID"',
+			[fileID, session.userID]).wait().rows[0].submissionID;
+	}, callback);
+}
+function addFileData(session, file, callback) {
+	run(function() {
+		var src = file.originalPath;
+		var dst = file.internalPath;
+		mkdirpF(pathModule.dirname(dst)).wait();
+		linkF(src, dst).wait(); // TODO: Try `renameF()` if this fails?
+		if(!file.keepOriginal) unlinkF(src).wait();
+	}, callback);
+};
+function addFileHashes(session, fileID, file, callback) {
+	run(function() {
+		var vals = [];
+		Object.keys(file.hashes).forEach(function(algorithmCaseSensitive) {
+			var algorithm = algorithmCaseSensitive.toLowerCase();
+			file.hashes[algorithm].forEach(function(hash) {
+				vals.push([algorithm, hash]);
+			});
+		});
+		if(!vals.length) throw new Error("No hashes");
+		queryF(session.db, 
+			'INSERT INTO "hashes" ("algorithm", "hash")\n'
+			+'VALUES '+sql.list2D(vals, 1)+'',
+			sql.flatten(vals)).wait();
+		queryF(session.db,
+			'INSERT INTO "fileHashes" ("fileID", "hashID")\n'
+			+'SELECT $1, "hashID" FROM "hashes"\n'
+			+'WHERE ("algorithm", "hash") IN '+sql.list2D(vals, 2)+'',
+			[fileID].concat(sql.flatten(vals))).wait();
+	}, callback);
+}
+function addFileIndex(session, fileID, file, callback) {
+	run(function() {
+		queryF(session.db,
+			'INSERT INTO "fileIndexes" ("fileID", "index")\n'
+			+'VALUES ($1, to_tsvector(\'english\', $2)',
+			[fileID, file.index]).wait();
+	}, callback);
+}
+function addFileLinks(session, fileID, file, callback) {
+	run(function() {
+		var vals = file.links.map(function(link) {
+			return [fileID, link];
+		});
+		if(!vals.length) return;
+		queryF(session.db,
+			'INSERT INTO "fileLinks" ("fileID", "link")\n'
+			+'VALUES '+sql.list2D(vals, 1)+'',
+			sql.flatten(vals)).wait();
+	}, callback);
+}
+function addFileSubmissionTargets(session, submissionID, file, callback) {
+	run(function() {
+		var list = sql.list1D(file.targets, 3) || "null";
+		queryF(session.db,
+			'INSERT INTO "targets" ("submissionID", "userID")\n\t'
+				+'SELECT $1, $2\n'
+			+'UNION\n\t'
+				+'SELECT $1, 0 WHERE 'public' IN ('+list+')\n'
+			+'UNION\n\t'
+				+'SELECT $1, "userID FROM "users"\n\t'
+				+'WHERE "username" IN ('+list+')',
+			[submissionID, session.userID].concat(targets)).wait();
+	}, callback);
+}
+
+Session.O_NONE = 0;
+Session.O_RDONLY = 1 << 0;
+Session.O_WRONLY = 1 << 1;
+Session.O_RDWR = Session.O_RDONLY | Session.O_WRONLY;
 

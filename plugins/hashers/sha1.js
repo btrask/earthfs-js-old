@@ -16,26 +16,18 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
 FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE. */
-var fs = require("fs");
-var util = require("util");
-var PEG = require("pegjs");
-var parser = PEG.buildParser(fs.readFileSync(__dirname+"/parser.pegjs", "utf8"));
-var query = require("../../../classes/query");
+var crypto = require("crypto");
 
-exports.supports = function(language) {
-	return "simple" === language;
-};
-exports.parse = function(str, callback/* (err, query) */) {
-	callback(null, translate(parser.parse(str)));
+exports.algorithm = "sha1";
+exports.createHashes = function(stream, type, callback/* (array) */) {
+	var sha1 = crypto.createHash("sha1");
+	stream.pipe(sha1);
+	stream.on("end", function() {
+		var hash = sha1.read();
+		callback([
+			hash.toString("hex"),
+			hash.toString("base64"),
+		]);
+	});
 };
 
-function translate(x) {
-	if("string" === typeof x) return x;
-	if(Array.isArray(x)) return x.map(translate);
-	return newApply(query[x.type], translate(x.args));
-}
-function newApply(Class, args) {
-	// http://stackoverflow.com/a/8843181
-	// Use of .apply() with 'new' operator. Is this possible?
-	return new (Function.prototype.bind.apply(Class, [null].concat(args)));
-}

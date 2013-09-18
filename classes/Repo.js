@@ -43,29 +43,31 @@ function Repo(path, config) {
 	repo.config = config;
 	repo.PATH = pathModule.resolve(path, config["path"] || "");
 	repo.DATA = pathModule.resolve(repo.PATH, config["dataPath"] || "./entries");
+	repo.TMP = os.tmpdir(); // TODO: Same volume as DATA?
 	repo.KEY = pathModule.resolve(repo.PATH, config["keyPath"] || "./server.key");
 	repo.CERT = pathModule.resolve(repo.PATH, config["certPath"] || "./server.crt");
-	repo.db = new pg.Client(config["db"]); // TODO: Use client pool.
-	repo.db.connect();
+	repo.db = new Error("Use `session.db` instead");
 	repo.key = null;
 	repo.cert = null;
 	repo.clients = [];
 }
 util.inherits(Repo, EventEmitter);
 
-Repo.prototype.pathForEntry = function(hash) {
+Repo.prototype.internalPathForHash = function(internalHash) {
 	var repo = this;
-	return repo.DATA+"/"+hash.slice(0, 2)+"/"+hash;
+	return repo.DATA+"/"+internalHash.slice(0, 2)+"/"+internalHash;
 };
 
 Repo.prototype.auth = function(req, res, mode, callback/* (session) */) {
 	var repo = this;
 	var opts = urlModule.parse(req.url, true).query;
 	var remember = bt.has(opts, "r") && opts["r"];
+	var db = new pg.Client(repo.config["db"]);
+	db.connect();
 	if(bt.has(opts, "u") && bt.has(opts, "p")) {
 		var username = opts["u"];
 		var password = opts["p"];
-		return repo.authUser(username, password, remember, mode, function(err, userID, session, mode) {
+		return repo.authUser(db, username, password, remember, mode, function(err, userID, session, mode) {
 			if(err) return res.sendError(err);
 			res.setHeader("Set-Cookie", cookie.serialize("s", session, {
 				maxAge: remember ? 14 * 24 * 60 * 60 : 0,
@@ -73,90 +75,92 @@ Repo.prototype.auth = function(req, res, mode, callback/* (session) */) {
 				secure: repo.key && repo.cert, // TODO: Hack.
 				path: "/",
 			}));
-			callback(null, new Session(repo, userID, mode));
+			callback(null, new Session(repo, db, userID, mode));
 		});
 	}
 	var cookies = cookie.parse(req.headers["cookie"] || "");
 	if(bt.has(cookies, "s")) {
 		var session = cookies["s"];
-		return repo.authSession(session, mode, function(err, userID, session, mode) {
+		return repo.authSession(db, session, mode, function(err, userID, session, mode) {
 			if(err) return res.sendError(err);
-			callback(null, new Session(repo, userID, mode));
+			callback(null, new Session(repo, db, userID, mode));
 		});
 	}
-	repo.authPublic(mode, function(err, userID, session, mode) {
+	repo.authPublic(db, mode, function(err, userID, session, mode) {
 		if(err) return res.sendError(err);
-		callback(null, new Session(repo, userID, mode));
+		callback(null, new Session(repo, db, userID, mode));
 	});
 };
-Repo.prototype.authUser = function(username, password, remember, mode, callback/* (err, userID, session, mode) */) {
+Repo.prototype.authUser = function(db, username, password, remember, mode, callback/* (err, userID, session, mode) */) {
 	var repo = this;
-	repo.db.query(
-		'SELECT "userID", "passwordHash", "tokenHash"'+
-		' FROM "users" WHERE "username" = $1',
+	db.query(
+		'SELECT "userID", "passwordHash", "tokenHash"\n'
+		+'FROM "users" WHERE "username" = $1',
 		[username],
 		function(err, results) {
 			var row = results.rows[0];
-			if(err) return callback(FORBIDDEN, null, null, Repo.O_NONE);
-			if(results.rows.length < 1) return callback(FORBIDDEN, null, null, Repo.O_NONE);
+			if(err) return callback(FORBIDDEN, null, null, Session.O_NONE);
+			if(results.rows.length < 1) return callback(FORBIDDEN, null, null, Session.O_NONE);
 			if(bcrypt.compareSync(password, row.passwordHash)) {
-				return createSession(repo, row.userID, Repo.O_RDWR, remember, function(err, session, sessionMode) {
-					if(err) return callback(err, null, null, Repo.O_NONE);
+				return createSession(repo, row.userID, Session.O_RDWR, remember, function(err, session, sessionMode) {
+					if(err) return callback(err, null, null, Session.O_NONE);
 					callback(null, row.userID, session, sessionMode);
 				});
 			}
-			if((mode & Repo.O_RDONLY) !== mode) return callback(FORBIDDEN, null, null, Repo.O_NONE);
+			if((mode & Session.O_RDONLY) !== mode) return callback(FORBIDDEN, null, null, Session.O_NONE);
 			if(bcrypt.compareSync(password, row.tokenHash)) {
-				return createSession(repo, row.userID, Repo.O_RDONLY, remember, function(err, session, sessionMode) {
-					if(err) return callback(err, null, null, Repo.O_NONE);
+				return createSession(repo, row.userID, Session.O_RDONLY, remember, function(err, session, sessionMode) {
+					if(err) return callback(err, null, null, Session.O_NONE);
 					callback(null, row.userID, session, sessionMode);
 				});
 			}
-			callback(FORBIDDEN, null, null, Repo.O_NONE);
+			callback(FORBIDDEN, null, null, Session.O_NONE);
 		}
 	);
 };
-Repo.prototype.authSession = function(sessionBlob, mode, callback/* (err, userID, session, mode) */) {
+Repo.prototype.authSession = function(db, sessionBlob, mode, callback/* (err, userID, session, mode) */) {
 	var repo = this;
 	var match = /(\d+):(.*)+/.exec(sessionBlob);
-	if(!match) return callback(new Error("Invalid session"), null, null, Repo.O_NONE);
+	if(!match) return callback(new Error("Invalid session"), null, null, Session.O_NONE);
 	var sessionID = match[1];
 	var session = match[2];
-	repo.db.query(
-		'SELECT "sessionHash", "userID", "modeRead", "modeWrite" FROM "sessions"'+
-		' WHERE "sessionID" = $1 AND "sessionTime" > NOW() - INTERVAL \'14 days\'',
+	db.query(
+		'SELECT "sessionHash", "userID", "modeRead", "modeWrite" FROM "sessions"\n'
+		+'WHERE "sessionID" = $1 AND "sessionTime" > NOW() - INTERVAL \'14 days\'',
 		[sessionID],
 		function(err, results) {
-			if(err) return callback(err, null, null, Repo.O_NONE);
-			if(results.rows.length < 1) return callback(FORBIDDEN, null, null, Repo.O_NONE);
+			if(err) return callback(err, null, null, Session.O_NONE);
+			if(results.rows.length < 1) return callback(FORBIDDEN, null, null, Session.O_NONE);
 			var row = results.rows[0];
 			var sessionMode =
-				(row.modeRead ? Repo.O_RDONLY : 0) |
-				(row.modeWrite ? Repo.O_WRONLY : 0);
+				(row.modeRead ? Session.O_RDONLY : 0) |
+				(row.modeWrite ? Session.O_WRONLY : 0);
 			// TODO: If FORBIDDEN, tell the client to clear the cookie?
 			// Not in the case of insufficient mode though.
-			if((mode & sessionMode) !== mode) return callback(FORBIDDEN, null, null, Repo.O_NONE);
+			if((mode & sessionMode) !== mode) return callback(FORBIDDEN, null, null, Session.O_NONE);
 			if(bcrypt.compareSync(session, row.sessionHash)) {
 				return callback(null, row.userID, sessionBlob, sessionMode);
 			}
-			callback(FORBIDDEN, null, null, Repo.O_NONE);
+			callback(FORBIDDEN, null, null, Session.O_NONE);
 		}
 	);
 };
-Repo.prototype.authPublic = function(mode, callback/* (err, userID, session, mode) */) {
+Repo.prototype.authPublic = function(db, mode, callback/* (err, userID, session, mode) */) {
 	var repo = this;
-	var publicMode = Repo.O_RDONLY; // TODO: Configurable.
-	if((mode & publicMode) !== mode) return callback(FORBIDDEN, null, null, Repo.O_NONE);
+	var publicMode = Session.O_RDONLY; // TODO: Configurable.
+	if((mode & publicMode) !== mode) return callback(FORBIDDEN, null, null, Session.O_NONE);
 	callback(null, 0, null, publicMode);
 };
 function createSession(repo, userID, mode, remember, callback/* (err, session, mode) */) {
 	crypto.randomBytes(20, function(err, buffer) {
 		var session = buffer.toString("base64");
 		var sessionHash = bcrypt.hashSync(session, 10);
-		repo.db.query(
-			'INSERT INTO "sessions" ("sessionHash", "userID", "modeRead", "modeWrite")'+
-			' VALUES ($1, $2, $3, $4) RETURNING "sessionID"',
-			[sessionHash, userID, Boolean(mode & Repo.O_RDONLY), Boolean(mode & Repo.O_WRONLY)],
+		db.query(
+			'INSERT INTO "sessions"\n\t'
+				+'("sessionHash", "userID", "modeRead", "modeWrite")\n'
+			+'VALUES ($1, $2, $3, $4)\n'
+			+'RETURNING "sessionID"',
+			[sessionHash, userID, Boolean(mode & Session.O_RDONLY), Boolean(mode & Session.O_WRONLY)],
 			function(err, result) {
 				var row = result.rows[0];
 				if(err) return callback(err, null);
@@ -165,6 +169,7 @@ function createSession(repo, userID, mode, remember, callback/* (err, session, m
 		);
 	});
 }
+
 
 Repo.load = function(path, callback/* (err, repo) */) {
 	var configPath = pathModule.resolve(path, "./EarthFS.json");
@@ -189,9 +194,4 @@ Repo.loadSync = function(path) {
 	try { repo.cert = fs.readFileSync(repo.CERT); } catch(e) {}
 	return repo;
 };
-
-Repo.O_NONE = 0;
-Repo.O_RDONLY = 1 << 0;
-Repo.O_WRONLY = 1 << 1;
-Repo.O_RDWR = Repo.O_RDONLY | Repo.O_WRONLY;
 
