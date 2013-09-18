@@ -255,7 +255,7 @@ function addFileSubmissionTargets(session, submissionID, file, callback) {
 			'INSERT INTO "targets" ("submissionID", "userID")\n\t'
 				+'SELECT $1, $2\n'
 			+'UNION\n\t'
-				+'SELECT $1, 0 WHERE 'public' IN ('+list+')\n'
+				+'SELECT $1, 0 WHERE \'public\' IN ('+list+')\n'
 			+'UNION\n\t'
 				+'SELECT $1, "userID FROM "users"\n\t'
 				+'WHERE "username" IN ('+list+')',

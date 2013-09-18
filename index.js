@@ -190,7 +190,7 @@ function search(req, res, url, session, query, callback/* (err) */) {
 			tab+'ORDER BY e."entryID" DESC\n'+
 				limit+
 		') x ORDER BY "entryID" ASC';
-	var stream = sql.debug2(repo.db,
+	var stream = sql.debug2(session.db,
 		fullSQL,
 		obj.parameters
 	);
@@ -217,22 +217,26 @@ server.listen(PORT, function() {
 	// TODO: Optionally set up NAT traversal/UPnP.
 });
 
-var Remote = require("./classes/Remote");
-repo.db.query(
-	'SELECT "userID", "targets", "remoteURL", "query", "username", "password"\n'
-	+'FROM "remotes" WHERE TRUE', [],
-	function(err, results) {
-		if(err) return console.log(err);
-		results.rows.forEach(function(row) {
-			var remote = new Remote(
-				new Session(repo, row.userID, Repo.O_WRONLY),
-				row.targets,
-				row.remoteURL,
-				row.query,
-				row.username,
-				row.password
-			); // TODO: These arguments are getting a little unwieldy...
-		});
-	}
-);
+(function() { // TODO: Move this to Remote.js or Repo.js, make it better.
+	var Remote = require("./classes/Remote");
+	var tmp = new pg.Client(repo.config["db"]);
+	tmp.query(
+		'SELECT "userID", "targets", "remoteURL", "query", "username", "password"\n'
+		+'FROM "remotes" WHERE TRUE', [],
+		function(err, results) {
+			if(err) return console.log(err);
+			results.rows.forEach(function(row) {
+				var remote = new Remote(
+					new Session(repo, row.userID, Repo.O_WRONLY),
+					row.targets,
+					row.remoteURL,
+					row.query,
+					row.username,
+					row.password
+				); // TODO: These arguments are getting a little unwieldy...
+			});
+			tmp.end();
+		}
+	);
+})();
 

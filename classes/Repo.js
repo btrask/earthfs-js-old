@@ -24,6 +24,7 @@ var EventEmitter = require("events").EventEmitter;
 var util = require("util");
 var crypto = require("crypto");
 var urlModule = require("url");
+var os = require("os");
 
 var pg = require("pg");
 var bcrypt = require("bcrypt");
