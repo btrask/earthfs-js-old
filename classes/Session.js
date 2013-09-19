@@ -38,7 +38,8 @@ var plugins = require("../plugins");
 var parsers = plugins.parsers;
 
 var queryF = Future.wrap(sql.debug);
-var mkdirpF = Future.wrap(mkdirp);
+var mkdirpF = Future.wrap(function(path, callback) { mkdirp(path, callback); });
+var linkF = Future.wrap(fs.link);
 var unlinkF = Future.wrap(fs.unlink);
 
 var addFileRowF = Future.wrap(addFileRow);
@@ -52,7 +53,7 @@ var addFileSubmissionTargetsF = Future.wrap(addFileSubmissionTargets);
 function run(func, callback) {
 	Fiber(function() {
 		var val;
-		try { val = func(); } 
+		try { val = func(); }
 		catch(err) { return callback(err, null); }
 		callback(null, val);
 	}).run();
@@ -85,7 +86,7 @@ Session.prototype.parseQuery = function(string, language, callback/* (err, query
 	}
 	callback(new Error("Invalid language"), null);
 };
-Session.prototype.addIncomingFile = function(file, callback/* (err, fileID) */) {
+Session.prototype.addIncomingFile = function(file, callback/* (err, outgoingFile) */) {
 	var session = this;
 	run(function() {
 		if(!(session.mode & Session.O_WRONLY)) throw new Error("No permission");
@@ -102,18 +103,30 @@ Session.prototype.addIncomingFile = function(file, callback/* (err, fileID) */) 
 			tasks.push(addFileSubmissionTargetsF(session, submissionID, file));
 			Future.wait(tasks);
 			queryF(session.db, "COMMIT", []).wait();
-			file.fileID = fileID;
-			return fileID;
+			return {
+				submissionID: submissionID,
+				fileID: fileID,
+				internalHash: file.internalHash,
+				internalPath: file.internalPath, // TODO: Don't leak this.
+				type: file.type,
+				size: file.size,
+				// TODO: This should ideally match `fileForSubmissionID()`.
+				source: null,
+				targets: null,
+				URIs: null,
+			};
 		} catch(err) {
 			var tasks = [];
 			tasks.push(queryF(session.db, "ROLLBACK", []));
-			if(file.internalPath) tasks.push(unlinkF(file.internalPath));
+//			if(file.internalPath) tasks.push(unlinkF(file.internalPath));
+			// Blindly unlinking is NOT SAFE if the file was a duplicate.
+			// TODO: A more reasoned appraoch.
 			Future.wait(tasks);
 			throw err;
 		}
-	}, function(err, fileID) {
-		callback(err, fileID);
-		if(!err) session.repo.emit("submission", file);
+	}, function(err, outgoingFile) {
+		callback(err, outgoingFile);
+		if(!err) session.repo.emit("submission", outgoingFile);
 	});
 };
 Session.prototype.submissionsForHash = function(algorithm, hash, callback/* (err, submissions) */) {
@@ -170,7 +183,7 @@ Session.prototype.fileForSubmissionID = function(submissionID, callback/* (err, 
 			submissionID: submissionID,
 			fileID: file.fileID,
 			internalHash: file.internalHash,
-			internalPath: repo.internalPathForHash(file.internalHash),
+			internalPath: repo.internalPathForHash(file.internalHash), // TODO: Don't leak this.
 			type: file.type,
 			size: file.size,
 			source: file.source,
@@ -182,11 +195,14 @@ Session.prototype.fileForSubmissionID = function(submissionID, callback/* (err, 
 
 function addFileRow(session, file, callback/* (err, fileID) */) {
 	run(function() {
-		return queryF(session.db,
+		queryF(session.db,
 			'INSERT INTO "files" ("internalHash", "type", "size")\n'
-			+'VALUES ($1, $2, $3)\n'
-			+'RETURNING "fileID"',
-			[file.internalHash, file.type, file.size]).wait().rows[0].fileID;
+			+'VALUES ($1, $2, $3)',
+			[file.internalHash, file.type, file.size]).wait();
+		return queryF(session.db,
+			'SELECT "fileID" FROM "files"\n'
+			+'WHERE "internalHash" = $1 AND "type" = $2',
+			[file.internalHash, file.type]).wait().rows[0].fileID;
 	}, callback);
 }
 function addFileSubmission(session, fileID, callback/* (err, submissionID) */) {
@@ -203,7 +219,11 @@ function addFileData(session, file, callback) {
 		var src = file.originalPath;
 		var dst = file.internalPath;
 		mkdirpF(pathModule.dirname(dst)).wait();
-		linkF(src, dst).wait(); // TODO: Try `renameF()` if this fails?
+		try {
+			linkF(src, dst).wait();
+		} catch(err) {
+			if("EEXIST" !== err.code) throw err; // TODO: Try `renameF()`?
+		}
 		if(!file.keepOriginal) unlinkF(src).wait();
 	}, callback);
 };
@@ -224,7 +244,7 @@ function addFileHashes(session, fileID, file, callback) {
 		queryF(session.db,
 			'INSERT INTO "fileHashes" ("fileID", "hashID")\n'
 			+'SELECT $1, "hashID" FROM "hashes"\n'
-			+'WHERE ("algorithm", "hash") IN '+sql.list2D(vals, 2)+'',
+			+'WHERE ("algorithm", "hash") IN '+sql.list2D(vals, 2)+'', 
 			[fileID].concat(sql.flatten(vals))).wait();
 	}, callback);
 }
@@ -232,7 +252,7 @@ function addFileIndex(session, fileID, file, callback) {
 	run(function() {
 		queryF(session.db,
 			'INSERT INTO "fileIndexes" ("fileID", "index")\n'
-			+'VALUES ($1, to_tsvector(\'english\', $2)',
+			+'VALUES ($1, to_tsvector(\'english\', $2))',
 			[fileID, file.index]).wait();
 	}, callback);
 }
@@ -250,16 +270,15 @@ function addFileLinks(session, fileID, file, callback) {
 }
 function addFileSubmissionTargets(session, submissionID, file, callback) {
 	run(function() {
-		var list = sql.list1D(file.targets, 3) || "null";
 		queryF(session.db,
 			'INSERT INTO "targets" ("submissionID", "userID")\n\t'
-				+'SELECT $1, $2\n'
+				+'SELECT $1::bigint, $2\n'
 			+'UNION\n\t'
-				+'SELECT $1, 0 WHERE \'public\' IN ('+list+')\n'
+				+'SELECT $1::bigint, 0 WHERE \'public\' IN ('+sql.list1D(file.targets, 3)+')\n'
 			+'UNION\n\t'
-				+'SELECT $1, "userID FROM "users"\n\t'
-				+'WHERE "username" IN ('+list+')',
-			[submissionID, session.userID].concat(targets)).wait();
+				+'SELECT $1::bigint, "userID" FROM "users"\n\t'
+				+'WHERE "username" IN ('+sql.list1D(file.targets, 3)+')',
+			[submissionID, session.userID].concat(file.targets)).wait();
 	}, callback);
 }
 

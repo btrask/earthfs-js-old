@@ -79,9 +79,6 @@ function IncomingFile(repo, type, targets) {
 	file.internalPath = null;
 	file.index = null;
 	file.links = null;
-
-	// Set on add to repo.
-	file.fileID = null;
 }
 IncomingFile.prototype.loadFromFile = function(path, callback/* (err) */) {
 	var file = this;
@@ -119,7 +116,7 @@ IncomingFile.prototype.load = function(path, stream, callback/* (err) */) {
 	}));
 	createIndex(streamCopy(stream), file.type, collection.add(function(index) {
 		file.index = index;
-		// TODO: Parse for links. Make sure to normalize them.
+		file.links = []; // TODO: Parse for links. Make sure to normalize them.
 	}));
 	streamLength(streamCopy(stream), collection.add(function(size) {
 		file.size = size;

@@ -33,6 +33,7 @@ var bt = require("./utilities/bt");
 var fsx = require("./utilities/fsx");
 var http = require("./utilities/httpx");
 var sql = require("./utilities/sql"); // TODO: We shouldn't be doing any DB access here.
+var MIME = require("./utilities/mime");
 
 var Client = require("./classes/Client"); // TODO: We shouldn't need this once we handle queries better.
 var query = require("./classes/query");
@@ -133,13 +134,15 @@ register("POST", /^\/api\/file\/?$/, function(req, res, url) {
 		var form = new multiparty.Form();
 		form.on("part", function(part) {
 			if("file" !== part.name) return;
-			var type = part.headers["content-type"];
+			var ext = pathModule.extname(part.filename);
+			var type = part.headers["content-type"] || (has(MIME, ext) && MIME[ext]);
+			if(!type) return res.message(400, "Bad Request"); // TODO: Something?
 			var file = new IncomingFile(repo, type, targets);
 			file.loadFromStream(part, function(err) {
 				if(err) return res.sendError(err);
-				session.addIncomingFile(file, function(err, fileID) {
+				session.addIncomingFile(file, function(err, outgoingFile) {
 					if(err) res.sendError(err);
-					res.sendJSON(200, "OK", file);
+					res.sendJSON(200, "OK", outgoingFile);
 				});
 			});
 		});
