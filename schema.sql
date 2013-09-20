@@ -572,6 +572,13 @@ CREATE INDEX "hashesIndex" ON hashes USING btree (algorithm, hash);
 
 
 --
+-- Name: fileHashesOnDuplicateDoNothing; Type: RULE; Schema: public; Owner: postgres
+--
+
+CREATE RULE "fileHashesOnDuplicateDoNothing" AS ON INSERT TO "fileHashes" WHERE (EXISTS (SELECT 1 FROM "fileHashes" old WHERE ((old."fileID" = new."fileID") AND (old."hashID" = new."hashID")))) DO INSTEAD NOTHING;
+
+
+--
 -- Name: fileLinksOnDuplicateDoNothing; Type: RULE; Schema: public; Owner: postgres
 --
 

@@ -139,9 +139,10 @@ Session.prototype.submissionsForHash = function(algorithm, hash, callback/* (err
 	run(function() {
 		if(!(session.mode & Session.O_RDONLY)) throw new Error("No permission");
 		return queryF(session.db,
-			'SELECT s."submissionID, u."username", s."timestamp""\n'
+			'SELECT s."submissionID", u."username", s."timestamp"\n'
 			+'FROM "submissions" AS s\n'
-			+'INNER JOIN "hashes" AS h ON (h."fileID" = s."fileID")\n'
+			+'INNER JOIN "fileHashes" AS f ON (f."fileID" = s."fileID")\n'
+			+'INNER JOIN "hashes" AS h ON (h."hashID" = f."hashID")\n'
 			+'INNER JOIN "targets" AS t ON (t."submissionID" = s."submissionID")\n'
 			+'INNER JOIN "users" AS u ON (u."userID" = s."userID")\n'
 			+'WHERE\n\t'
