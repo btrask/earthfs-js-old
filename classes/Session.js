@@ -255,7 +255,7 @@ function addFileHashes(session, fileID, file, callback) {
 }
 function addFileIndex(session, fileID, file, callback) {
 	run(function() {
-		queryF(session.db,
+		if("" !== file.index) queryF(session.db,
 			'INSERT INTO "fileIndexes" ("fileID", "index")\n'
 			+'VALUES ($1, to_tsvector(\'english\', $2))',
 			[fileID, file.index]).wait();
