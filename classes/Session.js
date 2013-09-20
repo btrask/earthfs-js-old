@@ -249,7 +249,7 @@ function addFileHashes(session, fileID, file, callback) {
 		queryF(session.db,
 			'INSERT INTO "fileHashes" ("fileID", "hashID")\n'
 			+'SELECT $1, "hashID" FROM "hashes"\n'
-			+'WHERE ("algorithm", "hash") IN '+sql.list2D(vals, 2)+'', 
+			+'WHERE ("algorithm", "hash") IN ('+sql.list2D(vals, 2)+')', 
 			[fileID].concat(sql.flatten(vals))).wait();
 	}, callback);
 }
