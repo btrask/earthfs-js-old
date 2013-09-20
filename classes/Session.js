@@ -38,7 +38,7 @@ var plugins = require("../plugins");
 var parsers = plugins.parsers;
 
 var queryF = Future.wrap(sql.debug);
-var mkdirpF = Future.wrap(function(path, callback) { mkdirp(path, callback); });
+var mkdirpF = Future.wrap(mkdirp, 1);
 var linkF = Future.wrap(fs.link);
 var unlinkF = Future.wrap(fs.unlink);
 
@@ -102,6 +102,8 @@ Session.prototype.addIncomingFile = function(file, callback/* (err, outgoingFile
 			tasks.push(addFileLinksF(session, fileID, file));
 			tasks.push(addFileSubmissionTargetsF(session, submissionID, file));
 			Future.wait(tasks);
+			tasks.forEach(function(task) { task.get(); }); // Throw errors.
+			// TODO: Submit patch to node-fibers to throw from Future.wait().
 			queryF(session.db, "COMMIT", []).wait();
 			return {
 				submissionID: submissionID,
@@ -122,6 +124,9 @@ Session.prototype.addIncomingFile = function(file, callback/* (err, outgoingFile
 			// Blindly unlinking is NOT SAFE if the file was a duplicate.
 			// TODO: A more reasoned appraoch.
 			Future.wait(tasks);
+			console.error("ROLLBACK");
+			console.error(err);
+			// TODO: Submit patch to node-fibers to preserve original error information. Normally it uses `Object.create(error)` which does not work very well.
 			throw err;
 		}
 	}, function(err, outgoingFile) {
