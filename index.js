@@ -67,6 +67,7 @@ function dispatch(req, res) {
 	var i, handler, method, path;
 	for(i = 0; i < handlers.length; ++i) {
 		handler = handlers[i];
+		// TODO: Don't use regexes for method, just assume HEAD for GET.
 		if("string" === typeof handler.method) {
 			if(handler.method !== req.method) continue;
 			method = [];
@@ -78,11 +79,12 @@ function dispatch(req, res) {
 		if(!path) continue;
 		handler.func.apply(this,
 			[req, res, url]
-			.concat(method.slice(1))
+			.concat(method.slice(1)) // TODO: Use req.method instead.
 			.concat(path.slice(1))
 		);
 		return;
 	}
+	console.log("404", url.pathname);
 	res.sendMessage(404, "Not Found");
 }
 function register(method, path, func/* (req, res, url, arg1, arg2, etc) */) {
@@ -94,18 +96,24 @@ register(/^(GET|HEAD)$/, /^\/api\/submission\/(\d+)\/?$/, function(req, res, url
 	repo.auth(req, res, Repo.O_RDONLY, function(err, session) {
 		if(err) return res.sendError(err);
 		var submissionID = parseInt(submissionIDString, 10);
-		session.fileForSubmissionID(submissionID, function(err, file) {
+		sendSubmission(req, res, session, submissionID);
+	});
+});
+register(/^(GET|HEAD)$/, /^\/api\/file\/([^\/]+)\/([^\/]+)\/([\w\d]+)\/?$/, function(req, res, url, method, encodedAlgorithm, encodedHash, submissionName) {
+	repo.auth(req, res, Repo.O_RDONLY, function(err, session) {
+		if(err) return res.sendError(err);
+		var algorithm = decodeURIComponent(encodedAlgorithm);
+		var hash = decodeURIComponent(encodedHash);
+		session.submissionsForHash(algorithm, hash, function(err, submissions) {
 			if(err) return res.sendError(err);
-			res.writeHead(200, {
-				"Content-Type": file.type,
-				"Content-Length": file.size,
-				"X-Source": file.source,
-				"X-Targets": file.targets.join(", "),
-				"X-Date": file.timestamp, // TODO: Okay to use regular Date header?
-				"X-URIs": file.URIs,
-			});
-			if("HEAD" === method) res.end();
-			else fs.createReadStream(file.internalPath).pipe(res);
+			if(!submissions.length) return res.sendMessage(404, "Not Found");
+			var index;
+			switch(submissionName) {
+				case "first": index = 0; break;
+				case "latest": index = submissions.length - 1; break;
+				default: return res.sendMessage(400, "Bad Request");
+			}
+			sendSubmission(req, res, session, submissions[index]["submissionID"]);
 		});
 	});
 });
@@ -182,6 +190,21 @@ register("GET", /^\/api\/history\/?$/, function(req, res, url) {
 	});
 });
 
+function sendSubmission(req, res, session, submissionID) {
+	session.fileForSubmissionID(submissionID, function(err, file) {
+		if(err) return res.sendError(err);
+		res.writeHead(200, {
+			"Content-Type": file.type,
+			"Content-Length": file.size,
+			"X-Source": file.source,
+			"X-Targets": file.targets.join(", "),
+			"X-Date": file.timestamp, // TODO: Okay to use regular Date header?
+			"X-URIs": file.URIs,
+		});
+		if("HEAD" === req.method) res.end();
+		else fs.createReadStream(file.internalPath).pipe(res);
+	});
+}
 function search(req, res, url, session, query, callback/* (err) */) {
 	var tab = "\t";
 	var obj = query.SQL(1, tab+"\t");

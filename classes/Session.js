@@ -53,8 +53,14 @@ var addFileSubmissionTargetsF = Future.wrap(addFileSubmissionTargets);
 function run(func, callback) {
 	Fiber(function() {
 		var val;
-		try { val = func(); }
-		catch(err) { return callback(err, null); }
+		try {
+			val = func();
+		} catch(err) {
+			console.error(err);
+			// TODO: Submit patch to node-fibers to preserve original error information. Normally it uses `Object.create(error)` which does not work very well.
+			callback(err, null);
+			return;
+		}
 		callback(null, val);
 	}).run();
 }
@@ -125,8 +131,6 @@ Session.prototype.addIncomingFile = function(file, callback/* (err, outgoingFile
 			// TODO: A more reasoned appraoch.
 			Future.wait(tasks);
 			console.error("ROLLBACK");
-			console.error(err);
-			// TODO: Submit patch to node-fibers to preserve original error information. Normally it uses `Object.create(error)` which does not work very well.
 			throw err;
 		}
 	}, function(err, outgoingFile) {
@@ -161,7 +165,7 @@ Session.prototype.fileForSubmissionID = function(submissionID, callback/* (err, 
 		var file = queryF(session.db,
 			'SELECT\n\t'
 				+'f."fileID", f."internalHash", f."type", f."size",\n\t'
-				+'s."timestamp"\n\t'
+				+'s."timestamp",\n\t'
 				+'u."username" AS "source"\n'
 			+'FROM "files" AS f\n'
 			+'INNER JOIN "submissions" AS s ON (s."fileID" = f."fileID")\n'
