@@ -195,8 +195,8 @@ Session.prototype.query = function(queryString, queryLanguage, callback/* (err, 
 	if(!(session.mode & Session.O_RDONLY)) return callback(new Error("No permission"), null);
 	parseQueryString(queryString, queryLanguage, function(err, rawAST) {
 		if(err) return callback(err);
-		var AST = new AST.User(session.userID, rawAST);
-		var query = new Query(session, AST);
+		var ast = new AST.User(session.userID, rawAST);
+		var query = new Query(session, ast);
 		callback(null, query);
 	});
 };

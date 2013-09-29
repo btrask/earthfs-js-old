@@ -24,25 +24,25 @@ var PassThroughStream = require("stream").PassThrough;
 var client = require("efs-client");
 var sql = require("../utilities/sql");
 
-function Query(session, AST) {
-	if(!AST) throw new Error("Invalid AST for Query");
+function Query(session, ast) {
+	if(!ast) throw new Error("Invalid AST for Query");
 	var query = this;
 	EventEmitter.call(query);
 	query.repo = session.repo;
 	query.session = session;
 	query.db = session.db;
 	query.stream = new PassThroughStream; // Buffer until we're ready.
-	query.AST = AST;
-	query.cached = AST.SQL(2, "\t");
-	query.open = false;
+	query.ast = ast;
+	query.cached = ast.SQL(2, "\t");
+	query.streaming = false;
 	query._stream = null;
 	query.heartbeat = null;
 }
 util.inherits(Query, EventEmitter);
 Query.prototype.open = function(stream, offset, limit) {
 	var query = this;
-	if(query.open) throw new Error("Query already open");
-	query.open = true;
+	if(query.streaming) throw new Error("Query already open");
+	query.streaming = true;
 	query._stream = stream;
 	query.heartbeat = setInterval(function() {
 		query._stream.write("\n", "utf8");
@@ -69,15 +69,10 @@ Query.prototype.open = function(stream, offset, limit) {
 		query.close();
 	}
 };
-Query.prototype.send = function(URI) {
-	var query = this;
-	if(!query.open) return;
-	query.stream.write(URI+"\n", "utf8");
-};
 Query.prototype.close = function() {
 	var query = this;
 	if(!query.open) return;
-	query.open = false;
+	query.streaming = false;
 	clearInterval(query.heartbeat);
 	query.heartbeat = null;
 	query.emit("close");
@@ -94,7 +89,7 @@ function sendHistory(query, offset, limit, callback/* (err) */) {
 			lim = 'LIMIT $'+(params.length+1)+'\n';
 			params.push(limit);
 		}
-		obj = AST.SQL(params.length+1, tab+'\t');
+		obj = query.ast.SQL(params.length+1, '\t');
 		params = params.concat(obj.parameters);
 		str =
 			'SELECT "fileID", "internalHash"\n'+
@@ -111,7 +106,7 @@ function sendHistory(query, offset, limit, callback/* (err) */) {
 			lim = tab+'LIMIT $'+(params.length+1)+'\n';
 			params.push(limit);
 		}
-		obj = AST.SQL(params.length+1, tab+'\t');
+		obj = query.ast.SQL(params.length+1, tab+'\t');
 		params = params.concat(obj.parameters);
 		str =
 			'SELECT * FROM (\n'+
@@ -125,7 +120,7 @@ function sendHistory(query, offset, limit, callback/* (err) */) {
 			') x ORDER BY "fileID" ASC';
 		params.push(Math.abs(offset || 0));
 	}
-	var stream = sql.debug2(session.db, str, params);
+	var stream = sql.debug2(query.db, str, params);
 	stream.on("row", function(row) {
 		query._stream.write("earth://sha1/"+row.internalHash+"\n", "utf8");
 	});
@@ -133,6 +128,8 @@ function sendHistory(query, offset, limit, callback/* (err) */) {
 		callback(null);
 	});
 	stream.on("error", function(err) {
+		console.log(err.query);
+		console.log(err.args);
 		callback(err);
 	});
 }
@@ -143,10 +140,10 @@ function sendSubmission(query, obj) {
 		'AS matches', [obj.fileID].concat(query.cached.parameters),
 		function(err, results) {
 			if(err) console.log(err);
-			if(results.rows[0].matches) query.send(client.formatEarthURI({
+			if(results.rows[0].matches) query.stream.write(client.formatEarthURI({
 				algorithm: "sha1",
 				hash: obj.internalHash,
-			}));
+			})+"\n", "utf8");
 		}
 	);
 }
