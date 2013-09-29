@@ -28,14 +28,13 @@ var Fiber = require("fibers");
 var Future = require("fibers/future");
 
 var sql = require("../utilities/sql");
-var fsx = require("../utilities/fsx");
 
 var Repo = require("./Repo");
-var IncomingFile = require("./IncomingFile");
-
-var queryModule = require("./query");
+var Query = require("./Query");
+var AST = require("./AST");
 var plugins = require("../plugins");
 var parsers = plugins.parsers;
+var client = require("efs-client");
 
 var queryF = Future.wrap(sql.debug);
 var mkdirpF = Future.wrap(mkdirp, 1);
@@ -80,18 +79,6 @@ Session.prototype.close = function() {
 	session.mode = Session.O_NONE;
 };
 
-Session.prototype.parseQuery = function(string, language, callback/* (err, query) */) {
-	var session = this;
-	if(!(session.mode & Session.O_RDONLY)) return callback(new Error("No permission"), null);
-	for(var i = 0; i < parsers.length; ++i) {
-		if(!parsers[i].acceptsLanguage(language)) continue;
-		return parsers[i].parseQuery(query, language, function(err, query) {
-			if(err) return callback(err, null);
-			callback(null, new queryModule.User(session.userID, query));
-		});
-	}
-	callback(new Error("Invalid language"), null);
-};
 Session.prototype.addIncomingFile = function(file, callback/* (err, outgoingFile) */) {
 	var session = this;
 	run(function() {
@@ -179,7 +166,7 @@ Session.prototype.fileForSubmissionID = function(submissionID, callback/* (err, 
 			+'INNER JOIN "fileHashes" AS f ON (f."hashID" = h."hashID")\n'
 			+'WHERE f."fileID" = $1',
 			[file.fileID]).wait().rows.map(function(row) {
-				return "earth://"+row.algorithm+"/"+row.hash;
+				return client.formatEarthURI(row);
 			});
 		var targets = queryF(session.db,
 			'SELECT u."username"\n'
@@ -202,6 +189,16 @@ Session.prototype.fileForSubmissionID = function(submissionID, callback/* (err, 
 			URIs: URIs,
 		};
 	}, callback);
+};
+Session.prototype.query = function(queryString, queryLanguage, callback/* (err, query) */) {
+	var session = this;
+	if(!(session.mode & Session.O_RDONLY)) return callback(new Error("No permission"), null);
+	parseQueryString(queryString, queryLanguage, function(err, rawAST) {
+		if(err) return callback(err);
+		var AST = new AST.User(session.userID, rawAST);
+		var query = new Query(session, AST);
+		callback(null, query);
+	});
 };
 
 function addFileRow(session, file, callback/* (err, fileID) */) {
@@ -292,6 +289,17 @@ function addFileSubmissionTargets(session, submissionID, file, callback) {
 			[submissionID, session.userID].concat(file.targets)).wait();
 	}, callback);
 }
+
+function parseQueryString(queryString, language, callback/* (err, AST) */) {
+	for(var i = 0; i < parsers.length; ++i) {
+		if(!parsers[i].acceptsLanguage(language)) continue;
+		return parsers[i].parseQueryString(queryString, language, function(err, AST) {
+			if(err) return callback(err, null);
+			callback(null, AST);
+		});
+	}
+	callback(new Error("Invalid language"), null);
+};
 
 Session.O_NONE = 0;
 Session.O_RDONLY = 1 << 0;

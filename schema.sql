@@ -200,27 +200,28 @@ ALTER SEQUENCE "hashes_hashID_seq" OWNED BY hashes."hashID";
 
 
 --
--- Name: remotes; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
+-- Name: pulls; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
 --
 
-CREATE TABLE remotes (
-    "remoteID" bigint NOT NULL,
+CREATE TABLE pulls (
+    "pullID" bigint NOT NULL,
     "userID" bigint NOT NULL,
     targets text NOT NULL,
-    "remoteURL" text NOT NULL,
-    query text NOT NULL,
-    username text,
-    password text
+    "URI" text NOT NULL,
+    "queryString" text NOT NULL,
+    "queryLanguage" text NOT NULL,
+    username text NOT NULL,
+    password text NOT NULL
 );
 
 
-ALTER TABLE public.remotes OWNER TO postgres;
+ALTER TABLE public.pulls OWNER TO postgres;
 
 --
--- Name: remotes_remoteID_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+-- Name: pulls_pullID_seq; Type: SEQUENCE; Schema: public; Owner: postgres
 --
 
-CREATE SEQUENCE "remotes_remoteID_seq"
+CREATE SEQUENCE "pulls_pullID_seq"
     START WITH 1
     INCREMENT BY 1
     NO MINVALUE
@@ -228,13 +229,13 @@ CREATE SEQUENCE "remotes_remoteID_seq"
     CACHE 1;
 
 
-ALTER TABLE public."remotes_remoteID_seq" OWNER TO postgres;
+ALTER TABLE public."pulls_pullID_seq" OWNER TO postgres;
 
 --
--- Name: remotes_remoteID_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+-- Name: pulls_pullID_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
 --
 
-ALTER SEQUENCE "remotes_remoteID_seq" OWNED BY remotes."remoteID";
+ALTER SEQUENCE "pulls_pullID_seq" OWNED BY pulls."pullID";
 
 
 --
@@ -418,10 +419,10 @@ ALTER TABLE ONLY hashes ALTER COLUMN "hashID" SET DEFAULT nextval('"hashes_hashI
 
 
 --
--- Name: remoteID; Type: DEFAULT; Schema: public; Owner: postgres
+-- Name: pullID; Type: DEFAULT; Schema: public; Owner: postgres
 --
 
-ALTER TABLE ONLY remotes ALTER COLUMN "remoteID" SET DEFAULT nextval('"remotes_remoteID_seq"'::regclass);
+ALTER TABLE ONLY pulls ALTER COLUMN "pullID" SET DEFAULT nextval('"pulls_pullID_seq"'::regclass);
 
 
 --
@@ -517,11 +518,11 @@ ALTER TABLE ONLY hashes
 
 
 --
--- Name: remotes_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
+-- Name: pullsPrimaryKey; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
 --
 
-ALTER TABLE ONLY remotes
-    ADD CONSTRAINT remotes_pkey PRIMARY KEY ("remoteID");
+ALTER TABLE ONLY pulls
+    ADD CONSTRAINT "pullsPrimaryKey" PRIMARY KEY ("pullID");
 
 
 --

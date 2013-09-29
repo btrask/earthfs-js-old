@@ -20,21 +20,21 @@ var fs = require("fs");
 var util = require("util");
 var PEG = require("pegjs");
 var parser = PEG.buildParser(fs.readFileSync(__dirname+"/parser.pegjs", "utf8"));
-var queryModule = require("../../../classes/query");
+var AST = require("../../../classes/AST");
 
 exports.acceptsLanguage = function(language) {
 	return "simple" === language;
 };
-exports.parseQuery = function(query, language, callback/* (err, query) */) {
+exports.parseQueryString = function(queryString, language, callback/* (err, AST) */) {
 	setImmediate(function() {
-		callback(null, translate(parser.parse(str)));
+		callback(null, translate(parser.parse(queryString)));
 	});
 };
 
 function translate(x) {
 	if("string" === typeof x) return x;
 	if(Array.isArray(x)) return x.map(translate);
-	return newApply(query[x.type], translate(x.args));
+	return newApply(AST[x.type], translate(x.args));
 }
 function newApply(Class, args) {
 	// http://stackoverflow.com/a/8843181

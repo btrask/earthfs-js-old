@@ -34,18 +34,14 @@ var fsx = require("./utilities/fsx");
 var http = require("./utilities/httpx");
 var sql = require("./utilities/sql"); // TODO: We shouldn't be doing any DB access here.
 var MIME = require("./utilities/mime");
+var has = require("./utilities/has");
 
-var Client = require("./classes/Client"); // TODO: We shouldn't need this once we handle queries better.
-var query = require("./classes/query");
+var AST = require("./classes/AST");
+var Query = require("./classes/Query"); // TODO: Queries should be created by sessions for us.
 var Repo = require("./classes/Repo");
-var Session = require("./classes/Session"); // TODO: We shouldn't need this once we handle remotes better.
 var IncomingFile = require("./classes/IncomingFile");
 
-var repo = Repo.loadSync(process.argv[2] || "/etc/earthfs");
-
-function has(obj, prop) {
-	return Object.prototype.hasOwnProperty.call(obj, prop);
-}
+var repo = Repo.loadSync(process.argv[2] || "/etc/earthfs"); // TODO: Is this really a good idea?
 
 var server;
 if(repo.key && repo.cert) {
@@ -64,24 +60,15 @@ if(repo.key && repo.cert) {
 var handlers = [];
 function dispatch(req, res) {
 	var url = urlModule.parse(req.url, true);
-	var i, handler, method, path;
+	var i, handler, path;
 	for(i = 0; i < handlers.length; ++i) {
 		handler = handlers[i];
-		// TODO: Don't use regexes for method, just assume HEAD for GET.
-		if("string" === typeof handler.method) {
-			if(handler.method !== req.method) continue;
-			method = [];
-		} else {
-			method = handler.method.exec(req.method);
-			if(!method) continue;
+		if(handler.method !== req.method) {
+			if("GET" !== handler.method || "HEAD" !== req.method) continue;
 		}
 		path = handler.path.exec(url.pathname);
 		if(!path) continue;
-		handler.func.apply(this,
-			[req, res, url]
-			.concat(method.slice(1)) // TODO: Use req.method instead.
-			.concat(path.slice(1))
-		);
+		handler.func.apply(this, [req, res, url].concat(path.slice(1)));
 		return;
 	}
 	console.log("404", url.pathname);
@@ -92,14 +79,14 @@ function register(method, path, func/* (req, res, url, arg1, arg2, etc) */) {
 }
 
 
-register(/^(GET|HEAD)$/, /^\/api\/submission\/(\d+)\/?$/, function(req, res, url, method, submissionIDString) {
+register("GET", /^\/api\/submission\/(\d+)\/?$/, function(req, res, url, submissionIDString) {
 	repo.auth(req, res, Repo.O_RDONLY, function(err, session) {
 		if(err) return res.sendError(err);
 		var submissionID = parseInt(submissionIDString, 10);
 		sendSubmission(req, res, session, submissionID);
 	});
 });
-register(/^(GET|HEAD)$/, /^\/api\/file\/([^\/]+)\/([^\/]+)\/([\w\d]+)\/?$/, function(req, res, url, method, encodedAlgorithm, encodedHash, submissionName) {
+register("GET", /^\/api\/file\/([^\/]+)\/([^\/]+)\/([\w\d]+)\/?$/, function(req, res, url, encodedAlgorithm, encodedHash, submissionName) {
 	repo.auth(req, res, Repo.O_RDONLY, function(err, session) {
 		if(err) return res.sendError(err);
 		var algorithm = decodeURIComponent(encodedAlgorithm);
@@ -117,25 +104,26 @@ register(/^(GET|HEAD)$/, /^\/api\/file\/([^\/]+)\/([^\/]+)\/([\w\d]+)\/?$/, func
 		});
 	});
 });
-register(/^(GET|HEAD)$/, /^\/api\/file\/([^\/]+)\/([^\/]+)\/?$/, function(req, res, url, method, encodedAlgorithm, encodedHash) {
+register("GET", /^\/api\/file\/([^\/]+)\/([^\/]+)\/?$/, function(req, res, url, encodedAlgorithm, encodedHash) {
 	repo.auth(req, res, Repo.O_RDONLY, function(err, session) {
 		if(err) return res.sendError(err);
 		var algorithm = decodeURIComponent(encodedAlgorithm);
 		var hash = decodeURIComponent(encodedHash);
 		session.submissionsForHash(algorithm, hash, function(err, submissions) {
 			if(err) return res.sendError(err);
+			if(!submissions.length) return res.sendMessage(404, "Not Found");
 			var buf = new Buffer(JSON.stringify(submissions), "utf8");
 			res.writeHead(200, {
 				"Content-Type": "text/json; charset=utf-8",
 				"Content-Length": buf.length,
 			});
-			if("HEAD" === method) res.end();
+			if("HEAD" === req.method) res.end();
 			else res.end(buf);
 		});
 	});
 });
 
-register("POST", /^\/api\/file\/?$/, function(req, res, url) {
+register("POST", /^\/api\/submission\/?$/, function(req, res, url) {
 	repo.auth(req, res, Repo.O_WRONLY, function(err, session) {
 		if(err) return res.sendError(err);
 		var targets = String(url.query["t"] || "").split("\n");
@@ -154,38 +142,30 @@ register("POST", /^\/api\/file\/?$/, function(req, res, url) {
 				});
 			});
 		});
-//		form.addListener("error", function(err) {
-//			console.log("hmm", err);
-//			res.sendMessage(500, "Internal Server Error");
-//		});
+		form.addListener("error", function(err) {
+			console.log("hmm", err);
+			res.sendError(err);
+		});
 		form.parse(req);
 	});
 });
-register("GET", /^\/api\/latest\/?$/, function(req, res, url) {
+
+register("GET", /^\/api\/query\/?$/, function(req, res, url) {
 	repo.auth(req, res, Repo.O_RDONLY, function(err, session) {
 		if(err) return res.sendError(err);
-		var string = decodeURIComponent(url.query["q"] || "");
-		session.parseQuery(string, "simple", function(err, query) {
+		var queryString = decodeURIComponent(url.query["q"] || "");
+		var queryLanguage = "simple"; // TODO: Configurable.
+		session.query(queryString, queryLanguage, function(err, query) {
 			if(err) return res.sendError(err);
-			var client = new Client(repo, query, res);
-			search(req, res, url, session, query, function(err) {
-				if(err) return console.log(err);
-				client.resume();
+			res.writeHead(200, {
+				"Content-Type": "text/x-uri-list; charset=utf-8",
+				"X-Results-Count": 500,
+				// TODO: Send total count of results.
+				// It'd be quite a trick to get this without performing the same query twice.
 			});
-		});
-	});
-});
-register("GET", /^\/api\/history\/?$/, function(req, res, url) {
-	repo.auth(req, res, Repo.O_RDONLY, function(err, session) {
-		if(err) return res.sendError(err);
-		var string = decodeURIComponent(url.query["q"] || "");
-		session.parseQuery(string, "simple", function(err, query) {
-			if(err) return res.sendError(err);
-			// TODO: Parse pagination etc.
-			search(req, res, url, session, query, function(err) {
-				if(err) return console.log(err);
-				res.end();
-			});
+			var offset = parseInt(url.query["offset"], 10) || null;
+			var limit = parseInt(url.query["limit"], 10) || null;
+			query.open(res, offset, limit);
 		});
 	});
 });
@@ -199,40 +179,11 @@ function sendSubmission(req, res, session, submissionID) {
 			"X-Internal-Hash": file.internalHash,
 			"X-Source": file.source,
 			"X-Targets": file.targets.join(", "),
-			"X-Timestamp": file.timestamp,
+			"X-Timestamp": +file.timestamp,
 			"X-URIs": file.URIs.join(", "),
 		});
 		if("HEAD" === req.method) res.end();
 		else fs.createReadStream(file.internalPath).pipe(res);
-	});
-}
-function search(req, res, url, session, query, callback/* (err) */) {
-	var tab = "\t";
-	var obj = query.SQL(1, tab+"\t");
-	var history = url.query["history"];
-	var limit = "all" === history ? '' : tab+'LIMIT '+(history >>> 0)+'\n';
-	var fullSQL =
-		'SELECT * FROM (\n'+
-			tab+'SELECT e."entryID", \'urn:sha1:\' || e."hash" AS "URN"\n'+
-			tab+'FROM "entries" AS e\n'+
-			tab+'WHERE e."entryID" IN\n'+
-				obj.query+
-			tab+'ORDER BY e."entryID" DESC\n'+
-				limit+
-		') x ORDER BY "entryID" ASC';
-	var stream = sql.debug2(session.db,
-		fullSQL,
-		obj.parameters
-	);
-	res.writeHead(200, {"Content-Type": "text/json; charset=utf-8"});
-	stream.on("row", function(row) {
-		res.write(row.URN+"\n", "utf8");
-	});
-	stream.on("end", function() {
-		callback(null);
-	});
-	stream.on("error", function(err) {
-		callback(err);
 	});
 }
 
@@ -247,26 +198,5 @@ server.listen(PORT, function() {
 	// TODO: Optionally set up NAT traversal/UPnP.
 });
 
-(function() { // TODO: Move this to Remote.js or Repo.js, make it better.
-	var Remote = require("./classes/Remote");
-	var tmp = new pg.Client(repo.config["db"]);
-	tmp.query(
-		'SELECT "userID", "targets", "remoteURL", "query", "username", "password"\n'
-		+'FROM "remotes" WHERE TRUE', [],
-		function(err, results) {
-			if(err) return console.log(err);
-			results.rows.forEach(function(row) {
-				var remote = new Remote(
-					new Session(repo, row.userID, Repo.O_WRONLY),
-					row.targets,
-					row.remoteURL,
-					row.query,
-					row.username,
-					row.password
-				); // TODO: These arguments are getting a little unwieldy...
-			});
-			tmp.end();
-		}
-	);
-})();
+repo.loadPulls();
 

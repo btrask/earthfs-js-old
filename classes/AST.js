@@ -16,47 +16,47 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
 FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE. */
-var util = require("util");
-var bt = require("../utilities/bt");
+var AST = exports;
+
 var sql = require("../utilities/sql");
 
-var query = exports;
+// TODO: Major rewrite needed.
 
-query.All = function AllQuery() {};
-query.All.prototype.SQL = function(offset, tab) {
+AST.All = function AllAST() {};
+AST.All.prototype.SQL = function(offset, tab) {
 	return {
-		query: tab+'(SELECT "entryID" FROM entries WHERE TRUE)\n',
+		query: tab+'(SELECT "fileID" FROM "files" WHERE TRUE)\n',
 		parameters: [],
 	};
 };
 
-query.Term = function TermQuery(term) {
-	if(null === term) return new query.All();
+AST.Term = function TermAST(term) {
+	if(null === term) return new AST.All();
 	var q = this;
 	q.term = term;
 };
-query.Term.prototype.SQL = function(offset, tab) {
+AST.Term.prototype.SQL = function(offset, tab) {
 	var q = this;
 	return {
 		query:
-			tab+'(SELECT "entryID" FROM "entries"\n'+
-			tab+'WHERE "fulltext" @@ plainto_tsquery(\'english\', $'+offset+'))\n',
+			tab+'(SELECT "fileID" FROM "fileIndexes"\n'+
+			tab+'WHERE "index" @@ plainto_tsquery(\'english\', $'+offset+'))\n',
 		parameters: [q.term],
 	};
 };
-query.Term.prototype.toString = function() {
+AST.Term.prototype.toString = function() {
 	return this.term;
 };
 
-query.Intersection = function IntersectionQuery(items) {
+AST.Intersection = function IntersectionAST(items) {
 	if(1 === items.length) return items[0];
-	if(0 === items.length) return new query.All();
+	if(0 === items.length) return new AST.All();
 	var q = this;
 	q.items = items;
 };
-query.Intersection.prototype.SQL = function(offset, tab) {
+AST.Intersection.prototype.SQL = function(offset, tab) {
 	var q = this;
-	var queries = [tab,'(SELECT x0."entryID"\n',tab,'FROM\n'];
+	var queries = [tab,'(SELECT x0."fileID"\n',tab,'FROM\n'];
 	var parameters = [];
 	q.items.forEach(function(q2, i) {
 		var obj = q2.SQL(parameters.length+offset, tab+"\t");
@@ -64,7 +64,7 @@ query.Intersection.prototype.SQL = function(offset, tab) {
 		if(!first) queries.push(tab,'INNER JOIN\n');
 		queries.push(obj.query);
 		queries.push(tab,'AS x',i);
-		if(!first) queries.push(' ON (x',i,'."entryID" = x0."entryID")');
+		if(!first) queries.push(' ON (x',i,'."fileID" = x0."fileID")');
 		if(last) queries.push(")");
 		queries.push("\n");
 		parameters.push.apply(parameters, obj.parameters);
@@ -74,34 +74,36 @@ query.Intersection.prototype.SQL = function(offset, tab) {
 		parameters: parameters,
 	};
 };
-query.Intersection.prototype.toString = function() {
+AST.Intersection.prototype.toString = function() {
 	return "(* "+this.items.join(" ")+")";
 };
 
-query.User = function UserQuery(userID, subquery) {
+AST.User = function UserAST(userID, subAST) {
 	if(null === userID) throw new Error("Invalid user ID");
-	if(!subquery) subquery = new query.All();
+	if(!subAST) subAST = new AST.All();
 	var q = this;
 	q.userID = userID;
-	q.subquery = subquery;
+	q.subAST = subAST;
 };
-query.User.prototype.SQL = function(offset, tab) {
+AST.User.prototype.SQL = function(offset, tab) {
 	var q = this;
-	var obj = q.subquery.SQL(offset+1, tab+"\t");
+	var obj = q.subAST.SQL(offset+1, tab+"\t");
 	return {
 		query:
-			tab+'(SELECT "entryID" FROM "targets"\n'+
-			tab+'WHERE "userID" IN (0, $'+offset+') AND "entryID" IN \n'+
+			tab+'(SELECT s."fileID" FROM "submissions" AS s\n'+
+			tab+'LEFT JOIN "targets" AS t ON (t."submissionID" = s."submissionID")'+
+			tab+'WHERE t."userID" IN (0, $'+offset+') AND "fileID" IN \n'+
 				obj.query+
 			tab+')\n',
 		parameters: [q.userID].concat(obj.parameters),
 	};
 };
-query.User.prototype.toString = function() {
+AST.User.prototype.toString = function() {
 	var q = this;
 	return "(user "+q.userID+" "+q.subquery.toString()+")";
 };
 
 // TODO
-query.Union = function UnionQuery(items) { return items[0]; }; // Hack.
-query.Negative = function NegativeQuery(item) {};
+AST.Union = function UnionAST(items) { return items[0]; }; // Hack.
+AST.Negative = function NegativeAST(item) {};
+

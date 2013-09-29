@@ -29,10 +29,15 @@ var os = require("os");
 var pg = require("pg");
 var bcrypt = require("bcrypt");
 var cookie = require("cookie");
+var Fiber = require("fibers");
+var Future = require("fibers/future");
 
 var bt = require("../utilities/bt");
+var sql = require("../utilities/sql");
 
 var Session = require("./Session");
+
+var queryF = Future.wrap(sql.debug);
 
 var FORBIDDEN = {httpStatusCode: 403, message: "Forbidden"};
 
@@ -50,7 +55,6 @@ function Repo(path, config) {
 	repo.db = new Error("Use `session.db` instead");
 	repo.key = null;
 	repo.cert = null;
-	repo.clients = [];
 }
 util.inherits(Repo, EventEmitter);
 
@@ -64,7 +68,7 @@ Repo.prototype.auth = function(req, res, mode, callback/* (session) */) {
 	var opts = urlModule.parse(req.url, true).query;
 	var remember = bt.has(opts, "r") && opts["r"];
 	var db = new pg.Client(repo.config["db"]);
-	db.connect();
+	db.connect(); // TODO: If the session fails, we just leak.
 	if(bt.has(opts, "u") && bt.has(opts, "p")) {
 		var username = opts["u"];
 		var password = opts["p"];
@@ -170,6 +174,35 @@ function createSession(repo, db, userID, mode, remember, callback/* (err, sessio
 		);
 	});
 }
+
+Repo.prototype.loadPulls = function() {
+	var repo = this;
+	Fiber(function() {
+		var db = new pg.Client(repo.config["db"]);
+		db.connect();
+		var rows = queryF(db,
+			'SELECT\n\t'
+				+'"pullID",\n\t'
+				+'"userID",\n\t'
+				+'"targets",\n\t'
+				+'"URI",\n\t'
+				+'"queryString",\n\t'
+				+'"queryLanguage",\n\t'
+				+'"username",\n\t'
+				+'"password"\n'
+			+'FROM "pulls" WHERE TRUE',
+			[]).wait().rows;
+		rows.forEach(function(row) {
+			var pull = repo.pulls[row.pullID];
+			if(pull) pull.close();
+			var session = new Session(repo, db, row.userID, Session.O_WRONLY);
+			pull = new Pull(session, row);
+			repo.pulls[row.pullID] = pull;
+		});
+		// On a big server this could be a ton of objects! Several per user on average.
+		// Each pull is backed by a persistent HTTP request, so that is probably the bottleneck, if any.
+	}).run();
+};
 
 
 Repo.load = function(path, callback/* (err, repo) */) {
