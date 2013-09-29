@@ -17,7 +17,6 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
 FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE. */
 var fs = require("fs");
-var util = require("util");
 var PEG = require("pegjs");
 var parser = PEG.buildParser(fs.readFileSync(__dirname+"/parser.pegjs", "utf8"));
 var AST = require("../../../classes/AST");

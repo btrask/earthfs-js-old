@@ -18,23 +18,20 @@ FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE. */
 module.exports = Session;
 
-var crypto = require("crypto");
 var fs = require("fs");
 var pathModule = require("path");
-var os = require("os");
 
+var client = require("efs-client");
 var mkdirp = require("mkdirp");
 var Fiber = require("fibers");
 var Future = require("fibers/future");
 
 var sql = require("../utilities/sql");
 
-var Repo = require("./Repo");
 var Query = require("./Query");
 var AST = require("./AST");
 var plugins = require("../plugins");
 var parsers = plugins.parsers;
-var client = require("efs-client");
 
 var queryF = Future.wrap(sql.debug);
 var mkdirpF = Future.wrap(mkdirp, 1);

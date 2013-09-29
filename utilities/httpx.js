@@ -16,6 +16,10 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
 FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE. */
+module.exports = http;
+
+// TODO: Rewrite this to avoid modifying standard Node prototypes.
+
 var http = require("http");
 var mime = require("./mime.json");
 var pathModule = require("path");
@@ -80,4 +84,3 @@ http.ServerResponse.prototype.sendFile = function(path, compressed) {
 	(false !== compressed ? sendCompressed : sendPlain)();
 };
 
-module.exports = http;

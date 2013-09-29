@@ -26,7 +26,7 @@ exports.createHashes = function(stream, type, callback/* (array) */) {
 		var hash = sha1.read();
 		callback(null, [
 			hash.toString("hex"),
-			hash.toString("base64"),
+			hash.toString("base64"), // TODO: Strip trailing `=`.
 		]);
 	});
 };

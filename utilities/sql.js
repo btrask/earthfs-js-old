@@ -70,3 +70,4 @@ sql.flatten = function(array) {
 	}
 	return r;
 };
+

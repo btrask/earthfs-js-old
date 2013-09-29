@@ -16,9 +16,11 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
 FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE. */
-var bt = require("../utilities/bt");
+module.exports = Queue;
 
-function Queue() { // TODO: Put this somewhere.
+var trampoline = require("./trampoline");
+
+function Queue() {
 	var queue = this;
 	queue.items = [];
 	queue.active = false;
@@ -28,13 +30,15 @@ Queue.prototype.push = function(func/* (done) */) {
 	queue.items.push(func);
 	if(queue.active) return;
 	queue.active = true;
-	bt.asyncLoop(function(next) {
+	trampoline(function(next) {
 		queue.items.shift()(function() {
 			if(queue.items.length) return next();
 			queue.active = false;
 		});
 	});
 };
-
-module.exports = Queue;
+Queue.prototype.clear = function() {
+	var queue = this;
+	queue.items = [];
+};
 

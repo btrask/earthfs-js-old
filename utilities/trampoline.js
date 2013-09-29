@@ -16,30 +16,20 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
 FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE. */
-var bt = exports;
+module.exports = trampoline;
 
-bt.has = function(obj, prop) { // TODO: Use has.js instead.
-	return Object.prototype.hasOwnProperty.call(obj, prop);
-};
-bt.asyncLoop = function(func/* (next) */) {
+function trampoline(func/* (next) */) {
 	var called, finished;
 	for(;;) {
 		called = false;
 		finished = false;
-		func(function next() {
-			called = true;
-			if(finished) bt.asyncLoop(func);
-		});
+		func(next);
 		finished = true;
 		if(!called) break;
 	}
-};
-
-Array.prototype.unique = function() {
-	var r = [], l = this.length, x;
-	for(var i = 0; i < l; ++i) {
-		x = this[i];
-		if(-1 === r.indexOf(x)) r.push(x);
+	function next() {
+		called = true;
+		if(finished) trampoline(func);
 	}
-	return r;
-};
+}
+

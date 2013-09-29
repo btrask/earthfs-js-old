@@ -32,8 +32,8 @@ var cookie = require("cookie");
 var Fiber = require("fibers");
 var Future = require("fibers/future");
 
-var bt = require("../utilities/bt");
 var sql = require("../utilities/sql");
+var has = require("../utilities/has");
 
 var Session = require("./Session");
 
@@ -66,10 +66,9 @@ Repo.prototype.internalPathForHash = function(internalHash) {
 Repo.prototype.auth = function(req, res, mode, callback/* (session) */) {
 	var repo = this;
 	var opts = urlModule.parse(req.url, true).query;
-	var remember = bt.has(opts, "r") && opts["r"];
-	var db = new pg.Client(repo.config["db"]);
-	db.connect(); // TODO: If the session fails, we just leak.
-	if(bt.has(opts, "u") && bt.has(opts, "p")) {
+	var remember = has(opts, "r") && opts["r"];
+	var db = dbClient(repo); // TODO: If the session fails, we just leak.
+	if(has(opts, "u") && has(opts, "p")) {
 		var username = opts["u"];
 		var password = opts["p"];
 		return repo.authUser(db, username, password, remember, mode, function(err, userID, session, mode) {
@@ -84,7 +83,7 @@ Repo.prototype.auth = function(req, res, mode, callback/* (session) */) {
 		});
 	}
 	var cookies = cookie.parse(req.headers["cookie"] || "");
-	if(bt.has(cookies, "s")) {
+	if(has(cookies, "s")) {
 		var session = cookies["s"];
 		return repo.authSession(db, session, mode, function(err, userID, session, mode) {
 			if(err) return res.sendError(err);
@@ -178,8 +177,7 @@ function createSession(repo, db, userID, mode, remember, callback/* (err, sessio
 Repo.prototype.loadPulls = function() {
 	var repo = this;
 	Fiber(function() {
-		var db = new pg.Client(repo.config["db"]);
-		db.connect();
+		var db = dbClient(repo);
 		var rows = queryF(db,
 			'SELECT\n\t'
 				+'"pullID",\n\t'
@@ -228,4 +226,10 @@ Repo.loadSync = function(path) {
 	try { repo.cert = fs.readFileSync(repo.CERT); } catch(e) {}
 	return repo;
 };
+
+function dbClient(repo) {
+	var db = new pg.Client(repo.config["db"]);
+	db.connect();
+	return db;
+}
 

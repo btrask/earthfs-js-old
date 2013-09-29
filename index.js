@@ -17,7 +17,6 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
 FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE. */
-var crypto = require("crypto");
 var pathModule = require("path");
 var urlModule = require("url");
 var util = require("util");
@@ -26,18 +25,12 @@ var fs = require("fs");
 var https = require("https");
 var ReadableStream = require("stream").Readable;
 
-var pg = require("pg");
 var multiparty = require("multiparty");
 
-var bt = require("./utilities/bt");
-var fsx = require("./utilities/fsx");
-var http = require("./utilities/httpx");
-var sql = require("./utilities/sql"); // TODO: We shouldn't be doing any DB access here.
+var http = require("./utilities/httpx"); // TODO: Get rid of this...
 var MIME = require("./utilities/mime");
 var has = require("./utilities/has");
 
-var AST = require("./classes/AST");
-var Query = require("./classes/Query"); // TODO: Queries should be created by sessions for us.
 var Repo = require("./classes/Repo");
 var IncomingFile = require("./classes/IncomingFile");
 
