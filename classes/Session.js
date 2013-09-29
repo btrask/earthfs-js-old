@@ -191,6 +191,7 @@ Session.prototype.fileForSubmissionID = function(submissionID, callback/* (err, 
 			});
 		return {
 			submissionID: submissionID,
+			timestamp: file.timestamp,
 			fileID: file.fileID,
 			internalHash: file.internalHash,
 			internalPath: repo.internalPathForHash(file.internalHash), // TODO: Don't leak this.

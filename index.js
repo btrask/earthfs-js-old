@@ -196,10 +196,11 @@ function sendSubmission(req, res, session, submissionID) {
 		res.writeHead(200, {
 			"Content-Type": file.type,
 			"Content-Length": file.size,
+			"X-Internal-Hash": file.internalHash,
 			"X-Source": file.source,
 			"X-Targets": file.targets.join(", "),
-			"X-Date": file.timestamp, // TODO: Okay to use regular Date header?
-			"X-URIs": file.URIs,
+			"X-Timestamp": file.timestamp,
+			"X-URIs": file.URIs.join(", "),
 		});
 		if("HEAD" === req.method) res.end();
 		else fs.createReadStream(file.internalPath).pipe(res);
