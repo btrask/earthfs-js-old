@@ -73,10 +73,9 @@ function register(method, path, func/* (req, res, url, arg1, arg2, etc) */) {
 }
 
 
-register("GET", /^\/api\/submission\/(\d+)\/?$/, function(req, res, url, submissionIDString) {
+register("GET", /^\/api\/submission\/(\d+)\/?$/, function(req, res, url, submissionID) {
 	repo.auth(req, res, Repo.O_RDONLY, function(err, session) {
 		if(err) return res.sendError(err);
-		var submissionID = parseInt(submissionIDString, 10);
 		sendSubmission(req, res, session, submissionID);
 	});
 });
