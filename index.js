@@ -25,6 +25,7 @@ var fs = require("fs");
 var https = require("https");
 var ReadableStream = require("stream").Readable;
 
+var client = require("efs-client");
 var multiparty = require("multiparty");
 
 var http = require("./utilities/httpx"); // TODO: Get rid of this...
@@ -82,9 +83,11 @@ register("GET", /^\/api\/submission\/(\d+)\/?$/, function(req, res, url, submiss
 register("GET", /^\/api\/file\/([^\/]+)\/([^\/]+)\/([\w\d]+)\/?$/, function(req, res, url, encodedAlgorithm, encodedHash, submissionName) {
 	repo.auth(req, res, Repo.O_RDONLY, function(err, session) {
 		if(err) return res.sendError(err);
-		var algorithm = decodeURIComponent(encodedAlgorithm);
-		var hash = decodeURIComponent(encodedHash);
-		session.submissionsForHash(algorithm, hash, function(err, submissions) {
+		var normalizedURI = client.formatEarthURI({
+			algorithm: decodeURIComponent(encodedAlgorithm),
+			hash: decodeURIComponent(encodedHash),
+		});
+		session.submissionsForNormalizedURI(normalizedURI, function(err, submissions) {
 			if(err) return res.sendError(err);
 			if(!submissions.length) return res.sendMessage(404, "Not Found");
 			var index;
@@ -100,9 +103,11 @@ register("GET", /^\/api\/file\/([^\/]+)\/([^\/]+)\/([\w\d]+)\/?$/, function(req,
 register("GET", /^\/api\/file\/([^\/]+)\/([^\/]+)\/?$/, function(req, res, url, encodedAlgorithm, encodedHash) {
 	repo.auth(req, res, Repo.O_RDONLY, function(err, session) {
 		if(err) return res.sendError(err);
-		var algorithm = decodeURIComponent(encodedAlgorithm);
-		var hash = decodeURIComponent(encodedHash);
-		session.submissionsForHash(algorithm, hash, function(err, submissions) {
+		var normalizedURI = client.formatEarthURI({
+			algorithm: decodeURIComponent(encodedAlgorithm),
+			hash: decodeURIComponent(encodedHash),
+		});
+		session.submissionsForNormalizedURI(normalizedURI, function(err, submissions) {
 			if(err) return res.sendError(err);
 			if(!submissions.length) return res.sendMessage(404, "Not Found");
 			var buf = new Buffer(JSON.stringify(submissions), "utf8");
@@ -119,7 +124,9 @@ register("GET", /^\/api\/file\/([^\/]+)\/([^\/]+)\/?$/, function(req, res, url, 
 register("POST", /^\/api\/submission\/?$/, function(req, res, url) {
 	repo.auth(req, res, Repo.O_WRONLY, function(err, session) {
 		if(err) return res.sendError(err);
-		var targets = String(url.query["t"] || "").split("\n");
+		var targets = String(url.query["t"] || "").split("\n").filter(function(target) {
+			return target != "";
+		});
 		var form = new multiparty.Form();
 		form.on("part", function(part) {
 			if("file" !== part.name) return;
@@ -172,7 +179,7 @@ function sendSubmission(req, res, session, submissionID) {
 			"X-Internal-Hash": file.internalHash,
 			"X-Source": file.source,
 			"X-Targets": file.targets.join(", "),
-			"X-Timestamp": +file.timestamp,
+			"X-Timestamp": file.timestamp,
 			"X-URIs": file.URIs.join(", "),
 		});
 		if("HEAD" === req.method) res.end();

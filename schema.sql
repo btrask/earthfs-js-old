@@ -29,91 +29,22 @@ SET default_tablespace = '';
 SET default_with_oids = false;
 
 --
--- Name: fileHashes; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
+-- Name: URIs; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
 --
 
-CREATE TABLE "fileHashes" (
-    "fileHashID" bigint NOT NULL,
-    "fileID" bigint NOT NULL,
-    "hashID" bigint NOT NULL
-);
-
-
-ALTER TABLE public."fileHashes" OWNER TO postgres;
-
---
--- Name: fileHashes_fileHashID_seq; Type: SEQUENCE; Schema: public; Owner: postgres
---
-
-CREATE SEQUENCE "fileHashes_fileHashID_seq"
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
-ALTER TABLE public."fileHashes_fileHashID_seq" OWNER TO postgres;
-
---
--- Name: fileHashes_fileHashID_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
---
-
-ALTER SEQUENCE "fileHashes_fileHashID_seq" OWNED BY "fileHashes"."fileHashID";
-
-
---
--- Name: fileIndexes; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
---
-
-CREATE TABLE "fileIndexes" (
-    "indexID" bigint NOT NULL,
-    "fileID" bigint NOT NULL,
-    index tsvector NOT NULL
-);
-
-
-ALTER TABLE public."fileIndexes" OWNER TO postgres;
-
---
--- Name: fileIndexes_indexID_seq; Type: SEQUENCE; Schema: public; Owner: postgres
---
-
-CREATE SEQUENCE "fileIndexes_indexID_seq"
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
-ALTER TABLE public."fileIndexes_indexID_seq" OWNER TO postgres;
-
---
--- Name: fileIndexes_indexID_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
---
-
-ALTER SEQUENCE "fileIndexes_indexID_seq" OWNED BY "fileIndexes"."indexID";
-
-
---
--- Name: fileLinks; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
---
-
-CREATE TABLE "fileLinks" (
-    "fileLinkID" bigint NOT NULL,
-    "fileID" bigint NOT NULL,
+CREATE TABLE "URIs" (
+    "URIID" bigint NOT NULL,
     "normalizedURI" text NOT NULL
 );
 
 
-ALTER TABLE public."fileLinks" OWNER TO postgres;
+ALTER TABLE public."URIs" OWNER TO postgres;
 
 --
--- Name: fileLinks_fileLinkID_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+-- Name: URIs_URIID_seq; Type: SEQUENCE; Schema: public; Owner: postgres
 --
 
-CREATE SEQUENCE "fileLinks_fileLinkID_seq"
+CREATE SEQUENCE "URIs_URIID_seq"
     START WITH 1
     INCREMENT BY 1
     NO MINVALUE
@@ -121,13 +52,153 @@ CREATE SEQUENCE "fileLinks_fileLinkID_seq"
     CACHE 1;
 
 
-ALTER TABLE public."fileLinks_fileLinkID_seq" OWNER TO postgres;
+ALTER TABLE public."URIs_URIID_seq" OWNER TO postgres;
 
 --
--- Name: fileLinks_fileLinkID_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+-- Name: URIs_URIID_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
 --
 
-ALTER SEQUENCE "fileLinks_fileLinkID_seq" OWNED BY "fileLinks"."fileLinkID";
+ALTER SEQUENCE "URIs_URIID_seq" OWNED BY "URIs"."URIID";
+
+
+--
+-- Name: fieldLinks; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
+--
+
+CREATE TABLE "fieldLinks" (
+    "fieldLinkID" bigint NOT NULL,
+    "fieldID" bigint NOT NULL,
+    "URIID" bigint NOT NULL,
+    relation text NOT NULL
+);
+
+
+ALTER TABLE public."fieldLinks" OWNER TO postgres;
+
+--
+-- Name: fieldLinks_fieldLinkID_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE "fieldLinks_fieldLinkID_seq"
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public."fieldLinks_fieldLinkID_seq" OWNER TO postgres;
+
+--
+-- Name: fieldLinks_fieldLinkID_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
+
+ALTER SEQUENCE "fieldLinks_fieldLinkID_seq" OWNED BY "fieldLinks"."fieldLinkID";
+
+
+--
+-- Name: fieldScalars; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
+--
+
+CREATE TABLE "fieldScalars" (
+    "fieldScalarID" bigint NOT NULL,
+    "fieldID" bigint NOT NULL,
+    type text NOT NULL,
+    value double precision NOT NULL
+);
+
+
+ALTER TABLE public."fieldScalars" OWNER TO postgres;
+
+--
+-- Name: fieldScalars_fieldScalarID_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE "fieldScalars_fieldScalarID_seq"
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public."fieldScalars_fieldScalarID_seq" OWNER TO postgres;
+
+--
+-- Name: fieldScalars_fieldScalarID_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
+
+ALTER SEQUENCE "fieldScalars_fieldScalarID_seq" OWNED BY "fieldScalars"."fieldScalarID";
+
+
+--
+-- Name: fields; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
+--
+
+CREATE TABLE fields (
+    "fieldID" bigint NOT NULL,
+    "fileID" bigint NOT NULL,
+    name text NOT NULL,
+    value text NOT NULL,
+    index tsvector NOT NULL
+);
+
+
+ALTER TABLE public.fields OWNER TO postgres;
+
+--
+-- Name: fields_fieldID_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE "fields_fieldID_seq"
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public."fields_fieldID_seq" OWNER TO postgres;
+
+--
+-- Name: fields_fieldID_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
+
+ALTER SEQUENCE "fields_fieldID_seq" OWNED BY fields."fieldID";
+
+
+--
+-- Name: fileURIs; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
+--
+
+CREATE TABLE "fileURIs" (
+    "fileURIID" bigint NOT NULL,
+    "fileID" bigint NOT NULL,
+    "URIID" bigint NOT NULL
+);
+
+
+ALTER TABLE public."fileURIs" OWNER TO postgres;
+
+--
+-- Name: fileURIs_fileURIID_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE "fileURIs_fileURIID_seq"
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public."fileURIs_fileURIID_seq" OWNER TO postgres;
+
+--
+-- Name: fileURIs_fileURIID_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
+
+ALTER SEQUENCE "fileURIs_fileURIID_seq" OWNED BY "fileURIs"."fileURIID";
 
 
 --
@@ -163,40 +234,6 @@ ALTER TABLE public."files_fileID_seq" OWNER TO postgres;
 --
 
 ALTER SEQUENCE "files_fileID_seq" OWNED BY files."fileID";
-
-
---
--- Name: hashes; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
---
-
-CREATE TABLE hashes (
-    "hashID" bigint NOT NULL,
-    algorithm text NOT NULL,
-    hash text NOT NULL
-);
-
-
-ALTER TABLE public.hashes OWNER TO postgres;
-
---
--- Name: hashes_hashID_seq; Type: SEQUENCE; Schema: public; Owner: postgres
---
-
-CREATE SEQUENCE "hashes_hashID_seq"
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
-ALTER TABLE public."hashes_hashID_seq" OWNER TO postgres;
-
---
--- Name: hashes_hashID_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
---
-
-ALTER SEQUENCE "hashes_hashID_seq" OWNED BY hashes."hashID";
 
 
 --
@@ -384,24 +421,38 @@ ALTER SEQUENCE "users_userID_seq" OWNED BY users."userID";
 
 
 --
--- Name: fileHashID; Type: DEFAULT; Schema: public; Owner: postgres
+-- Name: URIID; Type: DEFAULT; Schema: public; Owner: postgres
 --
 
-ALTER TABLE ONLY "fileHashes" ALTER COLUMN "fileHashID" SET DEFAULT nextval('"fileHashes_fileHashID_seq"'::regclass);
-
-
---
--- Name: indexID; Type: DEFAULT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY "fileIndexes" ALTER COLUMN "indexID" SET DEFAULT nextval('"fileIndexes_indexID_seq"'::regclass);
+ALTER TABLE ONLY "URIs" ALTER COLUMN "URIID" SET DEFAULT nextval('"URIs_URIID_seq"'::regclass);
 
 
 --
--- Name: fileLinkID; Type: DEFAULT; Schema: public; Owner: postgres
+-- Name: fieldLinkID; Type: DEFAULT; Schema: public; Owner: postgres
 --
 
-ALTER TABLE ONLY "fileLinks" ALTER COLUMN "fileLinkID" SET DEFAULT nextval('"fileLinks_fileLinkID_seq"'::regclass);
+ALTER TABLE ONLY "fieldLinks" ALTER COLUMN "fieldLinkID" SET DEFAULT nextval('"fieldLinks_fieldLinkID_seq"'::regclass);
+
+
+--
+-- Name: fieldScalarID; Type: DEFAULT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY "fieldScalars" ALTER COLUMN "fieldScalarID" SET DEFAULT nextval('"fieldScalars_fieldScalarID_seq"'::regclass);
+
+
+--
+-- Name: fieldID; Type: DEFAULT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY fields ALTER COLUMN "fieldID" SET DEFAULT nextval('"fields_fieldID_seq"'::regclass);
+
+
+--
+-- Name: fileURIID; Type: DEFAULT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY "fileURIs" ALTER COLUMN "fileURIID" SET DEFAULT nextval('"fileURIs_fileURIID_seq"'::regclass);
 
 
 --
@@ -409,13 +460,6 @@ ALTER TABLE ONLY "fileLinks" ALTER COLUMN "fileLinkID" SET DEFAULT nextval('"fil
 --
 
 ALTER TABLE ONLY files ALTER COLUMN "fileID" SET DEFAULT nextval('"files_fileID_seq"'::regclass);
-
-
---
--- Name: hashID; Type: DEFAULT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY hashes ALTER COLUMN "hashID" SET DEFAULT nextval('"hashes_hashID_seq"'::regclass);
 
 
 --
@@ -454,35 +498,35 @@ ALTER TABLE ONLY users ALTER COLUMN "userID" SET DEFAULT nextval('"users_userID_
 
 
 --
--- Name: fileHashesPrimaryKey; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
+-- Name: URIsPrimaryKey; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
 --
 
-ALTER TABLE ONLY "fileHashes"
-    ADD CONSTRAINT "fileHashesPrimaryKey" PRIMARY KEY ("fileHashID");
-
-
---
--- Name: fileIndexesPrimaryKey; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
---
-
-ALTER TABLE ONLY "fileIndexes"
-    ADD CONSTRAINT "fileIndexesPrimaryKey" PRIMARY KEY ("indexID");
+ALTER TABLE ONLY "URIs"
+    ADD CONSTRAINT "URIsPrimaryKey" PRIMARY KEY ("URIID");
 
 
 --
--- Name: fileLinksPrimaryKey; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
+-- Name: fieldLinksPrimaryKey; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
 --
 
-ALTER TABLE ONLY "fileLinks"
-    ADD CONSTRAINT "fileLinksPrimaryKey" PRIMARY KEY ("fileLinkID");
+ALTER TABLE ONLY "fieldLinks"
+    ADD CONSTRAINT "fieldLinksPrimaryKey" PRIMARY KEY ("fieldLinkID");
 
 
 --
--- Name: fileLinksUnique; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
+-- Name: fieldScalarsPrimaryKey; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
 --
 
-ALTER TABLE ONLY "fileLinks"
-    ADD CONSTRAINT "fileLinksUnique" UNIQUE ("fileID", "normalizedURI");
+ALTER TABLE ONLY "fieldScalars"
+    ADD CONSTRAINT "fieldScalarsPrimaryKey" PRIMARY KEY ("fieldScalarID");
+
+
+--
+-- Name: fieldsPrimaryKey; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
+--
+
+ALTER TABLE ONLY fields
+    ADD CONSTRAINT "fieldsPrimaryKey" PRIMARY KEY ("fieldID");
 
 
 --
@@ -494,27 +538,19 @@ ALTER TABLE ONLY files
 
 
 --
+-- Name: fileURIsPrimaryKey; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
+--
+
+ALTER TABLE ONLY "fileURIs"
+    ADD CONSTRAINT "fileURIsPrimaryKey" PRIMARY KEY ("fileURIID");
+
+
+--
 -- Name: filesUniqueHashAndType; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
 --
 
 ALTER TABLE ONLY files
     ADD CONSTRAINT "filesUniqueHashAndType" UNIQUE ("internalHash", type);
-
-
---
--- Name: hashesPrimaryKey; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
---
-
-ALTER TABLE ONLY hashes
-    ADD CONSTRAINT "hashesPrimaryKey" PRIMARY KEY ("hashID");
-
-
---
--- Name: hashesUnique; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
---
-
-ALTER TABLE ONLY hashes
-    ADD CONSTRAINT "hashesUnique" UNIQUE (algorithm, hash);
 
 
 --
@@ -566,24 +602,24 @@ ALTER TABLE ONLY users
 
 
 --
--- Name: hashesIndex; Type: INDEX; Schema: public; Owner: postgres; Tablespace: 
+-- Name: URIs_normalizedURI_idx; Type: INDEX; Schema: public; Owner: postgres; Tablespace: 
 --
 
-CREATE INDEX "hashesIndex" ON hashes USING btree (algorithm, hash);
-
-
---
--- Name: fileHashesOnDuplicateDoNothing; Type: RULE; Schema: public; Owner: postgres
---
-
-CREATE RULE "fileHashesOnDuplicateDoNothing" AS ON INSERT TO "fileHashes" WHERE (EXISTS (SELECT 1 FROM "fileHashes" old WHERE ((old."fileID" = new."fileID") AND (old."hashID" = new."hashID")))) DO INSTEAD NOTHING;
+CREATE UNIQUE INDEX "URIs_normalizedURI_idx" ON "URIs" USING btree ("normalizedURI");
 
 
 --
--- Name: fileLinksOnDuplicateDoNothing; Type: RULE; Schema: public; Owner: postgres
+-- Name: URIsOnDuplicateDoNothing; Type: RULE; Schema: public; Owner: postgres
 --
 
-CREATE RULE "fileLinksOnDuplicateDoNothing" AS ON INSERT TO "fileLinks" WHERE (EXISTS (SELECT 1 FROM "fileLinks" old WHERE ((old."fileID" = new."fileID") AND (old."normalizedURI" = new."normalizedURI")))) DO INSTEAD NOTHING;
+CREATE RULE "URIsOnDuplicateDoNothing" AS ON INSERT TO "URIs" WHERE (EXISTS (SELECT 1 FROM "URIs" old WHERE (old."normalizedURI" = new."normalizedURI"))) DO INSTEAD NOTHING;
+
+
+--
+-- Name: fileURIsOnDuplicateDoNothing; Type: RULE; Schema: public; Owner: postgres
+--
+
+CREATE RULE "fileURIsOnDuplicateDoNothing" AS ON INSERT TO "fileURIs" WHERE (EXISTS (SELECT 1 FROM "fileURIs" old WHERE ((old."fileID" = new."fileID") AND (old."URIID" = new."URIID")))) DO INSTEAD NOTHING;
 
 
 --
@@ -591,13 +627,6 @@ CREATE RULE "fileLinksOnDuplicateDoNothing" AS ON INSERT TO "fileLinks" WHERE (E
 --
 
 CREATE RULE "filesOnDuplicateDoNothing" AS ON INSERT TO files WHERE (EXISTS (SELECT 1 FROM files old WHERE ((old."internalHash" = new."internalHash") AND (old.type = new.type)))) DO INSTEAD NOTHING;
-
-
---
--- Name: hashesOnDuplicateDoNothing; Type: RULE; Schema: public; Owner: postgres
---
-
-CREATE RULE "hashesOnDuplicateDoNothing" AS ON INSERT TO hashes WHERE (EXISTS (SELECT 1 FROM hashes old WHERE ((old.algorithm = new.algorithm) AND (old.hash = new.hash)))) DO INSTEAD NOTHING;
 
 
 --

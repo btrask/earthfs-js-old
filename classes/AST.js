@@ -25,12 +25,13 @@ var sql = require("../utilities/sql");
 AST.All = function AllAST() {};
 AST.All.prototype.SQL = function(offset, tab) {
 	return {
-		query: tab+'(SELECT "fileID" FROM "files" WHERE TRUE)\n',
+		query: tab+'(SELECT "fileID" FROM "files")\n',
 		parameters: [],
 	};
 };
 
 AST.Term = function TermAST(term) {
+	// TODO: Check whether `term` matches any data detectors or is a link.
 	if(null === term) return new AST.All();
 	var q = this;
 	q.term = term;
@@ -39,8 +40,9 @@ AST.Term.prototype.SQL = function(offset, tab) {
 	var q = this;
 	return {
 		query:
-			tab+'(SELECT "fileID" FROM "fileIndexes"\n'+
+			tab+'(SELECT "fileID" FROM "fields"\n'+
 			tab+'WHERE "index" @@ plainto_tsquery(\'english\', $'+offset+'))\n',
+			// TODO: Check whether these fields are in files that have `meta` relationships to other files.
 		parameters: [q.term],
 	};
 };

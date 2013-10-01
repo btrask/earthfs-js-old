@@ -24,6 +24,8 @@ var crypto = require("crypto");
 var util = require("util");
 var PassThroughStream = require("stream").PassThrough;
 
+var client = require("efs-client");
+
 var plugins = require("../plugins");
 var hashers = plugins.hashers;
 var indexers = plugins.indexers;
@@ -75,10 +77,10 @@ function IncomingFile(repo, type, targets) {
 	file.originalPath = null;
 	file.size = null;
 	file.hashes = null;
+	file.normalizedURIs = null;
 	file.internalHash = null;
 	file.internalPath = null;
-	file.index = null;
-	file.links = null;
+	file.fields = null;
 }
 IncomingFile.prototype.loadFromFile = function(path, callback/* (err) */) {
 	var file = this;
@@ -111,12 +113,12 @@ IncomingFile.prototype.load = function(path, stream, callback/* (err) */) {
 		if(!has(hashes, "sha1") || !hashes["sha1"].length) throw new Error("Internal hash algorithm missing "+util.inspect(hashes));
 		var internalHash = hashes["sha1"][0];
 		file.hashes = hashes;
+		file.normalizedURIs = URIsFromHashes(hashes);
 		file.internalHash = internalHash;
 		file.internalPath = repo.internalPathForHash(internalHash);
 	}));
-	createIndex(streamCopy(stream), file.type, collection.add(function(index) {
-		file.index = index;
-		file.links = []; // TODO: Parse for links. Make sure to normalize them.
+	createIndex(streamCopy(stream), file.type, collection.add(function(fields) {
+		file.fields = fields;
 	}));
 	streamLength(streamCopy(stream), collection.add(function(size) {
 		file.size = size;
@@ -141,13 +143,33 @@ function createHashes(stream, type, callback/* (err, hashes) */) {
 		waiting = 0;
 		callback(err, null);
 	});
+	// TODO: What is up with this error handling?
 }
-function createIndex(stream, type, callback/* (err, index) */) {
+function createIndex(stream, type, callback/* (err, fields) */) {
 	for(var i = 0; i < indexers.length; ++i) {
 		if(!indexers[i].acceptsType(type)) continue;
-		return indexers[i].createIndex(stream, type, callback);
+		return indexers[i].createIndex(stream, type, function(err, fields) {
+			if(err) return callback(err, null);
+			var waiting = fields.length;
+			if(!waiting) return callback(null, fields);
+			fields.forEach(function(field) {
+				field.parse(function(err) {
+					if(err) { waiting = 0; callback(err, null); }
+					if(!--waiting) callback(null, fields);
+				});
+			});
+		});
 	}
-	callback(null, "");
+	callback(null, []);
+}
+function URIsFromHashes(hashes) {
+	var URIs = [];
+	Object.keys(hashes).forEach(function(algorithm) {
+		hashes[algorithm].forEach(function(hash) {
+			URIs.push(client.formatEarthURI({algorithm: algorithm, hash: hash}));
+		});
+	});
+	return URIs;
 }
 
 function streamCopy(stream) {

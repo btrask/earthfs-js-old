@@ -41,24 +41,39 @@ var unlinkF = Future.wrap(fs.unlink);
 var addFileRowF = Future.wrap(addFileRow);
 var addFileSubmissionF = Future.wrap(addFileSubmission);
 var addFileDataF = Future.wrap(addFileData);
-var addFileHashesF = Future.wrap(addFileHashes);
-var addFileIndexF = Future.wrap(addFileIndex);
-var addFileLinksF = Future.wrap(addFileLinks);
+var addFileURIsF = Future.wrap(addFileURIs);
+var addFileFieldsF = Future.wrap(addFileFields);
+var addFieldPartsF = Future.wrap(addFieldParts);
 var addFileSubmissionTargetsF = Future.wrap(addFileSubmissionTargets);
+var addURIsF = Future.wrap(addURIs);
 
 function run(func, callback) {
+	if("function" !== typeof callback) throw new Error("Bad callback arg "+callback);
 	Fiber(function() {
 		var val;
 		try {
 			val = func();
 		} catch(err) {
-			console.error(err);
-			// TODO: Submit patch to node-fibers to preserve original error information. Normally it uses `Object.create(error)` which does not work very well.
 			callback(err, null);
 			return;
 		}
 		callback(null, val);
 	}).run();
+}
+function wait(tasks) {
+	Future.wait(tasks);
+	var errors = [], error;
+	var results = tasks.map(function(task) {
+		try {
+			return task.get();
+		} catch(err) {
+			var postgresAbortedTransaction = "25P02" === err.code;
+			if(!postgresAbortedTransaction) errors.push(err);
+		}
+	});
+	if(errors.length) throw errors[0]; // Other errors are ignored...
+	return results;
+	// TODO: It'd be nice if `Future.wait()` threw the first error encountered.
 }
 
 function Session(repo, db, userID, mode) {
@@ -87,13 +102,10 @@ Session.prototype.addIncomingFile = function(file, callback/* (err, outgoingFile
 			var submissionID = addFileSubmissionF(session, fileID).wait();
 			var tasks = [];
 			tasks.push(addFileDataF(session, file));
-			tasks.push(addFileHashesF(session, fileID, file));
-			tasks.push(addFileIndexF(session, fileID, file));
-			tasks.push(addFileLinksF(session, fileID, file));
+			tasks.push(addFileURIsF(session, fileID, file));
+			tasks.push(addFileFieldsF(session, fileID, file));
 			tasks.push(addFileSubmissionTargetsF(session, submissionID, file));
-			Future.wait(tasks);
-			tasks.forEach(function(task) { task.get(); }); // Throw errors.
-			// TODO: Submit patch to node-fibers to throw from Future.wait().
+			wait(tasks);
 			queryF(session.db, "COMMIT", []).wait();
 			return {
 				submissionID: submissionID,
@@ -102,55 +114,59 @@ Session.prototype.addIncomingFile = function(file, callback/* (err, outgoingFile
 				internalPath: file.internalPath, // TODO: Don't leak this.
 				type: file.type,
 				size: file.size,
-				// TODO: This should ideally match `fileForSubmissionID()`.
-				source: null,
-				targets: null,
-				URIs: null,
+				source: null, // TODO: Store our username when the session is created.
+				targets: file.targets, // TODO: Add ourselves to this list.
+				URIs: file.normalizedURIs,
 			};
 		} catch(err) {
+			console.error("ROLLBACK");
+			console.error(err.query);
+			console.error(err.args);
 			var tasks = [];
 			tasks.push(queryF(session.db, "ROLLBACK", []));
 //			if(file.internalPath) tasks.push(unlinkF(file.internalPath));
 			// Blindly unlinking is NOT SAFE if the file was a duplicate.
 			// TODO: A more reasoned appraoch.
 			Future.wait(tasks);
-			console.error("ROLLBACK");
 			throw err;
+			// TODO: Submit patch to node-fibers to preserve original error information. Normally it uses `Object.create(error)` which does not work very well.
 		}
 	}, function(err, outgoingFile) {
 		callback(err, outgoingFile);
 		if(!err) session.repo.emit("submission", outgoingFile);
 	});
 };
-Session.prototype.submissionsForHash = function(algorithm, hash, callback/* (err, submissions) */) {
+Session.prototype.submissionsForNormalizedURI = function(normalizedURI, callback/* (err, submissions) */) {
 	var session = this;
 	run(function() {
 		if(!(session.mode & Session.O_RDONLY)) throw new Error("No permission");
+		var tab = '\t';
 		return queryF(session.db,
-			'SELECT s."submissionID", u."username", s."timestamp"\n'
+			'SELECT\n'
+				+tab+'s."submissionID",\n'
+				+tab+'EXTRACT(EPOCH FROM s."timestamp"),\n'
+				+tab+'u."username"\n'
 			+'FROM "submissions" AS s\n'
-			+'INNER JOIN "fileHashes" AS f ON (f."fileID" = s."fileID")\n'
-			+'INNER JOIN "hashes" AS h ON (h."hashID" = f."hashID")\n'
+			+'INNER JOIN "fileURIs" AS f ON (f."fileID" = s."fileID")\n'
+			+'INNER JOIN "URIs" AS i ON (i."URIID" = f."URIID")\n'
 			+'INNER JOIN "targets" AS t ON (t."submissionID" = s."submissionID")\n'
 			+'INNER JOIN "users" AS u ON (u."userID" = s."userID")\n'
-			+'WHERE\n\t'
-				+'h."algorithm" = $1 AND h."hash" = $2\n'
-			+'AND\n\t'
-				+'t."userID" = $3\n'
+			+'WHERE i."normalizedURI" = $1 AND t."userID" = $2\n'
 			+'ORDER BY s."submissionID" ASC',
-			[algorithm, hash, session.userID]).wait().rows;
+			[normalizedURI, session.userID]).wait().rows;
 	}, callback);
 };
 Session.prototype.fileForSubmissionID = function(submissionID, callback/* (err, file) */) {
 	var session = this;
 	run(function() {
 		if(!(session.mode & Session.O_RDONLY)) throw new Error("No permission");
+		var tab = '\t';
 		var repo = session.repo;
 		var file = queryF(session.db,
-			'SELECT\n\t'
-				+'f."fileID", f."internalHash", f."type", f."size",\n\t'
-				+'s."timestamp",\n\t'
-				+'u."username" AS "source"\n'
+			'SELECT\n'
+				+tab+'f."fileID", f."internalHash", f."type", f."size",\n'
+				+tab+'EXTRACT(EPOCH FROM s."timestamp"),\n'
+				+tab+'u."username" AS "source"\n'
 			+'FROM "files" AS f\n'
 			+'INNER JOIN "submissions" AS s ON (s."fileID" = f."fileID")\n'
 			+'INNER JOIN "targets" AS t ON (t."submissionID" = s."submissionID")\n'
@@ -158,12 +174,12 @@ Session.prototype.fileForSubmissionID = function(submissionID, callback/* (err, 
 			+'WHERE s."submissionID" = $1 AND t."userID" = $2',
 			[submissionID, session.userID]).wait().rows[0];
 		var URIs = queryF(session.db,
-			'SELECT h."algorithm", h."hash"\n'
-			+'FROM "hashes" AS h\n'
-			+'INNER JOIN "fileHashes" AS f ON (f."hashID" = h."hashID")\n'
+			'SELECT i."normalizedURI"\n'
+			+'FROM "URIs" AS i\n'
+			+'INNER JOIN "fileURIs" AS f ON (f."URIID" = i."URIID")\n'
 			+'WHERE f."fileID" = $1',
 			[file.fileID]).wait().rows.map(function(row) {
-				return client.formatEarthURI(row);
+				return row.normalizedURI;
 			});
 		var targets = queryF(session.db,
 			'SELECT u."username"\n'
@@ -178,7 +194,7 @@ Session.prototype.fileForSubmissionID = function(submissionID, callback/* (err, 
 			timestamp: file.timestamp,
 			fileID: file.fileID,
 			internalHash: file.internalHash,
-			internalPath: repo.internalPathForHash(file.internalHash), // TODO: Don't leak this.
+			internalPath: repo.internalPathForHash(file.internalHash),
 			type: file.type,
 			size: file.size,
 			source: file.source,
@@ -232,58 +248,98 @@ function addFileData(session, file, callback) {
 		if(!file.keepOriginal) unlinkF(src).wait();
 	}, callback);
 };
-function addFileHashes(session, fileID, file, callback) {
+function addFileURIs(session, fileID, file, callback) {
 	run(function() {
-		var vals = [];
-		Object.keys(file.hashes).forEach(function(algorithmCaseSensitive) {
-			var algorithm = algorithmCaseSensitive.toLowerCase();
-			file.hashes[algorithm].forEach(function(hash) {
-				vals.push([algorithm, hash]);
-			});
-		});
-		if(!vals.length) throw new Error("No hashes");
-		queryF(session.db, 
-			'INSERT INTO "hashes" ("algorithm", "hash")\n'
-			+'VALUES '+sql.list2D(vals, 1)+'',
-			sql.flatten(vals)).wait();
+		if(!file.normalizedURIs.length) throw new Error("No URIs");
+		addURIsF(session, file.normalizedURIs).wait();
 		queryF(session.db,
-			'INSERT INTO "fileHashes" ("fileID", "hashID")\n'
-			+'SELECT $1, "hashID" FROM "hashes"\n'
-			+'WHERE ("algorithm", "hash") IN ('+sql.list2D(vals, 2)+')', 
-			[fileID].concat(sql.flatten(vals))).wait();
+			'INSERT INTO "fileURIs" ("fileID", "URIID")\n'
+			+'SELECT $1, "URIID" FROM "URIs"\n'
+			+'WHERE "normalizedURI" IN ('+sql.list1D(file.normalizedURIs, 2)+')',
+			[fileID].concat(file.normalizedURIs)).wait();
 	}, callback);
 }
-function addFileIndex(session, fileID, file, callback) {
+function addFileFields(session, fileID, file, callback) {
 	run(function() {
-		if("" !== file.index) queryF(session.db,
-			'INSERT INTO "fileIndexes" ("fileID", "index")\n'
-			+'VALUES ($1, to_tsvector(\'english\', $2))',
-			[fileID, file.index]).wait();
+		if(!file.fields.length) return;
+		var fieldItems = file.fields.map(function(field) {
+			return [fileID, field.name, field.value];
+		});
+		var list = fieldItems.map(function(val, index) {
+			var offset = index * 3;
+			var x = offset + 1;
+			var y = offset + 2;
+			var z = offset + 3;
+			return '($'+x+', $'+y+', $'+z+', to_tsvector(\'english\', $'+z+'))';
+		}).join(", ");
+		var rows = queryF(session.db,
+			'INSERT INTO "fields" ("fileID", "name", "value", "index")\n'
+			+'VALUES '+list+'\n'
+			+'RETURNING "fieldID"',
+			sql.flatten(fieldItems)).wait().rows;
+		var tasks = rows.map(function(row, i) {
+			return addFieldPartsF(session, row.fieldID, file.fields[i]);
+		});
+		wait(tasks);
 	}, callback);
 }
-function addFileLinks(session, fileID, file, callback) {
+function addFieldParts(session, fieldID, field, callback) {
 	run(function() {
-		var vals = file.links.map(function(link) {
-			return [fileID, link];
+		var links = field.links;
+		var scalars = field.scalars;
+		var URIs = links.map(function(link) {
+			return link.normalizedURI;
 		});
-		if(!vals.length) return;
-		queryF(session.db,
-			'INSERT INTO "fileLinks" ("fileID", "normalizedURI")\n'
-			+'VALUES '+sql.list2D(vals, 1)+'',
-			sql.flatten(vals)).wait();
+		addURIsF(session, URIs).wait();
+
+		var tab = '\t';
+		var tasks = [];
+		var linkItems = links.map(function(link) {
+			return [link.normalizedURI, link.relation];
+		});
+		if(linkItems.length) tasks.push(queryF(session.db,
+			'INSERT INTO "fieldLinks" ("fieldID", "URIID", "relation")\n'
+			+'SELECT $1, u."URIID", v."relation"\n'
+			+'FROM VALUES ('+sql.list1D(linkItems, 2, true)+')\n'
+				+tab+'AS v ("normalizedURI", "relation")\n'
+			+'INNER JOIN "URIs" AS u ON (u."normalizedURI" = v."normalizedURI")\n'
+			+'WHERE TRUE',
+			[fieldID].concat(sql.flatten(linkItems))
+		));
+		var scalarItems = scalars.map(function(scalar) {
+			return [fieldID, scalar.type, scalar.value];
+		});
+		if(scalarItems.length) tasks.push(queryF(session.db,
+			'INSERT INTO "fieldScalars" ("fieldID", "type", "value")\n'
+			+'VALUES '+sql.list2D(scalarItems, 1)+'',
+			sql.flatten(scalarItems)
+		));
+		wait(tasks);
 	}, callback);
 }
 function addFileSubmissionTargets(session, submissionID, file, callback) {
 	run(function() {
+		var tab = '\t';
+		var list = file.targets.length ? sql.list1D(file.targets, 3) : 'NULL';
 		queryF(session.db,
-			'INSERT INTO "targets" ("submissionID", "userID")\n\t'
-				+'SELECT $1::bigint, $2\n'
-			+'UNION\n\t'
-				+'SELECT $1::bigint, 0 WHERE \'public\' IN ('+sql.list1D(file.targets, 3)+')\n'
-			+'UNION\n\t'
-				+'SELECT $1::bigint, "userID" FROM "users"\n\t'
-				+'WHERE "username" IN ('+sql.list1D(file.targets, 3)+')',
+			'INSERT INTO "targets" ("submissionID", "userID")\n'
+			+'SELECT $1::bigint, $2\n'
+				+tab+'UNION\n'
+			+'SELECT $1::bigint, 0\n'
+			+'WHERE \'public\' IN ('+list+')\n'
+				+tab+'UNION\n'
+			+'SELECT $1::bigint, "userID" FROM "users"\n'
+			+'WHERE "username" IN ('+list+')',
 			[submissionID, session.userID].concat(file.targets)).wait();
+	}, callback);
+}
+function addURIs(session, normalizedURIs, callback) {
+	run(function() {
+		if(!normalizedURIs.length) return;
+		queryF(session.db,
+			'INSERT INTO "URIs" ("normalizedURI")\n'
+			+'VALUES '+sql.list1D(normalizedURIs, 1, true)+'',
+			normalizedURIs).wait();
 	}, callback);
 }
 

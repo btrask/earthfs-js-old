@@ -16,21 +16,24 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
 FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE. */
-var plugins = exports;
-var fs = require("fs");
+var boolean = exports;
 
-function requiredir(dir) {
-	return fs.readdirSync(dir).filter(function(filename) {
-		if(/^\./.test(filename)) return false;
-		return true;
-	}).map(function(filename) {
-		return require(dir+"/"+filename);
-	});
-}
-
-// TODO: Export `requiredir()` and let clients do this themselves.
-plugins.datadetectors = requiredir(__dirname+"/datadetectors");
-plugins.hashers = requiredir(__dirname+"/hashers");
-plugins.indexers = requiredir(__dirname+"/indexers");
-plugins.parsers = requiredir(__dirname+"/parsers");
+boolean.parseScalars = function(field, callback/* (err) */) {
+	var relevantPart = field.value.slice(0, 10).toLowerCase();
+	// Don't lower-case the whole thing (it might be long).
+	// Careful to be able to ignore a valid value followed by other text.
+	switch(relevantPart) {
+		case "yes":
+		case "true":
+		case "1":
+			field.addScalar("boolean", 1);
+			break;
+		case "no":
+		case "false":
+		case "0":
+			field.addScalar("boolean", 0);
+			break;
+	}
+	callback(null);
+};
 

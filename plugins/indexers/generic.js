@@ -16,21 +16,23 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
 FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE. */
-var plugins = exports;
-var fs = require("fs");
+var generic = exports;
+var Field = require("../../classes/Field");
 
-function requiredir(dir) {
-	return fs.readdirSync(dir).filter(function(filename) {
-		if(/^\./.test(filename)) return false;
-		return true;
-	}).map(function(filename) {
-		return require(dir+"/"+filename);
+generic.acceptsType = function(type) {
+	return "text/" === type.slice(0, 5);
+};
+generic.createIndex = function(stream, type, callback/* (err, fields) */) {
+	var body = "";
+	stream.setEncoding("utf8");
+	stream.on("readable", function() {
+		body += stream.read();
 	});
-}
-
-// TODO: Export `requiredir()` and let clients do this themselves.
-plugins.datadetectors = requiredir(__dirname+"/datadetectors");
-plugins.hashers = requiredir(__dirname+"/hashers");
-plugins.indexers = requiredir(__dirname+"/indexers");
-plugins.parsers = requiredir(__dirname+"/parsers");
+	stream.on("end", function() {
+		callback(null, [new Field("body", body)]);
+	});
+	stream.on("error", function(err) {
+		callback(err, null);
+	});
+};
 
