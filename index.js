@@ -127,8 +127,10 @@ register("POST", /^\/api\/submission\/?$/, function(req, res, url) {
 			return target != "";
 		});
 		var form = new multiparty.Form();
+		var receivedValidPart = false;
 		form.on("part", function(part) {
 			if("file" !== part.name) return;
+			receivedValidPart = true;
 			var ext = pathModule.extname(part.filename);
 			var type = part.headers["content-type"] || (has(MIME, ext) && MIME[ext]);
 			if(!type) return res.message(400, "Bad Request"); // TODO: Something?
@@ -140,6 +142,10 @@ register("POST", /^\/api\/submission\/?$/, function(req, res, url) {
 					res.sendJSON(200, "OK", outgoingFile);
 				});
 			});
+		});
+		form.on("close", function() {
+			if(receivedValidPart) return;
+			res.sendMessage(400, "Bad Request");
 		});
 		form.addListener("error", function(err) {
 			console.log("hmm", err);
