@@ -144,7 +144,7 @@ Session.prototype.submissionsForNormalizedURI = function(normalizedURI, callback
 		return queryF(session.db,
 			'SELECT\n'
 				+tab+'s."submissionID",\n'
-				+tab+'EXTRACT(EPOCH FROM s."timestamp"),\n'
+				+tab+'EXTRACT(EPOCH FROM s."timestamp") AS "timestamp",\n'
 				+tab+'u."username"\n'
 			+'FROM "submissions" AS s\n'
 			+'INNER JOIN "fileURIs" AS f ON (f."fileID" = s."fileID")\n'
@@ -165,7 +165,7 @@ Session.prototype.fileForSubmissionID = function(submissionID, callback/* (err, 
 		var file = queryF(session.db,
 			'SELECT\n'
 				+tab+'f."fileID", f."internalHash", f."type", f."size",\n'
-				+tab+'EXTRACT(EPOCH FROM s."timestamp"),\n'
+				+tab+'EXTRACT(EPOCH FROM s."timestamp") AS "timestamp",\n'
 				+tab+'u."username" AS "source"\n'
 			+'FROM "files" AS f\n'
 			+'INNER JOIN "submissions" AS s ON (s."fileID" = f."fileID")\n'
