@@ -117,10 +117,10 @@ IncomingFile.prototype.load = function(path, stream, callback/* (err) */) {
 		file.internalHash = internalHash;
 		file.internalPath = repo.internalPathForHash(internalHash);
 	}));
-	createIndex(streamCopy(stream), file.type, collection.add(function(fields) {
+	createIndex(stream, file.type, collection.add(function(fields) {
 		file.fields = fields;
 	}));
-	streamLength(streamCopy(stream), collection.add(function(size) {
+	streamLength(stream, collection.add(function(size) {
 		file.size = size;
 	}));
 	collection.wait(callback);
@@ -130,25 +130,19 @@ function createHashes(stream, type, callback/* (err, hashes) */) {
 	var hashes = {};
 	var waiting = hashers.length;
 	if(waiting <= 0) return callback(null, hashes);
+	var streamer = new Streamer(stream);
 	hashers.forEach(function(hasher) {
-		var stream2 = streamCopy(stream);
-		hasher.createHashes(stream2, type, function(err, array) {
+		hasher.createHashes(streamer, type, function(err, array) {
 			if(!err) hashes[hasher.algorithm] = array;
 			if(!--waiting) callback(null, hashes);
 		});
-		stream2.on("error", function(err) {});
 	});
-	stream.on("error", function(err) {
-		if(waiting <= 0) return;
-		waiting = 0;
-		callback(err, null);
-	});
-	// TODO: What is up with this error handling?
 }
 function createIndex(stream, type, callback/* (err, fields) */) {
 	for(var i = 0; i < indexers.length; ++i) {
 		if(!indexers[i].acceptsType(type)) continue;
-		return indexers[i].createIndex(stream, type, function(err, fields) {
+		var streamer = new Streamer(stream);
+		return indexers[i].createIndex(streamer, type, function(err, fields) {
 			if(err) return callback(err, null);
 			var waiting = fields.length;
 			if(!waiting) return callback(null, fields);
@@ -172,11 +166,6 @@ function URIsFromHashes(hashes) {
 	return URIs;
 }
 
-function streamCopy(stream) {
-	var copy = new PassThroughStream;
-	stream.pipe(copy);
-	return copy;
-}
 function streamLength(stream, callback/* (err, length) */) {
 	var length = 0;
 	stream.on("readable", function() {
@@ -190,4 +179,24 @@ function streamLength(stream, callback/* (err, length) */) {
 		callback(err, null);
 	});
 }
+
+// Splitting streams is broken with Streams2.
+// - Clients calling `stream.read()` on a single stream steal each other's data.
+// - `stream.pipe()` shares data, but a client who doesn't read its pipe blocks all of the other clients forever.
+// Thus, Streamer() takes a stream and doles out piped streams to clients that are actually interested in them.
+var PassThroughStream = require("stream").PassThrough;
+function Streamer(stream) {
+	var streamer = this;
+	streamer._stream = stream;
+}
+Streamer.prototype.stream = function() {
+	var streamer = this;
+	var stream = new PassThroughStream;
+	streamer._stream.pipe(stream);
+	return stream;
+};
+Streamer.prototype.destroyStream = function(stream) {
+	var streamer = this;
+	streamer._stream.unpipe(stream);
+};
 

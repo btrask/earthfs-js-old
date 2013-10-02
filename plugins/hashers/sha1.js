@@ -19,8 +19,9 @@ IN THE SOFTWARE. */
 var crypto = require("crypto");
 
 exports.algorithm = "sha1";
-exports.createHashes = function(stream, type, callback/* (array) */) {
+exports.createHashes = function(streamer, type, callback/* (array) */) {
 	var sha1 = crypto.createHash("sha1");
+	var stream = streamer.stream();
 	stream.pipe(sha1);
 	stream.on("end", function() {
 		var hash = sha1.read();

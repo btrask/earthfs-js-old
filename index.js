@@ -23,7 +23,6 @@ var util = require("util");
 var os = require("os");
 var fs = require("fs");
 var https = require("https");
-var ReadableStream = require("stream").Readable;
 
 var client = require("efs-client");
 var multiparty = require("multiparty");
@@ -131,9 +130,9 @@ register("POST", /^\/api\/submission\/?$/, function(req, res, url) {
 		form.on("part", function(part) {
 			if("file" !== part.name) return;
 			receivedValidPart = true;
-			var ext = pathModule.extname(part.filename);
+			var ext = part.filename ? pathModule.extname(part.filename) : "";
 			var type = part.headers["content-type"] || (has(MIME, ext) && MIME[ext]);
-			if(!type) return res.message(400, "Bad Request"); // TODO: Something?
+			if(!type) return res.sendMessage(400, "Bad Request"); // TODO: Something?
 			var file = new IncomingFile(repo, type, targets);
 			file.loadFromStream(part, function(err) {
 				if(err) return res.sendError(err);
@@ -181,6 +180,7 @@ function sendSubmission(req, res, session, submissionID) {
 		res.writeHead(200, {
 			"Content-Type": file.type,
 			"Content-Length": file.size,
+			"X-Submission-ID": file.submissionID,
 			"X-Internal-Hash": file.internalHash,
 			"X-Source": file.source,
 			"X-Targets": file.targets.join(", "),
