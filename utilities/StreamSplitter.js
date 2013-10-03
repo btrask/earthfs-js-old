@@ -16,19 +16,26 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
 FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE. */
-var crypto = require("crypto");
+module.exports = StreamSplitter;
 
-exports.algorithm = "sha1";
-exports.createHashes = function(splitter, type, callback/* (array) */) {
-	var sha1 = crypto.createHash("sha1");
-	var stream = splitter.stream();
-	stream.pipe(sha1);
-	stream.on("end", function() {
-		var hash = sha1.read();
-		callback(null, [
-			hash.toString("hex"),
-			hash.toString("base64"), // TODO: Strip trailing `=`.
-		]);
-	});
+var PassThroughStream = require("stream").PassThrough;
+
+// Splitting streams is broken with Streams2.
+// - Clients calling `stream.read()` on a single stream steal each other's data.
+// - `stream.pipe()` shares data, but a client who doesn't read its pipe blocks all of the other clients forever.
+// Thus, StreamSplitter() takes a stream and doles out piped streams to clients that are actually interested in them.
+function StreamSplitter(stream) {
+	var splitter = this;
+	splitter._stream = stream;
+}
+StreamSplitter.prototype.stream = function() {
+	var splitter = this;
+	var stream = new PassThroughStream;
+	splitter._stream.pipe(stream);
+	return stream;
+};
+StreamSplitter.prototype.destroy = function(stream) {
+	var splitter = this;
+	splitter._stream.unpipe(stream);
 };
 

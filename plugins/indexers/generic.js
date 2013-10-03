@@ -22,9 +22,9 @@ var Field = require("../../classes/Field");
 generic.acceptsType = function(type) {
 	return "text/" === type.slice(0, 5);
 };
-generic.createIndex = function(streamer, type, callback/* (err, fields) */) {
+generic.createIndex = function(splitter, type, callback/* (err, fields) */) {
 	var body = "";
-	var stream = streamer.stream();
+	var stream = splitter.stream();
 	stream.setEncoding("utf8");
 	stream.on("readable", function() {
 		body += stream.read();

@@ -22,7 +22,6 @@ var fs = require("fs");
 var os = require("os");
 var crypto = require("crypto");
 var util = require("util");
-var PassThroughStream = require("stream").PassThrough;
 
 var client = require("efs-client");
 
@@ -31,6 +30,7 @@ var hashers = plugins.hashers;
 var indexers = plugins.indexers;
 
 var has = require("../utilities/has");
+var StreamSplitter = require("../utilities/StreamSplitter");
 
 // TODO: Put this somewhere. Or use a real library that does the same thing.
 function AsyncCollection() {
@@ -108,9 +108,9 @@ IncomingFile.prototype.load = function(path, stream, callback/* (err) */) {
 	var file = this;
 	var repo = file.repo;
 	var collection = new AsyncCollection;
-	var streamer = new Streamer(stream);
+	var splitter = new StreamSplitter(stream);
 	file.originalPath = path;
-	createHashes(streamer, file.type, collection.add(function(hashes) {
+	createHashes(splitter, file.type, collection.add(function(hashes) {
 		if(!has(hashes, "sha1") || !hashes["sha1"].length) throw new Error("Internal hash algorithm missing "+util.inspect(hashes));
 		var internalHash = hashes["sha1"][0];
 		file.hashes = hashes;
@@ -118,30 +118,30 @@ IncomingFile.prototype.load = function(path, stream, callback/* (err) */) {
 		file.internalHash = internalHash;
 		file.internalPath = repo.internalPathForHash(internalHash);
 	}));
-	createIndex(streamer, file.type, collection.add(function(fields) {
+	createIndex(splitter, file.type, collection.add(function(fields) {
 		file.fields = fields;
 	}));
-	streamLength(streamer.stream(), collection.add(function(size) {
+	streamLength(splitter.stream(), collection.add(function(size) {
 		file.size = size;
 	}));
 	collection.wait(callback);
 };
 
-function createHashes(streamer, type, callback/* (err, hashes) */) {
+function createHashes(splitter, type, callback/* (err, hashes) */) {
 	var hashes = {};
 	var waiting = hashers.length;
 	if(waiting <= 0) return callback(null, hashes);
 	hashers.forEach(function(hasher) {
-		hasher.createHashes(streamer, type, function(err, array) {
+		hasher.createHashes(splitter, type, function(err, array) {
 			if(!err) hashes[hasher.algorithm] = array;
 			if(!--waiting) callback(null, hashes);
 		});
 	});
 }
-function createIndex(streamer, type, callback/* (err, fields) */) {
+function createIndex(splitter, type, callback/* (err, fields) */) {
 	for(var i = 0; i < indexers.length; ++i) {
 		if(!indexers[i].acceptsType(type)) continue;
-		return indexers[i].createIndex(streamer, type, function(err, fields) {
+		return indexers[i].createIndex(splitter, type, function(err, fields) {
 			if(err) return callback(err, null);
 			var waiting = fields.length;
 			if(!waiting) return callback(null, fields);
@@ -178,24 +178,4 @@ function streamLength(stream, callback/* (err, length) */) {
 		callback(err, null);
 	});
 }
-
-// Splitting streams is broken with Streams2.
-// - Clients calling `stream.read()` on a single stream steal each other's data.
-// - `stream.pipe()` shares data, but a client who doesn't read its pipe blocks all of the other clients forever.
-// Thus, Streamer() takes a stream and doles out piped streams to clients that are actually interested in them.
-var PassThroughStream = require("stream").PassThrough;
-function Streamer(stream) {
-	var streamer = this;
-	streamer._stream = stream;
-}
-Streamer.prototype.stream = function() {
-	var streamer = this;
-	var stream = new PassThroughStream;
-	streamer._stream.pipe(stream);
-	return stream;
-};
-Streamer.prototype.destroyStream = function(stream) {
-	var streamer = this;
-	streamer._stream.unpipe(stream);
-};
 
