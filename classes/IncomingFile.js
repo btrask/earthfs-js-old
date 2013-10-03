@@ -108,8 +108,9 @@ IncomingFile.prototype.load = function(path, stream, callback/* (err) */) {
 	var file = this;
 	var repo = file.repo;
 	var collection = new AsyncCollection;
+	var streamer = new Streamer(stream);
 	file.originalPath = path;
-	createHashes(stream, file.type, collection.add(function(hashes) {
+	createHashes(streamer, file.type, collection.add(function(hashes) {
 		if(!has(hashes, "sha1") || !hashes["sha1"].length) throw new Error("Internal hash algorithm missing "+util.inspect(hashes));
 		var internalHash = hashes["sha1"][0];
 		file.hashes = hashes;
@@ -117,20 +118,19 @@ IncomingFile.prototype.load = function(path, stream, callback/* (err) */) {
 		file.internalHash = internalHash;
 		file.internalPath = repo.internalPathForHash(internalHash);
 	}));
-	createIndex(stream, file.type, collection.add(function(fields) {
+	createIndex(streamer, file.type, collection.add(function(fields) {
 		file.fields = fields;
 	}));
-	streamLength(stream, collection.add(function(size) {
+	streamLength(streamer.stream(), collection.add(function(size) {
 		file.size = size;
 	}));
 	collection.wait(callback);
 };
 
-function createHashes(stream, type, callback/* (err, hashes) */) {
+function createHashes(streamer, type, callback/* (err, hashes) */) {
 	var hashes = {};
 	var waiting = hashers.length;
 	if(waiting <= 0) return callback(null, hashes);
-	var streamer = new Streamer(stream);
 	hashers.forEach(function(hasher) {
 		hasher.createHashes(streamer, type, function(err, array) {
 			if(!err) hashes[hasher.algorithm] = array;
@@ -138,10 +138,9 @@ function createHashes(stream, type, callback/* (err, hashes) */) {
 		});
 	});
 }
-function createIndex(stream, type, callback/* (err, fields) */) {
+function createIndex(streamer, type, callback/* (err, fields) */) {
 	for(var i = 0; i < indexers.length; ++i) {
 		if(!indexers[i].acceptsType(type)) continue;
-		var streamer = new Streamer(stream);
 		return indexers[i].createIndex(streamer, type, function(err, fields) {
 			if(err) return callback(err, null);
 			var waiting = fields.length;
