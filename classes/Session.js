@@ -27,6 +27,8 @@ var Fiber = require("fibers");
 var Future = require("fibers/future");
 
 var sql = require("../utilities/sql");
+var run = require("../utilities/fiber-helper").run;
+var wait = require("../utilities/fiber-helper").wait;
 
 var Query = require("./Query");
 var AST = require("./AST");
@@ -47,46 +49,19 @@ var addFieldPartsF = Future.wrap(addFieldParts);
 var addFileSubmissionTargetsF = Future.wrap(addFileSubmissionTargets);
 var addURIsF = Future.wrap(addURIs);
 
-function run(func, callback) {
-	if("function" !== typeof callback) throw new Error("Bad callback arg "+callback);
-	Fiber(function() {
-		var val;
-		try {
-			val = func();
-		} catch(err) {
-			callback(err, null);
-			return;
-		}
-		callback(null, val);
-	}).run();
-}
-function wait(tasks) {
-	Future.wait(tasks);
-	var errors = [], error;
-	var results = tasks.map(function(task) {
-		try {
-			return task.get();
-		} catch(err) {
-			var postgresAbortedTransaction = "25P02" === err.code;
-			if(!postgresAbortedTransaction) errors.push(err);
-		}
-	});
-	if(errors.length) throw errors[0]; // Other errors are ignored...
-	return results;
-	// TODO: It'd be nice if `Future.wait()` threw the first error encountered.
-}
-
-function Session(repo, db, userID, mode) {
+function Session(repo, db, userID, mode, cookie) {
 	var session = this;
 	session.repo = repo;
 	session.db = db;
 	session.userID = userID;
 	session.mode = mode;
+	session.cookie = cookie;
 }
 Session.prototype.close = function() {
 	var session = this;
 	session.repo = null;
 	session.db.end();
+	session.db = null;
 	session.userID = null;
 	session.mode = Session.O_NONE;
 };

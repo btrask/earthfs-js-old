@@ -73,13 +73,13 @@ function register(method, path, func/* (req, res, url, arg1, arg2, etc) */) {
 
 
 register("GET", /^\/api\/submission\/(\d+)\/?$/, function(req, res, url, submissionID) {
-	repo.auth(req, res, Repo.O_RDONLY, function(err, session) {
+	repo.auth(req, res, url, Repo.O_RDONLY, function(err, session) {
 		if(err) return res.sendError(err);
 		sendSubmission(req, res, session, submissionID);
 	});
 });
 register("GET", /^\/api\/file\/([^\/]+)\/([^\/]+)\/([\w\d]+)\/?$/, function(req, res, url, encodedAlgorithm, encodedHash, submissionName) {
-	repo.auth(req, res, Repo.O_RDONLY, function(err, session) {
+	repo.auth(req, res, url, Repo.O_RDONLY, function(err, session) {
 		if(err) return res.sendError(err);
 		var normalizedURI = client.formatEarthURI({
 			algorithm: decodeURIComponent(encodedAlgorithm),
@@ -99,7 +99,7 @@ register("GET", /^\/api\/file\/([^\/]+)\/([^\/]+)\/([\w\d]+)\/?$/, function(req,
 	});
 });
 register("GET", /^\/api\/file\/([^\/]+)\/([^\/]+)\/?$/, function(req, res, url, encodedAlgorithm, encodedHash) {
-	repo.auth(req, res, Repo.O_RDONLY, function(err, session) {
+	repo.auth(req, res, url, Repo.O_RDONLY, function(err, session) {
 		if(err) return res.sendError(err);
 		var normalizedURI = client.formatEarthURI({
 			algorithm: decodeURIComponent(encodedAlgorithm),
@@ -120,7 +120,7 @@ register("GET", /^\/api\/file\/([^\/]+)\/([^\/]+)\/?$/, function(req, res, url, 
 });
 
 register("POST", /^\/api\/submission\/?$/, function(req, res, url) {
-	repo.auth(req, res, Repo.O_WRONLY, function(err, session) {
+	repo.auth(req, res, url, Repo.O_WRONLY, function(err, session) {
 		if(err) return res.sendError(err);
 		var targets = String(url.query["t"] || "").split("\n").filter(function(target) {
 			return target != "";
@@ -155,7 +155,7 @@ register("POST", /^\/api\/submission\/?$/, function(req, res, url) {
 });
 
 register("GET", /^\/api\/query\/?$/, function(req, res, url) {
-	repo.auth(req, res, Repo.O_RDONLY, function(err, session) {
+	repo.auth(req, res, url, Repo.O_RDONLY, function(err, session) {
 		if(err) return res.sendError(err);
 		var queryString = decodeURIComponent(url.query["q"] || "");
 		var queryLanguage = "simple"; // TODO: Configurable.

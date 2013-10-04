@@ -37,7 +37,7 @@ http.ServerResponse.prototype.sendMessage = function(status, message) {
 http.ServerResponse.prototype.sendError = function(err) {
 	var res = this;
 	if(Object.prototype.hasOwnProperty.call(err, "httpStatusCode")) {
-		return res.sendMessage(err.httpStatusCode, err.message);
+		return res.sendMessage(err.httpStatusCode, http.STATUS_CODES[err.httpStatusCode]);
 	}
 	switch(err.code) {
 		case "ENOENT": return res.sendMessage(404, "Not Found");
