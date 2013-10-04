@@ -51,6 +51,8 @@ var addURIsF = Future.wrap(addURIs);
 
 function Session(repo, db, userID, mode, cookie) {
 	var session = this;
+	if(!repo) throw new Error("Invalid repo for session");
+	if(!db) throw new Error("Invalid database for session");
 	session.repo = repo;
 	session.db = db;
 	session.userID = userID;
@@ -60,7 +62,7 @@ function Session(repo, db, userID, mode, cookie) {
 Session.prototype.close = function() {
 	var session = this;
 	session.repo = null;
-	session.db.end();
+	session.db.done();
 	session.db = null;
 	session.userID = null;
 	session.mode = Session.O_NONE;
@@ -107,8 +109,12 @@ Session.prototype.addIncomingFile = function(file, callback/* (err, outgoingFile
 			// TODO: Submit patch to node-fibers to preserve original error information. Normally it uses `Object.create(error)` which does not work very well.
 		}
 	}, function(err, outgoingFile) {
+		var repo = session.repo;
 		callback(err, outgoingFile);
-		if(!err) session.repo.emit("submission", outgoingFile);
+		if(!err) repo.emit("submission", outgoingFile);
+		// Calling `callback` might cause us to close,
+		// so save the repo first. We just want the
+		// original caller to be the first to know.
 	});
 };
 Session.prototype.submissionsForNormalizedURI = function(normalizedURI, callback/* (err, submissions) */) {

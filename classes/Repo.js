@@ -39,7 +39,6 @@ var run = require("../utilities/fiber-helper").run;
 var Session = require("./Session");
 
 var queryF = Future.wrap(sql.debug);
-var authF = Future.wrap(auth);
 var authUserF = Future.wrap(authUser);
 var authSessionF = Future.wrap(authSession);
 var authPublicF = Future.wrap(authPublic);
@@ -61,6 +60,7 @@ function Repo(path, config) {
 	repo.db = new Error("Use `session.db` instead");
 	repo.key = null;
 	repo.cert = null;
+	repo.pulls = {};
 }
 util.inherits(Repo, EventEmitter);
 
@@ -69,113 +69,35 @@ Repo.prototype.internalPathForHash = function(internalHash) {
 	return repo.DATA+"/"+internalHash.slice(0, 2)+"/"+internalHash;
 };
 
-Repo.prototype.auth = function(req, res, url, mode, callback/* (err, session) */) {
+Repo.prototype.auth = function(opts, callback/* (err, session) */) {
 	var repo = this;
-	var db;
 	run(function() {
-		db = dbClientF(repo).wait();
-		var session = authF(repo, db, req, res, url, mode).wait();
-		if(session.cookie) res.setHeader("Set-Cookie", session.cookie);
-		return session;
-	}, function(err, session) {
-		if(err && db) db.end();
-		callback(err, session);
-	});
-};
-function auth(repo, db, req, res, url, mode, callback) {
-	run(function() {
-		var opts = url.query;
-		if(has(opts, "u") && has(opts, "p")) {
-			var username = opts["u"];
-			var password = opts["p"];
-			var remember = has(opts, "r") && opts["r"];
-			return authUserF(repo, db, username, password, mode, remember).wait();
+		if(isNaN(opts.mode)) throw new Error("Invalid mode");
+		if(Session.O_NONE === opts.mode) throw new Error("Mode must be set");
+		var db = dbClientF(repo).wait();
+		try {
+			if(opts.username && opts.password) return authUserF(repo, db, opts).wait();
+			if(opts.cookie) return authSessionF(repo, db, opts).wait();
+			return authPublicF(repo, db, opts).wait();
+		} catch(err) {
+			db.done();
+			throw err;
 		}
-		var cookies = cookieModule.parse(req.headers["cookie"] || "");
-		if(has(cookies, "s")) {
-			var cookie = cookies["s"];
-			return authSessionF(repo, db, cookie, mode).wait();
-		}
-		return authPublicF(repo, db, mode).wait();
-	}, callback);
-}
-function authUser(repo, db, username, password, mode, remember, callback) {
-	run(function() {
-		var row = queryF(db,
-			'SELECT "userID", "passwordHash", "tokenHash"\n'
-			+'FROM "users" WHERE "username" = $1',
-			[username]).wait().rows[0];
-		if(!row) throw httpError(403);
-		if(bcrypt.compareSync(password, row.passwordHash)) {
-			return createSessionF(repo, db, row.userID, Session.O_RDWR, remember).wait();
-		}
-		if((mode & Session.O_RDONLY) !== mode) throw httpError(403);
-		// TODO: Are these read-only tokens a good idea?
-		// If so, maybe it should be null by default, in which case we should check.
-		if(bcrypt.compareSync(password, row.tokenHash)) {
-			return createSessionF(repo, db, row.userID, Session.O_RDONLY, remember).wait();
-		}
-		throw httpError(403);
 	}, callback);
 };
-function authSession(repo, db, cookie, mode, callback) {
+Repo.prototype.authPull = function(pull, callback/* (err, session) */) {
+	var repo = this;
 	run(function() {
-		var obj = /(\d+):(.*)+/.exec(cookie);
-		if(!obj) throw new Error("Invalid session");
-		var sessionID = obj[1];
-		var sessionKey = obj[2];
-		var row = queryF(db,
-			'SELECT "sessionHash", "userID", "modeRead", "modeWrite" FROM "sessions"\n'
-			+'WHERE "sessionID" = $1 AND "sessionTime" > NOW() - INTERVAL \'14 days\'',
-			[sessionID]).wait().rows[0];
-		if(!row) throw httpError(403);
-		var sessionMode =
-			(row.modeRead ? Session.O_RDONLY : 0) |
-			(row.modeWrite ? Session.O_WRONLY : 0);
-		// TODO: If FORBIDDEN, tell the client to clear the cookie?
-		// Not in the case of insufficient mode though.
-		if((mode & sessionMode) !== mode) throw httpError(403);
-		if(bcrypt.compareSync(sessionKey, row.sessionHash)) {
-			return new Session(repo, db, row.userID, sessionMode);
-		}
-		throw httpError(403);
+		if(repo.pulls[pull.userID] !== pull) throw new Error("Invalid pull");
+		var db = dbClientF(repo).wait();
+		return new Session(repo, db, pull.userID, Session.O_WRONLY);
 	}, callback);
 };
-function authPublic(repo, db, mode, callback) {
-	run(function() {
-		var publicMode = Session.O_RDONLY; // TODO: Configurable.
-		if((mode & publicMode) !== mode) throw httpError(403);
-		return new Session(repo, db, 0, publicMode);
-	}, callback);
-};
-function createSession(repo, db, userID, mode, remember, callback) {
-	run(function() {
-		var sessionKey = randomBytesF(20).wait().toString("base64");
-		var sessionHash = bcrypt.hashSync(sessionKey, 10); // TODO: Use async?
-		var modeRead = Boolean(mode & Session.O_RDONLY);
-		var modeWrite = Boolean(mode & Session.O_WRONLY);
-		var row = queryF(db,
-			'INSERT INTO "sessions"\n'
-				+'\t'+'("sessionHash", "userID", "modeRead", "modeWrite")\n'
-			+'VALUES ($1, $2, $3, $4)\n'
-			+'RETURNING "sessionID"',
-			[sessionHash, userID, modeRead, modeWrite]).wait().rows[0];
-		if(!row) throw new Error("Unable to create session");
-		var c = cookieModule.serialize("s", row.sessionID+":"+sessionKey, {
-			maxAge: remember ? 14 * 24 * 60 * 60 : 0,
-			httpOnly: true,
-			secure: repo.key && repo.cert, // TODO: Hack.
-			path: "/",
-		});
-		return new Session(repo, db, userID, mode, c);
-	}, callback);
-}
 
 Repo.prototype.loadPulls = function() {
 	var repo = this;
-	var db;
-	run(function() {
-		db = dbClientF(repo).wait();
+	Fiber(function() {
+		var db = dbClientF(repo).wait();
 		var rows = queryF(db,
 			'SELECT\n\t'
 				+'"pullID",\n\t'
@@ -188,22 +110,17 @@ Repo.prototype.loadPulls = function() {
 				+'"password"\n'
 			+'FROM "pulls" WHERE TRUE',
 			[]).wait().rows;
+		db.done();
+		db = null;
 		rows.forEach(function(row) {
 			var pull = repo.pulls[row.pullID];
 			if(pull) pull.close();
-			// TODO: We can't just pass in the same DB to all of these!
-			// But we also can't just open a million connections!
-			// What to do?
-			var session = new Session(repo, db, row.userID, Session.O_WRONLY);
-			pull = new Pull(session, row);
+			pull = new Pull(repo, row);
 			repo.pulls[row.pullID] = pull;
 		});
 		// On a big server this could be a ton of objects! Several per user on average.
 		// Each pull is backed by a persistent HTTP request, so that is probably the bottleneck, if any.
-	}, function(err) {
-		if(err && db) db.end();
-		if(err) throw err;
-	});
+	}).run();
 };
 
 
@@ -231,16 +148,86 @@ Repo.loadSync = function(path) {
 	return repo;
 };
 
+
 function dbClient(repo, callback) {
-	var db = new pg.Client(repo.config["db"]);
-	db.connect(function(err) {
+	pg.connect(repo.config["db"], function(err, db, done) {
 		if(err) return callback(err, null);
+		db.done = done; // Why is this not set up by default?
 		callback(null, db);
 	});
 }
-function httpError(statusCode) {
-	var err = new Error("HTTP status code "+statusCode);
-	err.httpStatusCode = statusCode;
+function authUser(repo, db, opts, callback) {
+	run(function() {
+		var row = queryF(db,
+			'SELECT "userID", "passwordHash", "tokenHash"\n'
+			+'FROM "users" WHERE "username" = $1',
+			[opts.username]).wait().rows[0];
+		if(!row) throw forbidden();
+		if(bcrypt.compareSync(opts.password, row.passwordHash)) {
+			return createSessionF(repo, db, row.userID, Session.O_RDWR, opts.remember).wait();
+		}
+		if((opts.mode & Session.O_RDONLY) !== opts.mode) throw forbidden();
+		// TODO: Are these read-only tokens a good idea?
+		// If so, maybe it should be null by default, in which case we should check.
+		if(bcrypt.compareSync(opts.password, row.tokenHash)) {
+			return createSessionF(repo, db, row.userID, Session.O_RDONLY, opts.remember).wait();
+		}
+		throw forbidden();
+	}, callback);
+};
+function authSession(repo, db, opts, callback) {
+	run(function() {
+		var obj = /(\d+):(.*)+/.exec(opts.cookie);
+		if(!obj) throw new Error("Invalid session");
+		var sessionID = obj[1];
+		var sessionKey = obj[2];
+		var row = queryF(db,
+			'SELECT "sessionHash", "userID", "modeRead", "modeWrite" FROM "sessions"\n'
+			+'WHERE "sessionID" = $1 AND "sessionTime" > NOW() - INTERVAL \'14 days\'',
+			[sessionID]).wait().rows[0];
+		if(!row) throw forbidden();
+		var sessionMode =
+			(row.modeRead ? Session.O_RDONLY : 0) |
+			(row.modeWrite ? Session.O_WRONLY : 0);
+		if((opts.mode & sessionMode) !== opts.mode) throw forbidden();
+		if(bcrypt.compareSync(sessionKey, row.sessionHash)) {
+			return new Session(repo, db, row.userID, sessionMode);
+		}
+		throw forbidden();
+	}, callback);
+};
+function authPublic(repo, db, opts, callback) {
+	run(function() {
+		var publicMode = Session.O_RDONLY; // TODO: Configurable.
+		if((opts.mode & publicMode) !== opts.mode) throw forbidden();
+		return new Session(repo, db, 0, publicMode);
+	}, callback);
+};
+function createSession(repo, db, userID, mode, remember, callback) {
+	run(function() {
+		var sessionKey = randomBytesF(20).wait().toString("base64");
+		var sessionHash = bcrypt.hashSync(sessionKey, 10); // TODO: Use async?
+		var modeRead = Boolean(mode & Session.O_RDONLY);
+		var modeWrite = Boolean(mode & Session.O_WRONLY);
+		var row = queryF(db,
+			'INSERT INTO "sessions"\n'
+				+'\t'+'("sessionHash", "userID", "modeRead", "modeWrite")\n'
+			+'VALUES ($1, $2, $3, $4)\n'
+			+'RETURNING "sessionID"',
+			[sessionHash, userID, modeRead, modeWrite]).wait().rows[0];
+		if(!row) throw new Error("Unable to create session");
+		var cookie = cookieModule.serialize("s", row.sessionID+":"+sessionKey, {
+			maxAge: remember ? 14 * 24 * 60 * 60 : 0,
+			httpOnly: true,
+			secure: repo.key && repo.cert, // TODO: Hack.
+			path: "/",
+		});
+		return new Session(repo, db, userID, mode, cookie);
+	}, callback);
+}
+function forbidden() {
+	var err = new Error("Forbidden");
+	err.httpStatusCode = 403;
 	return err;
 }
 
