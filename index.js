@@ -64,7 +64,7 @@ function dispatch(req, res) {
 	for(i = 0; i < handlers.length; ++i) {
 		if(handlers[i](req, res, url)) return;
 	}
-	res.sendError(httpError(404));
+	res.sendError(httpError(404, url));
 }
 function registerExp(method, pathExp, func/* (req, res, url, arg1, arg2, etc) */) {
 	handlers.push(function(req, res, url) {
@@ -223,8 +223,8 @@ function parseURI(encodedAlgorithm, encodedHash) {
 		hash: decodeURIComponent(encodedHash),
 	});
 }
-function httpError(statusCode) {
-	var err = new Error("HTTP status code "+statusCode);
+function httpError(statusCode, url) {
+	var err = new Error("HTTP status code "+statusCode+(url ? " from "+urlModule.format(url) : ""));
 	err.httpStatusCode = statusCode;
 	return err;
 }
