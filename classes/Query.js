@@ -39,7 +39,7 @@ function Query(session, ast) {
 	query.heartbeat = null;
 }
 util.inherits(Query, EventEmitter);
-Query.prototype.open = function(stream, offset, limit) {
+Query.prototype.open = function(stream, offset, limit, callback) {
 	var query = this;
 	if(query.streaming) throw new Error("Query already open");
 	query.streaming = true;
@@ -48,25 +48,24 @@ Query.prototype.open = function(stream, offset, limit) {
 		query._stream.write("\n", "utf8");
 	}, 1000 * 30);
 
-	sendHistory(query, offset, limit, function(err) {
-		if(err) return query.emit("error", err);
-		query.stream.pipe(query._stream, {end: false});
-		query.stream.end();
-		query.stream = query._stream;
-	});
+	sendHistory(query, offset, limit);
 
 	query.repo.on("submission", onsubmission);
 	query._stream.on("close", onclose);
-	query.once("close", function() {
-		query.repo.removeListener("submission", onsubmission);
-		query._stream.removeListener("close", onclose);
-	});
+	query.on("close", stop);
+	query.on("error", stop);
 
 	function onsubmission(obj) {
 		sendSubmission(query, obj);
 	}
 	function onclose() {
 		query.close();
+	}
+	function stop() {
+		query.repo.removeListener("submission", onsubmission);
+		query._stream.removeListener("close", onclose);
+		query.removeListener("close", stop);
+		query.removeListener("error", stop);
 	}
 };
 Query.prototype.close = function() {
@@ -81,7 +80,37 @@ Query.prototype.close = function() {
 	query.stream = new PassThroughStream;
 };
 
-function sendHistory(query, offset, limit, callback/* (err) */) {
+function sendHistory(query, offset, limit) {
+	var obj = SQL(query, offset, limit);
+	var stream = sql.debug2(query.db, obj.query, obj.parameters);
+	stream.on("row", onrow);
+	stream.on("end", onend);
+	stream.on("error", onerror);
+	query.on("close", stop);
+	query.on("error", stop);
+
+	function onrow(row) {
+		query._stream.write("earth://sha1/"+row.internalHash+"\n", "utf8");
+	}
+	function onend() {
+		query.stream.pipe(query._stream, {end: false});
+		query.stream.end();
+		query.stream = query._stream;
+		query.emit("streaming");
+	}
+	function onerror(err) {
+		console.log(err.query);
+		console.log(err.args);
+		console.log(err.stack);
+		query.emit("error", err);
+	}
+	function stop() {
+		stream.removeListener("row", onrow);
+		stream.removeListener("end", onend);
+		stream.removeListener("error", onerror);
+	}
+}
+function SQL(query, offset, limit) {
 	var obj, str, params = [];
 	var lim = '';
 	if(offset >= 0) {
@@ -101,37 +130,25 @@ function sendHistory(query, offset, limit, callback/* (err) */) {
 			lim;
 		params.push(offset);
 	} else {
-		var tab = '\t';
 		if(limit && limit > 0) {
-			lim = tab+'LIMIT $'+(params.length+1)+'\n';
+			lim = '\t'+'LIMIT $'+(params.length+1)+'\n';
 			params.push(limit);
 		}
-		obj = query.ast.SQL(params.length+1, tab+'\t');
+		obj = query.ast.SQL(params.length+1, '\t\t');
 		params = params.concat(obj.parameters);
 		str =
 			'SELECT * FROM (\n'+
-				tab+'SELECT "fileID", "internalHash"\n'+
-				tab+'FROM "files"\n'+
-				tab+'WHERE "fileID" IN\n'+
+				'\t'+'SELECT "fileID", "internalHash"\n'+
+				'\t'+'FROM "files"\n'+
+				'\t'+'WHERE "fileID" IN\n'+
 					obj.query+
-				tab+'ORDER BY "fileID" DESC\n'+
-				tab+'OFFSET $'+(params.length+1)+'\n'+
+				'\t'+'ORDER BY "fileID" DESC\n'+
+				'\t'+'OFFSET $'+(params.length+1)+'\n'+
 				lim+
 			') x ORDER BY "fileID" ASC';
 		params.push(Math.abs(offset || 0));
 	}
-	var stream = sql.debug2(query.db, str, params);
-	stream.on("row", function(row) {
-		query._stream.write("earth://sha1/"+row.internalHash+"\n", "utf8");
-	});
-	stream.on("end", function() {
-		callback(null);
-	});
-	stream.on("error", function(err) {
-		console.log(err.query);
-		console.log(err.args);
-		callback(err);
-	});
+	return { query: str, parameters: params };
 }
 function sendSubmission(query, obj) {
 	sql.debug(query.db,

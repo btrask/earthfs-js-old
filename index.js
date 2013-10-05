@@ -36,6 +36,11 @@ var Repo = require("./classes/Repo");
 var Session = require("./classes/Session");
 var IncomingFile = require("./classes/IncomingFile");
 
+var METHOD_MODES = {
+	"GET": Session.O_RDONLY,
+	"POST": Session.O_WRONLY, // Technically could be O_RDWR.
+};
+
 var repo = Repo.loadSync(process.argv[2] || "/etc/earthfs"); // TODO: Is this really a good idea?
 
 var server;
@@ -57,126 +62,141 @@ function dispatch(req, res) {
 	var url = urlModule.parse(req.url, true);
 	var i, handler, path;
 	for(i = 0; i < handlers.length; ++i) {
-		handler = handlers[i];
-		if(handler.method !== req.method) {
-			if("GET" !== handler.method || "HEAD" !== req.method) continue;
-		}
-		path = handler.path.exec(url.pathname);
-		if(!path) continue;
-		handler.func.apply(this, [req, res, url].concat(path.slice(1)));
-		return;
+		if(handlers[i](req, res, url)) return;
 	}
 	res.sendError(httpError(404));
 }
-function register(method, path, func/* (req, res, url, arg1, arg2, etc) */) {
-	handlers.push({method: method, path: path, func: func});
+function registerExp(method, pathExp, func/* (req, res, url, arg1, arg2, etc) */) {
+	handlers.push(function(req, res, url) {
+		if(method !== req.method) {
+			if("GET" !== method || "HEAD" !== req.method) return false;
+		}
+		var args = pathExp.exec(url.pathname);
+		if(!args) return false;
+		func.apply(null, [req, res, url].concat(args.slice(1)));
+		return true;
+	});
+}
+function registerExpAuth(method, pathExp, func/* (req, res, url, session, arg1, arg2, etc, done) */) {
+	if(!has(METHOD_MODES, method)) throw new Error("Unrecognized method "+method);
+	registerExp(method, pathExp, function(req, res, url, arg1, arg2, etc) {
+		var args = Array.prototype.slice.call(arguments, 3);
+		auth(req, res, url, METHOD_MODES[method], function(session, done) {
+			func.apply(null, [req, res, url, session].concat(args).concat([done]));
+		});
+	});
 }
 
 
-register("GET", /^\/api\/submission\/(\d+)\/?$/, function(req, res, url, submissionID) {
-	auth(req, res, url, Session.O_RDONLY, function(session, done) {
-		sendSubmission(req, res, session, submissionID, done);
+registerExpAuth("GET", /^\/api\/file\/best\/([^\/]+)\/([^\/]+)\/?$/, getFileBest);
+registerExpAuth("GET", /^\/api\/file\/(latest)\/([^\/]+)\/([^\/]+)\/?$/, getFile);
+registerExpAuth("GET", /^\/api\/file\/(first)\/([^\/]+)\/([^\/]+)\/?$/, getFile);
+registerExpAuth("GET", /^\/api\/file\/submission\/(\d+)\/?$/, getSubmission);
+registerExpAuth("GET", /^\/api\/file\/list\/([^\/]+)\/([^\/]+)\/?$/, getFileList);
+registerExpAuth("POST", /^\/api\/file\/?$/, postFile);
+registerExpAuth("GET", /^\/api\/query\/?$/, getQuery);
+
+
+function getFileBest(req, res, url, session, algo, hash, done) {
+	getFile(req, res, url, session, "latest", algo, hash, done); // TODO
+}
+function getFile(req, res, url, session, name, algo, hash, done) {
+	var normalizedURI = parseURI(algo, hash);
+	session.submissionsForNormalizedURI(normalizedURI, function(err, submissions) {
+		if(err) return done(err);
+		if(!submissions.length) return done(httpError(404));
+		var index;
+		switch(name) {
+			case "first": index = 0; break;
+			case "latest": index = submissions.length - 1; break;
+			default: throw new Error("Invalid file name");
+		}
+		getSubmission(req, res, url, session, submissions[index]["submissionID"], done);
 	});
-});
-register("GET", /^\/api\/file\/([^\/]+)\/([^\/]+)\/([\w\d]+)\/?$/, function(req, res, url, encodedAlgorithm, encodedHash, submissionName) {
-	auth(req, res, url, Session.O_RDONLY, function(session, done) {
-		var normalizedURI = client.formatEarthURI({
-			algorithm: decodeURIComponent(encodedAlgorithm),
-			hash: decodeURIComponent(encodedHash),
+}
+function getSubmission(req, res, url, session, submissionID, done) {
+	session.fileForSubmissionID(submissionID, function(err, file) {
+		if(err) return done(err);
+		res.writeHead(200, {
+			"Content-Type": file.type,
+			"Content-Length": file.size,
+			"X-Submission-ID": file.submissionID,
+			"X-Internal-Hash": file.internalHash,
+			"X-Source": file.source,
+			"X-Targets": file.targets.join(", "),
+			"X-Timestamp": file.timestamp,
+			"X-URIs": file.URIs.join(", "),
 		});
-		session.submissionsForNormalizedURI(normalizedURI, function(err, submissions) {
-			if(err) return done(err);
-			if(!submissions.length) return done(httpError(404));
-			var index;
-			switch(submissionName) {
-				case "first": index = 0; break;
-				case "latest": index = submissions.length - 1; break;
-				default: return done(httpError(400));
-			}
-			sendSubmission(req, res, session, submissions[index]["submissionID"], done);
-		});
+		if("HEAD" === req.method) res.end();
+		else fs.createReadStream(file.internalPath).pipe(res);
+		done();
 	});
-});
-register("GET", /^\/api\/file\/([^\/]+)\/([^\/]+)\/?$/, function(req, res, url, encodedAlgorithm, encodedHash) {
-	auth(req, res, url, Session.O_RDONLY, function(session, done) {
-		var normalizedURI = client.formatEarthURI({
-			algorithm: decodeURIComponent(encodedAlgorithm),
-			hash: decodeURIComponent(encodedHash),
+}
+function getFileList(req, res, url, session, algo, hash, done) {
+	var normalizedURI = parseArgs(encodedAlgorithm, encodedHash);
+	session.submissionsForNormalizedURI(normalizedURI, function(err, submissions) {
+		if(err) return done(err);
+		if(!submissions.length) return done(httpError(404));
+		var buf = new Buffer(JSON.stringify(submissions), "utf8");
+		res.writeHead(200, {
+			"Content-Type": "text/json; charset=utf-8",
+			"Content-Length": buf.length,
 		});
-		session.submissionsForNormalizedURI(normalizedURI, function(err, submissions) {
+		if("HEAD" === req.method) res.end();
+		else res.end(buf);
+		done();
+	});
+}
+function postFile(req, res, url, session, done) {
+	var targets = String(url.query["t"] || "").split("\n").filter(function(target) {
+		return target != "";
+	});
+	var form = new multiparty.Form();
+	var receivedValidPart = false;
+	form.on("part", function(part) {
+		if("file" !== part.name) return;
+		receivedValidPart = true;
+		var ext = part.filename ? pathModule.extname(part.filename) : "";
+		var type = part.headers["content-type"] || (has(MIME, ext) && MIME[ext]);
+		if(!type) return done(httpError(400)); // TODO: Something?
+		var file = new IncomingFile(repo, type, targets);
+		file.loadFromStream(part, function(err) {
 			if(err) return done(err);
-			if(!submissions.length) return done(httpError(404));
-			var buf = new Buffer(JSON.stringify(submissions), "utf8");
-			res.writeHead(200, {
-				"Content-Type": "text/json; charset=utf-8",
-				"Content-Length": buf.length,
+			session.addIncomingFile(file, function(err, outgoingFile) {
+				if(err) return done(err);
+				res.sendJSON(200, "OK", outgoingFile);
+				done();
 			});
-			if("HEAD" === req.method) res.end();
-			else res.end(buf);
+		});
+	});
+	form.on("close", function() {
+		if(receivedValidPart) return;
+		done(httpError(400));
+	});
+	form.addListener("error", function(err) {
+		done(err);
+	});
+	form.parse(req);
+}
+function getQuery(req, res, url, session, done) {
+	var queryString = decodeURIComponent(url.query["q"] || "");
+	var queryLanguage = "simple"; // TODO: Configurable.
+	session.query(queryString, queryLanguage, function(err, query) {
+		if(err) return done(err);
+		var offset = parseInt(url.query["offset"], 10);
+		var limit = parseInt(url.query["limit"], 10);
+		if(isNaN(offset)) offset = null;
+		if(isNaN(limit)) limit = 0;
+		if(limit < 0) return done(httpError(400));
+		res.writeHead(200, {
+			"Content-Type": "text/x-uri-list; charset=utf-8",
+			"X-Persistent": JSON.stringify(0 === limit),
+		});
+		query.open(res, offset, limit);
+		query.on("streaming", function() {
 			done();
 		});
 	});
-});
-
-register("POST", /^\/api\/submission\/?$/, function(req, res, url) {
-	auth(req, res, url, Session.O_WRONLY, function(session, done) {
-		var targets = String(url.query["t"] || "").split("\n").filter(function(target) {
-			return target != "";
-		});
-		var form = new multiparty.Form();
-		var receivedValidPart = false;
-		form.on("part", function(part) {
-			if("file" !== part.name) return;
-			receivedValidPart = true;
-			var ext = part.filename ? pathModule.extname(part.filename) : "";
-			var type = part.headers["content-type"] || (has(MIME, ext) && MIME[ext]);
-			if(!type) return done(httpError(400)); // TODO: Something?
-			var file = new IncomingFile(repo, type, targets);
-			file.loadFromStream(part, function(err) {
-				if(err) return done(err);
-				session.addIncomingFile(file, function(err, outgoingFile) {
-					if(err) return done(err);
-					res.sendJSON(200, "OK", outgoingFile);
-					done();
-				});
-			});
-		});
-		form.on("close", function() {
-			if(receivedValidPart) return;
-			done(httpError(400));
-		});
-		form.addListener("error", function(err) {
-			done(err);
-		});
-		form.parse(req);
-	});
-});
-
-register("GET", /^\/api\/query\/?$/, function(req, res, url) {
-	auth(req, res, url, Session.O_RDONLY, function(session, done) {
-		var queryString = decodeURIComponent(url.query["q"] || "");
-		var queryLanguage = "simple"; // TODO: Configurable.
-		session.query(queryString, queryLanguage, function(err, query) {
-			if(err) return done(err);
-			res.writeHead(200, {
-				"Content-Type": "text/x-uri-list; charset=utf-8",
-				"X-Results-Count": 500,
-				// TODO: Send total count of results.
-				// It'd be quite a trick to get this without performing the same query twice.
-			});
-			var offset = parseInt(url.query["offset"], 10) || null;
-			var limit = parseInt(url.query["limit"], 10) || null;
-			query.open(res, offset, limit, function(err) {
-				done(err);
-			});
-		});
-	});
-});
-
-function httpError(statusCode) {
-	var err = new Error("HTTP status code "+statusCode);
-	err.httpStatusCode = statusCode;
-	return err;
 }
 function auth(req, res, url, mode, callback/* (session, done) */) {
 	var opts = url.query;
@@ -197,24 +217,18 @@ function auth(req, res, url, mode, callback/* (session, done) */) {
 		});
 	});
 }
-function sendSubmission(req, res, session, submissionID, done) {
-	session.fileForSubmissionID(submissionID, function(err, file) {
-		if(err) return done(err);
-		res.writeHead(200, {
-			"Content-Type": file.type,
-			"Content-Length": file.size,
-			"X-Submission-ID": file.submissionID,
-			"X-Internal-Hash": file.internalHash,
-			"X-Source": file.source,
-			"X-Targets": file.targets.join(", "),
-			"X-Timestamp": file.timestamp,
-			"X-URIs": file.URIs.join(", "),
-		});
-		if("HEAD" === req.method) res.end();
-		else fs.createReadStream(file.internalPath).pipe(res);
-		done();
+function parseURI(encodedAlgorithm, encodedHash) {
+	return client.formatEarthURI({
+		algorithm: decodeURIComponent(encodedAlgorithm),
+		hash: decodeURIComponent(encodedHash),
 	});
 }
+function httpError(statusCode) {
+	var err = new Error("HTTP status code "+statusCode);
+	err.httpStatusCode = statusCode;
+	return err;
+}
+
 
 var PORT = parseInt(repo.config["port"], 10) || 8001;
 server.listen(PORT, function() {
