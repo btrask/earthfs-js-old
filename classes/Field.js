@@ -43,7 +43,7 @@ Field.prototype.addLink = function(URI, relation) {
 			default: return true;
 		}
 	}).forEach(function(relation) {
-		fields._links.push({normalizedURI: normalizedURI, relation: relation});
+		field.links.push({normalizedURI: normalizedURI, relation: relation});
 	});
 };
 Field.prototype.addScalar = function(type, value) {

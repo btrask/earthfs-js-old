@@ -281,7 +281,7 @@ function addFieldParts(session, fieldID, field, callback) {
 		if(linkItems.length) tasks.push(queryF(session.db,
 			'INSERT INTO "fieldLinks" ("fieldID", "URIID", "relation")\n'
 			+'SELECT $1, u."URIID", v."relation"\n'
-			+'FROM VALUES ('+sql.list1D(linkItems, 2, true)+')\n'
+			+'FROM (VALUES '+sql.list2D(linkItems, 2)+')\n'
 				+tab+'AS v ("normalizedURI", "relation")\n'
 			+'INNER JOIN "URIs" AS u ON (u."normalizedURI" = v."normalizedURI")\n'
 			+'WHERE TRUE',
