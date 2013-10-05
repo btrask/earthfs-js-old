@@ -202,10 +202,10 @@ function auth(req, res, url, mode, callback/* (session, done) */) {
 	var opts = url.query;
 	var cookies = cookieModule.parse(req.headers["cookie"] || "");
 	repo.auth({
-		username: opts["u"],
-		password: opts["p"],
-		remember: opts["r"],
-		cookie: cookies["s"],
+		username: opts["u"] || null,
+		password: opts["p"] || null,
+		remember: opts["r"] || null,
+		cookie: cookies["s"] || null,
 		mode: mode,
 	}, function(err, session) {
 		// TODO: If there's an error, clear the cookie?

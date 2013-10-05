@@ -183,7 +183,7 @@ function authSession(repo, db, opts, callback) {
 		var sessionKey = obj[2];
 		var row = queryF(db,
 			'SELECT "sessionHash", "userID", "modeRead", "modeWrite" FROM "sessions"\n'
-			+'WHERE "sessionID" = $1 AND "sessionTime" > NOW() - INTERVAL \'14 days\'',
+			+'WHERE "sessionID" = $1 AND "timestamp" > NOW() - INTERVAL \'14 days\'',
 			[sessionID]).wait().rows[0];
 		if(!row) throw forbidden();
 		var sessionMode =
