@@ -26,9 +26,9 @@ var pg = require("pg");
 var Fiber = require("fibers");
 var Future = require("fibers/future");
 
-var sql = require("./utilities/sql");
+var sql = require("../utilities/sql");
 
-var schema = fs.readFileSync(__dirname+"/schema.sql", {encoding: "utf8"});
+var schema = fs.readFileSync(__dirname+"/../schema.sql", {encoding: "utf8"});
 var args = (require('optimist')
 	.usage("Usage: efs-init [options] path")
 	.describe("U", "Database admin username")
