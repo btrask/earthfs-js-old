@@ -9,14 +9,14 @@ SET check_function_bodies = false;
 SET client_min_messages = warning;
 
 --
--- Name: plpgsql; Type: EXTENSION; Schema: -; Owner: 
+-- Name: plpgsql; Type: EXTENSION; Schema: -; Owner: -
 --
 
 CREATE EXTENSION IF NOT EXISTS plpgsql WITH SCHEMA pg_catalog;
 
 
 --
--- Name: EXTENSION plpgsql; Type: COMMENT; Schema: -; Owner: 
+-- Name: EXTENSION plpgsql; Type: COMMENT; Schema: -; Owner: -
 --
 
 COMMENT ON EXTENSION plpgsql IS 'PL/pgSQL procedural language';
@@ -29,7 +29,7 @@ SET default_tablespace = '';
 SET default_with_oids = false;
 
 --
--- Name: URIs; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
+-- Name: URIs; Type: TABLE; Schema: public; Owner: -; Tablespace: 
 --
 
 CREATE TABLE "URIs" (
@@ -38,10 +38,8 @@ CREATE TABLE "URIs" (
 );
 
 
-ALTER TABLE public."URIs" OWNER TO postgres;
-
 --
--- Name: URIs_URIID_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+-- Name: URIs_URIID_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE "URIs_URIID_seq"
@@ -52,17 +50,15 @@ CREATE SEQUENCE "URIs_URIID_seq"
     CACHE 1;
 
 
-ALTER TABLE public."URIs_URIID_seq" OWNER TO postgres;
-
 --
--- Name: URIs_URIID_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+-- Name: URIs_URIID_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
 --
 
 ALTER SEQUENCE "URIs_URIID_seq" OWNED BY "URIs"."URIID";
 
 
 --
--- Name: fieldLinks; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
+-- Name: fieldLinks; Type: TABLE; Schema: public; Owner: -; Tablespace: 
 --
 
 CREATE TABLE "fieldLinks" (
@@ -73,10 +69,8 @@ CREATE TABLE "fieldLinks" (
 );
 
 
-ALTER TABLE public."fieldLinks" OWNER TO postgres;
-
 --
--- Name: fieldLinks_fieldLinkID_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+-- Name: fieldLinks_fieldLinkID_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE "fieldLinks_fieldLinkID_seq"
@@ -87,17 +81,15 @@ CREATE SEQUENCE "fieldLinks_fieldLinkID_seq"
     CACHE 1;
 
 
-ALTER TABLE public."fieldLinks_fieldLinkID_seq" OWNER TO postgres;
-
 --
--- Name: fieldLinks_fieldLinkID_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+-- Name: fieldLinks_fieldLinkID_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
 --
 
 ALTER SEQUENCE "fieldLinks_fieldLinkID_seq" OWNED BY "fieldLinks"."fieldLinkID";
 
 
 --
--- Name: fieldScalars; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
+-- Name: fieldScalars; Type: TABLE; Schema: public; Owner: -; Tablespace: 
 --
 
 CREATE TABLE "fieldScalars" (
@@ -108,10 +100,8 @@ CREATE TABLE "fieldScalars" (
 );
 
 
-ALTER TABLE public."fieldScalars" OWNER TO postgres;
-
 --
--- Name: fieldScalars_fieldScalarID_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+-- Name: fieldScalars_fieldScalarID_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE "fieldScalars_fieldScalarID_seq"
@@ -122,17 +112,15 @@ CREATE SEQUENCE "fieldScalars_fieldScalarID_seq"
     CACHE 1;
 
 
-ALTER TABLE public."fieldScalars_fieldScalarID_seq" OWNER TO postgres;
-
 --
--- Name: fieldScalars_fieldScalarID_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+-- Name: fieldScalars_fieldScalarID_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
 --
 
 ALTER SEQUENCE "fieldScalars_fieldScalarID_seq" OWNED BY "fieldScalars"."fieldScalarID";
 
 
 --
--- Name: fields; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
+-- Name: fields; Type: TABLE; Schema: public; Owner: -; Tablespace: 
 --
 
 CREATE TABLE fields (
@@ -144,10 +132,8 @@ CREATE TABLE fields (
 );
 
 
-ALTER TABLE public.fields OWNER TO postgres;
-
 --
--- Name: fields_fieldID_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+-- Name: fields_fieldID_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE "fields_fieldID_seq"
@@ -158,17 +144,15 @@ CREATE SEQUENCE "fields_fieldID_seq"
     CACHE 1;
 
 
-ALTER TABLE public."fields_fieldID_seq" OWNER TO postgres;
-
 --
--- Name: fields_fieldID_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+-- Name: fields_fieldID_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
 --
 
 ALTER SEQUENCE "fields_fieldID_seq" OWNED BY fields."fieldID";
 
 
 --
--- Name: fileURIs; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
+-- Name: fileURIs; Type: TABLE; Schema: public; Owner: -; Tablespace: 
 --
 
 CREATE TABLE "fileURIs" (
@@ -178,10 +162,8 @@ CREATE TABLE "fileURIs" (
 );
 
 
-ALTER TABLE public."fileURIs" OWNER TO postgres;
-
 --
--- Name: fileURIs_fileURIID_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+-- Name: fileURIs_fileURIID_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE "fileURIs_fileURIID_seq"
@@ -192,17 +174,15 @@ CREATE SEQUENCE "fileURIs_fileURIID_seq"
     CACHE 1;
 
 
-ALTER TABLE public."fileURIs_fileURIID_seq" OWNER TO postgres;
-
 --
--- Name: fileURIs_fileURIID_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+-- Name: fileURIs_fileURIID_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
 --
 
 ALTER SEQUENCE "fileURIs_fileURIID_seq" OWNED BY "fileURIs"."fileURIID";
 
 
 --
--- Name: files; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
+-- Name: files; Type: TABLE; Schema: public; Owner: -; Tablespace: 
 --
 
 CREATE TABLE files (
@@ -213,10 +193,8 @@ CREATE TABLE files (
 );
 
 
-ALTER TABLE public.files OWNER TO postgres;
-
 --
--- Name: files_fileID_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+-- Name: files_fileID_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE "files_fileID_seq"
@@ -227,17 +205,15 @@ CREATE SEQUENCE "files_fileID_seq"
     CACHE 1;
 
 
-ALTER TABLE public."files_fileID_seq" OWNER TO postgres;
-
 --
--- Name: files_fileID_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+-- Name: files_fileID_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
 --
 
 ALTER SEQUENCE "files_fileID_seq" OWNED BY files."fileID";
 
 
 --
--- Name: pulls; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
+-- Name: pulls; Type: TABLE; Schema: public; Owner: -; Tablespace: 
 --
 
 CREATE TABLE pulls (
@@ -252,10 +228,8 @@ CREATE TABLE pulls (
 );
 
 
-ALTER TABLE public.pulls OWNER TO postgres;
-
 --
--- Name: pulls_pullID_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+-- Name: pulls_pullID_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE "pulls_pullID_seq"
@@ -266,17 +240,15 @@ CREATE SEQUENCE "pulls_pullID_seq"
     CACHE 1;
 
 
-ALTER TABLE public."pulls_pullID_seq" OWNER TO postgres;
-
 --
--- Name: pulls_pullID_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+-- Name: pulls_pullID_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
 --
 
 ALTER SEQUENCE "pulls_pullID_seq" OWNED BY pulls."pullID";
 
 
 --
--- Name: sessions; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
+-- Name: sessions; Type: TABLE; Schema: public; Owner: -; Tablespace: 
 --
 
 CREATE TABLE sessions (
@@ -289,10 +261,8 @@ CREATE TABLE sessions (
 );
 
 
-ALTER TABLE public.sessions OWNER TO postgres;
-
 --
--- Name: sessions_sessionID_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+-- Name: sessions_sessionID_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE "sessions_sessionID_seq"
@@ -303,17 +273,15 @@ CREATE SEQUENCE "sessions_sessionID_seq"
     CACHE 1;
 
 
-ALTER TABLE public."sessions_sessionID_seq" OWNER TO postgres;
-
 --
--- Name: sessions_sessionID_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+-- Name: sessions_sessionID_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
 --
 
 ALTER SEQUENCE "sessions_sessionID_seq" OWNED BY sessions."sessionID";
 
 
 --
--- Name: submissions; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
+-- Name: submissions; Type: TABLE; Schema: public; Owner: -; Tablespace: 
 --
 
 CREATE TABLE submissions (
@@ -324,10 +292,8 @@ CREATE TABLE submissions (
 );
 
 
-ALTER TABLE public.submissions OWNER TO postgres;
-
 --
--- Name: sources_sourceID_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+-- Name: sources_sourceID_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE "sources_sourceID_seq"
@@ -338,17 +304,15 @@ CREATE SEQUENCE "sources_sourceID_seq"
     CACHE 1;
 
 
-ALTER TABLE public."sources_sourceID_seq" OWNER TO postgres;
-
 --
--- Name: sources_sourceID_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+-- Name: sources_sourceID_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
 --
 
 ALTER SEQUENCE "sources_sourceID_seq" OWNED BY submissions."submissionID";
 
 
 --
--- Name: targets; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
+-- Name: targets; Type: TABLE; Schema: public; Owner: -; Tablespace: 
 --
 
 CREATE TABLE targets (
@@ -358,10 +322,8 @@ CREATE TABLE targets (
 );
 
 
-ALTER TABLE public.targets OWNER TO postgres;
-
 --
--- Name: targets_targetID_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+-- Name: targets_targetID_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE "targets_targetID_seq"
@@ -372,17 +334,15 @@ CREATE SEQUENCE "targets_targetID_seq"
     CACHE 1;
 
 
-ALTER TABLE public."targets_targetID_seq" OWNER TO postgres;
-
 --
--- Name: targets_targetID_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+-- Name: targets_targetID_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
 --
 
 ALTER SEQUENCE "targets_targetID_seq" OWNED BY targets."targetID";
 
 
 --
--- Name: users; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
+-- Name: users; Type: TABLE; Schema: public; Owner: -; Tablespace: 
 --
 
 CREATE TABLE users (
@@ -397,10 +357,8 @@ CREATE TABLE users (
 );
 
 
-ALTER TABLE public.users OWNER TO postgres;
-
 --
--- Name: users_userID_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+-- Name: users_userID_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE "users_userID_seq"
@@ -411,94 +369,92 @@ CREATE SEQUENCE "users_userID_seq"
     CACHE 1;
 
 
-ALTER TABLE public."users_userID_seq" OWNER TO postgres;
-
 --
--- Name: users_userID_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+-- Name: users_userID_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
 --
 
 ALTER SEQUENCE "users_userID_seq" OWNED BY users."userID";
 
 
 --
--- Name: URIID; Type: DEFAULT; Schema: public; Owner: postgres
+-- Name: URIID; Type: DEFAULT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY "URIs" ALTER COLUMN "URIID" SET DEFAULT nextval('"URIs_URIID_seq"'::regclass);
 
 
 --
--- Name: fieldLinkID; Type: DEFAULT; Schema: public; Owner: postgres
+-- Name: fieldLinkID; Type: DEFAULT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY "fieldLinks" ALTER COLUMN "fieldLinkID" SET DEFAULT nextval('"fieldLinks_fieldLinkID_seq"'::regclass);
 
 
 --
--- Name: fieldScalarID; Type: DEFAULT; Schema: public; Owner: postgres
+-- Name: fieldScalarID; Type: DEFAULT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY "fieldScalars" ALTER COLUMN "fieldScalarID" SET DEFAULT nextval('"fieldScalars_fieldScalarID_seq"'::regclass);
 
 
 --
--- Name: fieldID; Type: DEFAULT; Schema: public; Owner: postgres
+-- Name: fieldID; Type: DEFAULT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY fields ALTER COLUMN "fieldID" SET DEFAULT nextval('"fields_fieldID_seq"'::regclass);
 
 
 --
--- Name: fileURIID; Type: DEFAULT; Schema: public; Owner: postgres
+-- Name: fileURIID; Type: DEFAULT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY "fileURIs" ALTER COLUMN "fileURIID" SET DEFAULT nextval('"fileURIs_fileURIID_seq"'::regclass);
 
 
 --
--- Name: fileID; Type: DEFAULT; Schema: public; Owner: postgres
+-- Name: fileID; Type: DEFAULT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY files ALTER COLUMN "fileID" SET DEFAULT nextval('"files_fileID_seq"'::regclass);
 
 
 --
--- Name: pullID; Type: DEFAULT; Schema: public; Owner: postgres
+-- Name: pullID; Type: DEFAULT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY pulls ALTER COLUMN "pullID" SET DEFAULT nextval('"pulls_pullID_seq"'::regclass);
 
 
 --
--- Name: sessionID; Type: DEFAULT; Schema: public; Owner: postgres
+-- Name: sessionID; Type: DEFAULT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY sessions ALTER COLUMN "sessionID" SET DEFAULT nextval('"sessions_sessionID_seq"'::regclass);
 
 
 --
--- Name: submissionID; Type: DEFAULT; Schema: public; Owner: postgres
+-- Name: submissionID; Type: DEFAULT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY submissions ALTER COLUMN "submissionID" SET DEFAULT nextval('"sources_sourceID_seq"'::regclass);
 
 
 --
--- Name: targetID; Type: DEFAULT; Schema: public; Owner: postgres
+-- Name: targetID; Type: DEFAULT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY targets ALTER COLUMN "targetID" SET DEFAULT nextval('"targets_targetID_seq"'::regclass);
 
 
 --
--- Name: userID; Type: DEFAULT; Schema: public; Owner: postgres
+-- Name: userID; Type: DEFAULT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY users ALTER COLUMN "userID" SET DEFAULT nextval('"users_userID_seq"'::regclass);
 
 
 --
--- Name: URIsPrimaryKey; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
+-- Name: URIsPrimaryKey; Type: CONSTRAINT; Schema: public; Owner: -; Tablespace: 
 --
 
 ALTER TABLE ONLY "URIs"
@@ -506,7 +462,7 @@ ALTER TABLE ONLY "URIs"
 
 
 --
--- Name: fieldLinksPrimaryKey; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
+-- Name: fieldLinksPrimaryKey; Type: CONSTRAINT; Schema: public; Owner: -; Tablespace: 
 --
 
 ALTER TABLE ONLY "fieldLinks"
@@ -514,7 +470,7 @@ ALTER TABLE ONLY "fieldLinks"
 
 
 --
--- Name: fieldScalarsPrimaryKey; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
+-- Name: fieldScalarsPrimaryKey; Type: CONSTRAINT; Schema: public; Owner: -; Tablespace: 
 --
 
 ALTER TABLE ONLY "fieldScalars"
@@ -522,7 +478,7 @@ ALTER TABLE ONLY "fieldScalars"
 
 
 --
--- Name: fieldsPrimaryKey; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
+-- Name: fieldsPrimaryKey; Type: CONSTRAINT; Schema: public; Owner: -; Tablespace: 
 --
 
 ALTER TABLE ONLY fields
@@ -530,7 +486,7 @@ ALTER TABLE ONLY fields
 
 
 --
--- Name: filePrimaryKey; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
+-- Name: filePrimaryKey; Type: CONSTRAINT; Schema: public; Owner: -; Tablespace: 
 --
 
 ALTER TABLE ONLY files
@@ -538,7 +494,7 @@ ALTER TABLE ONLY files
 
 
 --
--- Name: fileURIsPrimaryKey; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
+-- Name: fileURIsPrimaryKey; Type: CONSTRAINT; Schema: public; Owner: -; Tablespace: 
 --
 
 ALTER TABLE ONLY "fileURIs"
@@ -546,7 +502,7 @@ ALTER TABLE ONLY "fileURIs"
 
 
 --
--- Name: filesUniqueHashAndType; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
+-- Name: filesUniqueHashAndType; Type: CONSTRAINT; Schema: public; Owner: -; Tablespace: 
 --
 
 ALTER TABLE ONLY files
@@ -554,7 +510,7 @@ ALTER TABLE ONLY files
 
 
 --
--- Name: pullsPrimaryKey; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
+-- Name: pullsPrimaryKey; Type: CONSTRAINT; Schema: public; Owner: -; Tablespace: 
 --
 
 ALTER TABLE ONLY pulls
@@ -562,7 +518,7 @@ ALTER TABLE ONLY pulls
 
 
 --
--- Name: sessions_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
+-- Name: sessions_pkey; Type: CONSTRAINT; Schema: public; Owner: -; Tablespace: 
 --
 
 ALTER TABLE ONLY sessions
@@ -570,7 +526,7 @@ ALTER TABLE ONLY sessions
 
 
 --
--- Name: submissionsPrimaryKey; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
+-- Name: submissionsPrimaryKey; Type: CONSTRAINT; Schema: public; Owner: -; Tablespace: 
 --
 
 ALTER TABLE ONLY submissions
@@ -578,7 +534,7 @@ ALTER TABLE ONLY submissions
 
 
 --
--- Name: targets_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
+-- Name: targets_pkey; Type: CONSTRAINT; Schema: public; Owner: -; Tablespace: 
 --
 
 ALTER TABLE ONLY targets
@@ -586,7 +542,7 @@ ALTER TABLE ONLY targets
 
 
 --
--- Name: usersUniqueName; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
+-- Name: usersUniqueName; Type: CONSTRAINT; Schema: public; Owner: -; Tablespace: 
 --
 
 ALTER TABLE ONLY users
@@ -594,7 +550,7 @@ ALTER TABLE ONLY users
 
 
 --
--- Name: users_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
+-- Name: users_pkey; Type: CONSTRAINT; Schema: public; Owner: -; Tablespace: 
 --
 
 ALTER TABLE ONLY users
@@ -602,35 +558,35 @@ ALTER TABLE ONLY users
 
 
 --
--- Name: URIs_normalizedURI_idx; Type: INDEX; Schema: public; Owner: postgres; Tablespace: 
+-- Name: URIs_normalizedURI_idx; Type: INDEX; Schema: public; Owner: -; Tablespace: 
 --
 
 CREATE UNIQUE INDEX "URIs_normalizedURI_idx" ON "URIs" USING btree ("normalizedURI");
 
 
 --
--- Name: URIsOnDuplicateDoNothing; Type: RULE; Schema: public; Owner: postgres
+-- Name: URIsOnDuplicateDoNothing; Type: RULE; Schema: public; Owner: -
 --
 
 CREATE RULE "URIsOnDuplicateDoNothing" AS ON INSERT TO "URIs" WHERE (EXISTS (SELECT 1 FROM "URIs" old WHERE (old."normalizedURI" = new."normalizedURI"))) DO INSTEAD NOTHING;
 
 
 --
--- Name: fileURIsOnDuplicateDoNothing; Type: RULE; Schema: public; Owner: postgres
+-- Name: fileURIsOnDuplicateDoNothing; Type: RULE; Schema: public; Owner: -
 --
 
 CREATE RULE "fileURIsOnDuplicateDoNothing" AS ON INSERT TO "fileURIs" WHERE (EXISTS (SELECT 1 FROM "fileURIs" old WHERE ((old."fileID" = new."fileID") AND (old."URIID" = new."URIID")))) DO INSTEAD NOTHING;
 
 
 --
--- Name: filesOnDuplicateDoNothing; Type: RULE; Schema: public; Owner: postgres
+-- Name: filesOnDuplicateDoNothing; Type: RULE; Schema: public; Owner: -
 --
 
 CREATE RULE "filesOnDuplicateDoNothing" AS ON INSERT TO files WHERE (EXISTS (SELECT 1 FROM files old WHERE ((old."internalHash" = new."internalHash") AND (old.type = new.type)))) DO INSTEAD NOTHING;
 
 
 --
--- Name: public; Type: ACL; Schema: -; Owner: postgres
+-- Name: public; Type: ACL; Schema: -; Owner: -
 --
 
 REVOKE ALL ON SCHEMA public FROM PUBLIC;
