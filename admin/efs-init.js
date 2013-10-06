@@ -89,6 +89,9 @@ Fiber(function() {
 			+'quote_literal($2) AS "repopass"',
 			[reponame, repopass]).wait().rows[0];
 		queryF(db1,
+			'CREATE ROLE '+esc.reponame+' WITH\n'
+			+'LOGIN ENCRYPTED PASSWORD '+esc.repopass+'', []).wait();
+		queryF(db1,
 			'CREATE DATABASE '+esc.reponame+'\n'
 			+'WITH OWNER = DEFAULT\n'
 			+'ENCODING = \'UTF8\'\n'
@@ -97,41 +100,30 @@ Fiber(function() {
 			+'LC_CTYPE = \'en_US.UTF-8\'\n'
 			+'CONNECTION LIMIT = -1',
 			[]).wait();
-		try {
-			queryF(db1, 'BEGIN TRANSACTION', []).wait();
-			queryF(db1,
-				'CREATE ROLE '+esc.reponame+' WITH\n'
-				+'LOGIN ENCRYPTED PASSWORD '+esc.repopass+'', []).wait();
-			db2 = new pg.Client({
-				user: username,
-				password: password,
-				port: dbPort,
-				database: reponame,
-			});
-			connectF(db2).wait();
-			queryF(db2, schema, []).wait();
+		// TODO: I give up on this error handling.
 
-			mkdirpF(path).wait();
-			writeFileF(path+"/EarthFS.json", json, {encoding: "utf8"}).wait();
-			console.log("Repo written to path "+path);
+		db2 = new pg.Client({
+			user: username,
+			password: password,
+			port: dbPort,
+			database: reponame,
+		});
+		connectF(db2).wait();
+		queryF(db2, schema, []).wait();
+		queryF(db2, 'GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA "public" TO '+esc.reponame+'', []).wait();
 
-			db2.end();
-			db2 = null;
-			queryF(db1, 'COMMIT', []).wait();
-			db1.end();
-			db1 = null;
-		} catch(err) {
-			if(db2) db2.end();
-			queryF(db1, 'ROLLBACK', []).wait();
-			queryF(db1, 'DROP DATABASE '+esc.reponame+'', []).wait();
-			throw err;
-		}
+		mkdirpF(path).wait();
+		writeFileF(path+"/EarthFS.json", json, {encoding: "utf8"}).wait();
+		console.log("Repo written to path "+path);
+
 	} catch(err) {
-		if(db1) db1.end();
 		if(err.query) console.error(err.query);
 		if(err.args) console.error(err.args);
 		console.error(err.stack);
 		process.exit(1);
+	} finally {
+		db2.end();
+		db1.end();
 	}
 }).run();
 
