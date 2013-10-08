@@ -20,7 +20,9 @@ IN THE SOFTWARE. */
 var crypto = require("crypto");
 var fs = require("fs");
 var pathModule = require("path");
+var readline = require("readline");
 
+var bcrypt = require("bcrypt");
 var mkdirp = require("mkdirp");
 var pg = require("pg");
 var Fiber = require("fibers");
@@ -64,22 +66,30 @@ var config = {
 var json = JSON.stringify(config, null, '\t');
 
 // Admin
-var username = args["U"];
-var password = args["p"]; // TODO: Interactive prompt?
+var adminname = args["U"];
+var adminpass = args["p"]; // TODO: Interactive prompt?
 
 var connectF = Future.wrap(function(db, a) { db.connect(a); });
 var queryF = Future.wrap(function(db, a, b, c) { sql.debug(db, a, b, c); });
 var existsF = Future.wrap(exists);
 var writeFileF = Future.wrap(fs.writeFile);
 var mkdirpF = Future.wrap(mkdirp, 1);
+var questionF = Future.wrap(question);
 
 Fiber(function() {
 	var db1, db2;
 	try {
 		if(existsF(path+"/EarthFS.json").wait()) throw new Error("Repo already exists at "+path);
+
+		var rl = readline.createInterface({input: process.stdin, output: process.stdout});
+		var username = questionF(rl, "Username (default: "+adminname+"): ").wait() || adminname;
+		var password = questionF(rl, "Password: ").wait(); // TODO: Don't print pass while typing.
+		if(!password) throw new Error("Empty password");
+		rl.close();
+
 		db1 = new pg.Client({
-			user: username,
-			password: password,
+			user: adminname,
+			password: adminpass,
 			port: dbPort,
 			database: "postgres",
 		});
@@ -103,14 +113,25 @@ Fiber(function() {
 		// TODO: I give up on this error handling.
 
 		db2 = new pg.Client({
-			user: username,
-			password: password,
+			user: adminname,
+			password: adminpass,
 			port: dbPort,
 			database: reponame,
 		});
 		connectF(db2).wait();
 		queryF(db2, schema, []).wait();
-		queryF(db2, 'GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA "public" TO '+esc.reponame+'', []).wait();
+		queryF(db2,
+			'GRANT SELECT, INSERT, UPDATE, DELETE\n'
+			+'ON ALL TABLES IN SCHEMA "public" TO '+esc.reponame+'',
+			[]).wait();
+		queryF(db2,
+			'GRANT USAGE\n'
+			+'ON ALL SEQUENCES IN SCHEMA "public" TO '+esc.reponame+'',
+			[]).wait();
+		queryF(db2,
+			'INSERT INTO "users" ("username", "passwordHash", "tokenHash")\n'
+			+'VALUES ($1, $2, \'\')',
+			[username, bcrypt.hashSync(password, 10)]).wait();
 
 		mkdirpF(path).wait();
 		writeFileF(path+"/EarthFS.json", json, {encoding: "utf8"}).wait();
@@ -132,6 +153,11 @@ function exists(path, callback/* (err, flag) */) {
 		if(!err) return callback(null, true);
 		if("ENOENT" === err.code) return callback(null, false);
 		callback(err, null);
+	});
+}
+function question(rl, str, cb) {
+	rl.question(str, function(answer) {
+		cb(null, answer);
 	});
 }
 
