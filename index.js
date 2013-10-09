@@ -26,11 +26,11 @@ var https = require("https");
 
 var client = require("efs-client");
 var multiparty = require("multiparty");
-var cookieModule = require("cookie");
 
 var http = require("./utilities/httpx"); // TODO: Get rid of this...
 var MIME = require("./utilities/mime");
 var has = require("./utilities/has");
+var cookieModule = require("./utilities/cookie");
 
 var Repo = require("./classes/Repo");
 var Session = require("./classes/Session");
@@ -200,7 +200,7 @@ function getQuery(req, res, url, session, done) {
 }
 function auth(req, res, url, mode, callback/* (session, done) */) {
 	var opts = url.query;
-	var cookies = cookieModule.parse(req.headers["cookie"] || "");
+	var cookies = cookieModule.parseJar(req.headers["cookie"] || "");
 	repo.auth({
 		username: opts["u"] || null,
 		password: opts["p"] || null,

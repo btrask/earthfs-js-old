@@ -28,13 +28,13 @@ var os = require("os");
 
 var pg = require("pg");
 var bcrypt = require("bcrypt");
-var cookieModule = require("cookie");
 var Fiber = require("fibers");
 var Future = require("fibers/future");
 
 var sql = require("../utilities/sql");
 var has = require("../utilities/has");
 var run = require("../utilities/fiber-helper").run;
+var cookieModule = require("../utilities/cookie");
 
 var Session = require("./Session");
 
@@ -178,7 +178,7 @@ function authUser(repo, db, opts, callback) {
 function authSession(repo, db, opts, callback) {
 	run(function() {
 		var obj = /(\d+):(.*)+/.exec(opts.cookie);
-		if(!obj) throw new Error("Invalid session");
+		if(!obj) throw new Error("Invalid session "+opts.cookie);
 		var sessionID = obj[1];
 		var sessionKey = obj[2];
 		var row = queryF(db,
@@ -216,11 +216,13 @@ function createSession(repo, db, userID, mode, remember, callback) {
 			+'RETURNING "sessionID"',
 			[sessionHash, userID, modeRead, modeWrite]).wait().rows[0];
 		if(!row) throw new Error("Unable to create session");
-		var cookie = cookieModule.serialize("s", row.sessionID+":"+sessionKey, {
-			maxAge: remember ? 14 * 24 * 60 * 60 : 0,
-			httpOnly: true,
-			secure: repo.key && repo.cert, // TODO: Hack.
-			path: "/",
+		var cookie = cookieModule.formatSingle({
+			name: "s",
+			value: row.sessionID+":"+sessionKey,
+			"MaxAge": remember ? 14 * 24 * 60 * 60 : 0,
+			"HttpOnly": true,
+			"Secure": Boolean(repo.key && repo.cert), // TODO: Hack.
+			"Path": "/",
 		});
 		return new Session(repo, db, userID, mode, cookie);
 	}, callback);
