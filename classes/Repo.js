@@ -37,6 +37,7 @@ var run = require("../utilities/fiber-helper").run;
 var cookieModule = require("../utilities/cookie");
 
 var Session = require("./Session");
+var Pull = require("./Pull");
 
 var queryF = Future.wrap(sql.debug);
 var authUserF = Future.wrap(authUser);
@@ -90,7 +91,8 @@ Repo.prototype.authPull = function(pull, callback/* (err, session) */) {
 	run(function() {
 		if(repo.pulls[pull.userID] !== pull) throw new Error("Invalid pull");
 		var db = dbClientF(repo).wait();
-		return new Session(repo, db, pull.userID, Session.O_WRONLY);
+		return new Session(repo, db, pull.userID, Session.O_RDWR);
+		// RDWR because we have to be able to check if the hash already exists.
 	}, callback);
 };
 

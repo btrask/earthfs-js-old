@@ -300,6 +300,7 @@ function addFieldParts(session, fieldID, field, callback) {
 }
 function addFileSubmissionTargets(session, submissionID, file, callback) {
 	run(function() {
+		if(!Array.isArray(file.targets)) throw new Error("Invalid targets "+file.targets);
 		var tab = '\t';
 		var list = file.targets.length ? sql.list1D(file.targets, 3) : 'NULL';
 		queryF(session.db,
