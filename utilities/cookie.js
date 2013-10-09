@@ -42,11 +42,11 @@ cookieModule.parseSingle = function(cookie) {
 	cookie.split(/[;,] */).forEach(function(param, i) {
 		var obj = /([^=]*)=?(.+)?/.exec(param);
 		if(!obj) return;
-		var name = cookieModule.decode(obj[1]);
-		var value = undefined === obj[2] ? true : cookieModule.decode(obj[2]);
+		var name = obj[1];
+		var value = undefined === obj[2] ? true : obj[2];
 		if(0 === i) {
-			opts["name"] = name;
-			opts["value"] = value;
+			opts["name"] = cookieModule.decode(name);
+			opts["value"] = cookieModule.decode(value);
 		} else if(!has(obj, name)) {
 			opts[name] = value;
 		}
@@ -57,6 +57,8 @@ cookieModule.parseSingle = function(cookie) {
 cookieModule.formatJar = function(jar) {
 	var cookies = [];
 	Object.keys(jar).forEach(function(key) {
+		var value = jar[key];
+		if(undefined === value) return;
 		cookies.push(cookieModule.encode(key)+"="+cookieModule.encode(jar[key]));
 	});
 	return cookies.join("; ");
@@ -72,9 +74,9 @@ cookieModule.formatSingle = function(cookie) {
 		if("name" === key || "value" === key) return;
 		var value = cookie[key];
 		if(true === value) {
-			params.push(cookieModule.encode(key));
+			params.push(key);
 		} else if(false !== value) {
-			params.push(cookieModule.encode(key)+"="+cookieModule.encode(value));
+			params.push(key+"="+value);
 		}
 	});
 	return params.join("; ");
