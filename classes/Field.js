@@ -49,7 +49,7 @@ Field.prototype.addLink = function(URI, relation) {
 Field.prototype.addScalar = function(type, value) {
 	var field = this;
 	if(!field.scalars) field.scalars = [];
-	if(isNaN(value)) throw new Error("Invalid value "+value);
+	if("number" !== typeof value || isNaN(value)) throw new Error("Invalid value "+value);
 	field.scalars.push({
 		type: type,
 		value: value,

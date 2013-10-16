@@ -21,8 +21,8 @@ var date = exports;
 date.parseScalars = function(field, callback/* (err) */) {
 	// TODO: This is obviously extremely incomplete, not to mention ugly.
 	field.value.replace(/\b(\d\d\d\d)[-.\/](\d\d)[-.\.](\d\d)\b/g, function(str, year, month, day) {
-		field.addScalar("date-start", new Date(year, month, day));
-		field.addScalar("date-end", new Date(year, month, day+1));
+		field.addScalar("date-start", +new Date(+year, +month-1, +day) / 1000);
+		field.addScalar("date-end", +new Date(+year, +month-1, +day+1) / 1000);
 	});
 	callback(null);
 };
