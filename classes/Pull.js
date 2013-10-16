@@ -18,6 +18,8 @@ FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE. */
 module.exports = Pull;
 
+var Stream = require("stream").PassThrough;
+
 var Fiber = require("fibers");
 var Future = require("fibers/future");
 var run = require("../utilities/fiber-helper").run;
@@ -37,15 +39,47 @@ function Pull(repo, obj) {
 	// TODO: We should definitely use http://name:pass@host/ syntax.
 	// We might want to accept either an object or a string in the client,
 	// like http.request() does.
-	pull.query = pull.remote.query(obj.queryString, obj.queryLanguage);
-	pull.query.on("URI", function(URI) {
+
+	pull.queryString = obj.queryString;
+	pull.queryLanguage = obj.queryLanguage;
+	pull.parser = new client.URIListParser(new Stream);
+	pull.parser.on("URI", function(URI) {
 		pull.enqueue(URI);
 	});
+	pull._close = null;
 }
+Pull.prototype.connect = function() {
+	var pull = this;
+	if(pull._close) throw new Error("Already connected");
+	var req = pull.remote.queryLatest(pull.queryString, pull.queryLanguage, null, function(err, res) {
+		if(err) {
+			var timeout = setTimeout(function() {
+				pull._close = null;
+				pull.connect();
+			}, 1000 * 10);
+			pull._close = function() {
+				clearTimeout(timeout);
+			};
+		} else {
+			res.pipe(pull.parser.stream, {end: false});
+			pull._close = function() {
+				req.abort();
+				res.unpipe(pull.parser.stream);
+			};
+			res.on("end", function() {
+				pull._close = null;
+				pull.connect();
+			});
+		}
+	});
+	pull._close = function() {
+		req.abort();
+	};
+};
 Pull.prototype.close = function() {
 	var pull = this;
 	delete pull.repo.pulls[pull.pullID];
-	pull.query.close();
+	if(pull._close) pull._close();
 };
 Pull.prototype.enqueue = function(URI) {
 	var pull = this;

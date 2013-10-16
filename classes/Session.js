@@ -30,7 +30,6 @@ var sql = require("../utilities/sql");
 var run = require("../utilities/fiber-helper").run;
 var wait = require("../utilities/fiber-helper").wait;
 
-var Query = require("./Query");
 var AST = require("./AST");
 var plugins = require("../plugins");
 var parsers = plugins.parsers;
@@ -184,14 +183,13 @@ Session.prototype.fileForSubmissionID = function(submissionID, callback/* (err, 
 		};
 	}, callback);
 };
-Session.prototype.query = function(queryString, queryLanguage, callback/* (err, query) */) {
+Session.prototype.parseQuery = function(queryString, queryLanguage, callback/* (err, ast) */) {
 	var session = this;
 	if(!(session.mode & Session.O_RDONLY)) return callback(new Error("No permission"), null);
 	parseQueryString(queryString, queryLanguage, function(err, rawAST) {
-		if(err) return callback(err);
+		if(err) return callback(err, null);
 		var ast = new AST.User(session.userID, rawAST);
-		var query = new Query(session, ast);
-		callback(null, query);
+		callback(null, ast);
 	});
 };
 

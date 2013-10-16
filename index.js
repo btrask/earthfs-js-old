@@ -35,6 +35,7 @@ var cookieModule = require("./utilities/cookie");
 var Repo = require("./classes/Repo");
 var Session = require("./classes/Session");
 var IncomingFile = require("./classes/IncomingFile");
+var querystream = require("./classes/querystream");
 
 var METHOD_MODES = {
 	"GET": Session.O_RDONLY,
@@ -86,6 +87,17 @@ function registerExpAuth(method, pathExp, func/* (req, res, url, session, arg1, 
 		});
 	});
 }
+function registerExpAuthQuery(method, pathExp, func/* (req, res, url, session, ast, arg1, arg2, etc, done) */) {
+	registerExpAuth(method, pathExp, function(req, res, url, session, arg1, arg2, etc, done) {
+		var args = Array.prototype.slice.call(arguments, 4);
+		var queryString = decodeURIComponent(url.query["q"] || "");
+		var queryLanguage = "simple"; // TODO: Configurable.
+		session.parseQuery(queryString, queryLanguage, function(err, ast) {
+			if(err) return done(err);
+			func.apply(null, [req, res, url, session, ast].concat(args));
+		});
+	});
+}
 
 
 registerExpAuth("GET", /^\/api\/file\/best\/([^\/]+)\/([^\/]+)\/?$/, getFileBest);
@@ -94,7 +106,8 @@ registerExpAuth("GET", /^\/api\/file\/(first)\/([^\/]+)\/([^\/]+)\/?$/, getFile)
 registerExpAuth("GET", /^\/api\/file\/submission\/(\d+)\/?$/, getSubmission);
 registerExpAuth("GET", /^\/api\/file\/list\/([^\/]+)\/([^\/]+)\/?$/, getFileList);
 registerExpAuth("POST", /^\/api\/file\/?$/, postFile);
-registerExpAuth("GET", /^\/api\/query\/?$/, getQuery);
+registerExpAuthQuery("GET", /^\/api\/query\/latest\/?$/, getQueryLatest);
+registerExpAuthQuery("GET", /^\/api\/query\/history\/?$/, getQueryHistory);
 
 
 function getFileBest(req, res, url, session, algo, hash, done) {
@@ -178,24 +191,44 @@ function postFile(req, res, url, session, done) {
 	});
 	form.parse(req);
 }
-function getQuery(req, res, url, session, done) {
-	var queryString = decodeURIComponent(url.query["q"] || "");
-	var queryLanguage = "simple"; // TODO: Configurable.
-	session.query(queryString, queryLanguage, function(err, query) {
-		if(err) return done(err);
-		var offset = parseInt(url.query["offset"], 10);
-		var limit = parseInt(url.query["limit"], 10);
-		if(isNaN(offset)) offset = null;
-		if(isNaN(limit)) limit = 0;
-		if(limit < 0) return done(httpError(400));
-		res.writeHead(200, {
-			"Content-Type": "text/x-uri-list; charset=utf-8",
-			"X-Persistent": JSON.stringify(0 === limit),
-		});
-		query.open(res, offset, limit);
-		query.on("streaming", function() {
-			done();
-		});
+function getQueryLatest(req, res, url, session, ast, done) {
+	var count;
+	if("all" === url.query["count"]) count = null;
+	else count = parseInt(url.query["count"]) || 0;
+	if(null !== count && count < 0) return done(httpError(400));
+	res.writeHead(200, {
+		"Content-Type": "text/x-uri-list; charset=utf-8",
+	});
+	if("HEAD" === req.method) { res.end(); done(); return; }
+	var history = querystream.history(session, ast, count);
+	var ongoing = querystream.ongoing(session, ast);
+	res.write("\n", "utf8"); // Force Node to send headers.
+	history.pipe(res, {end: false});
+	history.on("end", function() {
+		ongoing.pipe(res);
+	});
+	ongoing.on("end", function() {
+		done(); // TODO: Keeping one connection per query open like this is not going to scale.
+	});
+	res.on("close", function() {
+		history.end();
+		ongoing.end();
+	});
+}
+function getQueryHistory(req, res, url, session, ast, done) {
+	var offset = parseInt(url.query["offset"], 10);
+	var limit = parseInt(url.query["limit"], 10);
+	if(isNaN(offset) || offset < 0) return done(httpError(400)); // TODO: Better errors?
+	if(isNaN(limit) || limit <= 0) return done(httpError(400));
+	res.writeHead(200, {
+		"Content-Type": "text/x-uri-list; charset=utf-8",
+	});
+	if("HEAD" === req.method) { res.end(); done(); return; }
+	var page = querystream.page(session, ast, offset, limit);
+	res.write("\n", "utf8"); // Force Node to send headers.
+	page.pipe(res);
+	page.on("end", function() {
+		done();
 	});
 }
 function auth(req, res, url, mode, callback/* (session, done) */) {

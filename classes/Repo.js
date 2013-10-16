@@ -119,6 +119,7 @@ Repo.prototype.loadPulls = function() {
 			if(pull) pull.close();
 			pull = new Pull(repo, row);
 			repo.pulls[row.pullID] = pull;
+			pull.connect();
 		});
 		// On a big server this could be a ton of objects! Several per user on average.
 		// Each pull is backed by a persistent HTTP request, so that is probably the bottleneck, if any.

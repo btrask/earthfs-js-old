@@ -93,7 +93,7 @@ AST.User.prototype.SQL = function(offset, tab) {
 	return {
 		query:
 			tab+'(SELECT s."fileID" FROM "submissions" AS s\n'+
-			tab+'LEFT JOIN "targets" AS t ON (t."submissionID" = s."submissionID")'+
+			tab+'LEFT JOIN "targets" AS t ON (t."submissionID" = s."submissionID")\n'+
 			tab+'WHERE t."userID" IN (0, $'+offset+') AND "fileID" IN \n'+
 				obj.query+
 			tab+')\n',
