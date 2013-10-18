@@ -29,6 +29,7 @@ var Future = require("fibers/future");
 var sql = require("../utilities/sql");
 var run = require("../utilities/fiber-helper").run;
 var wait = require("../utilities/fiber-helper").wait;
+var unique = require("../utilities/unique");
 
 var AST = require("./AST");
 var plugins = require("../plugins");
@@ -315,6 +316,7 @@ function addFileSubmissionTargets(session, submissionID, file, callback) {
 }
 function addURIs(session, normalizedURIs, callback) {
 	run(function() {
+		normalizedURIs = unique(normalizedURIs);
 		if(!normalizedURIs.length) return;
 		queryF(session.db,
 			'INSERT INTO "URIs" ("normalizedURI")\n'
