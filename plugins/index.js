@@ -33,4 +33,5 @@ plugins.datadetectors = requiredir(__dirname+"/datadetectors");
 plugins.hashers = requiredir(__dirname+"/hashers");
 plugins.indexers = requiredir(__dirname+"/indexers");
 plugins.parsers = requiredir(__dirname+"/parsers");
+plugins.formatters = requiredir(__dirname+"/formatters");
 

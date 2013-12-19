@@ -54,7 +54,8 @@ function Repo(path, config) {
 	// TODO: Enable this eventually.
 	repo.config = config;
 	repo.PATH = pathModule.resolve(path, config["path"] || ".");
-	repo.DATA = pathModule.resolve(repo.PATH, config["dataPath"] || "./entries");
+	repo.DATA = pathModule.resolve(repo.PATH, config["dataPath"] || "./entries"); // TODO: Rename to "data" or "files"
+	repo.CACHE = pathModule.resolve(repo.PATH, config["cachePath"] || "./cache");
 	repo.TMP = os.tmpdir(); // TODO: Same volume as DATA?
 	repo.KEY = pathModule.resolve(repo.PATH, config["keyPath"] || "./server.key");
 	repo.CERT = pathModule.resolve(repo.PATH, config["certPath"] || "./server.crt");

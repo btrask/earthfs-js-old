@@ -17,6 +17,7 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
 FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE. */
+var crypto = require("crypto");
 var pathModule = require("path");
 var urlModule = require("url");
 var util = require("util");
@@ -26,6 +27,7 @@ var https = require("https");
 
 var client = require("efs-client");
 var multiparty = require("multiparty");
+var mkdirp = require("mkdirp");
 
 var http = require("./utilities/httpx"); // TODO: Get rid of this...
 var MIME = require("./utilities/mime");
@@ -37,10 +39,14 @@ var Session = require("./classes/Session");
 var IncomingFile = require("./classes/IncomingFile");
 var querystream = require("./classes/querystream");
 
+var plugins = require("./plugins");
+var formatters = plugins.formatters;
+
 var METHOD_MODES = {
 	"GET": Session.O_RDONLY,
 	"POST": Session.O_WRONLY, // Technically could be O_RDWR.
 };
+var CLIENT = __dirname+"/build";
 
 var repo = Repo.loadSync(process.argv[2] || "/etc/earthfs"); // TODO: Is this really a good idea?
 
@@ -99,8 +105,11 @@ function registerExpAuthQuery(method, pathExp, func/* (req, res, url, session, a
 	});
 }
 
-
-registerExpAuth("GET", /^\/api\/file\/best\/([^\/]+)\/([^\/]+)\/?$/, getFileBest);
+registerExpAuth("GET", /^\/api\/html\/(best)\/([^\/]+)\/([^\/]+)(\/.*)?$/, getFileHTML);
+registerExpAuth("GET", /^\/api\/html\/(latest)\/([^\/]+)\/([^\/]+)(\/.*)?$/, getFileHTML);
+registerExpAuth("GET", /^\/api\/html\/(first)\/([^\/]+)\/([^\/]+)(\/.*)?$/, getFileHTML);
+registerExpAuth("GET", /^\/api\/html\/submission\/(\d+)(\/.*)?$/, getSubmissionHTML);
+registerExpAuth("GET", /^\/api\/file\/(best)\/([^\/]+)\/([^\/]+)\/?$/, getFile);
 registerExpAuth("GET", /^\/api\/file\/(latest)\/([^\/]+)\/([^\/]+)\/?$/, getFile);
 registerExpAuth("GET", /^\/api\/file\/(first)\/([^\/]+)\/([^\/]+)\/?$/, getFile);
 registerExpAuth("GET", /^\/api\/file\/submission\/(\d+)\/?$/, getSubmission);
@@ -109,27 +118,32 @@ registerExpAuth("POST", /^\/api\/file\/?$/, postFile);
 registerExpAuthQuery("GET", /^\/api\/query\/latest\/?$/, getQueryLatest);
 registerExpAuthQuery("GET", /^\/api\/query\/history\/?$/, getQueryHistory);
 
+// Last.
+registerExp("GET", /.*/, getClient);
 
-function getFileBest(req, res, url, session, algo, hash, done) {
-	getFile(req, res, url, session, "latest", algo, hash, done); // TODO
+
+function getFileHTML(req, res, url, session, name, algo, hash, subpath, done) {
+	submissionIDForName(session, name, algo, hash, function(err, submissionID) {
+		if(err) return done(err);
+		getSubmissionHTML(req, res, url, session, submissionID, subpath, done);
+	});
+}
+function getSubmissionHTML(req, res, url, session, submissionID, subpath, done) {
+	session.fileForSubmissionID(submissionID, function(err, file) {
+		if(err) return done(err);
+		done();
+		sendResource(req, res, url, session.repo, file, subpath);
+	});
 }
 function getFile(req, res, url, session, name, algo, hash, done) {
-	var normalizedURI = parseURI(algo, hash);
-	session.submissionsForNormalizedURI(normalizedURI, function(err, submissions) {
-		if(err) return done(err);
-		if(!submissions.length) return done(httpError(404));
-		var index;
-		switch(name) {
-			case "first": index = 0; break;
-			case "latest": index = submissions.length - 1; break;
-			default: throw new Error("Invalid file name");
-		}
-		getSubmission(req, res, url, session, submissions[index]["submissionID"], done);
+	submissionIDForName(session, name, algo, hash, function(err, submissionID) {
+		getSubmission(req, res, url, session, submissionID, done);
 	});
 }
 function getSubmission(req, res, url, session, submissionID, done) {
 	session.fileForSubmissionID(submissionID, function(err, file) {
 		if(err) return done(err);
+		done();
 		res.writeHead(200, {
 			"Content-Type": file.type,
 			"Content-Length": file.size,
@@ -142,7 +156,6 @@ function getSubmission(req, res, url, session, submissionID, done) {
 		});
 		if("HEAD" === req.method) res.end();
 		else fs.createReadStream(file.internalPath).pipe(res);
-		done();
 	});
 }
 function getFileList(req, res, url, session, algo, hash, done) {
@@ -150,6 +163,7 @@ function getFileList(req, res, url, session, algo, hash, done) {
 	session.submissionsForNormalizedURI(normalizedURI, function(err, submissions) {
 		if(err) return done(err);
 		if(!submissions.length) return done(httpError(404));
+		done();
 		var buf = new Buffer(JSON.stringify(submissions), "utf8");
 		res.writeHead(200, {
 			"Content-Type": "text/json; charset=utf-8",
@@ -157,7 +171,6 @@ function getFileList(req, res, url, session, algo, hash, done) {
 		});
 		if("HEAD" === req.method) res.end();
 		else res.end(buf);
-		done();
 	});
 }
 function postFile(req, res, url, session, done) {
@@ -229,6 +242,75 @@ function getQueryHistory(req, res, url, session, ast, done) {
 	page.pipe(res);
 	page.on("end", function() {
 		done();
+	});
+}
+function getClient(req, res, url) {
+	if(-1 !== url.pathname.indexOf("..")) return res.sendMessage(400, "Bad Request");
+	var path = CLIENT+url.pathname;
+	fs.stat(path, function(err, stats) {
+		if(err) return res.sendError(err);
+		res.sendFile(stats.isDirectory() ? path+"/index.html" : path);
+	});
+}
+
+
+function sendResource(req, res, url, repo, file, subpath) {
+	var x = file.internalHash;
+	var dir = cacheDirForFile(file, repo);
+	if(!subpath) subpath = "/";
+	if("/" === subpath[subpath.length - 1]) subpath += "index.html";
+	var path = dir+subpath;
+	if(-1 !== path.indexOf("..")) return res.sendError(httpError(403));
+	fs.stat(dir+"/.token", function(err, stats) {
+		if(!err) return res.sendFile(path, false);
+		if("ENOENT" !== err.code) return res.sendError(err);
+		mkdirp(dir, function(err) {
+			if(err) return res.sendError(err);
+			var stream = fs.createReadStream(file.internalPath);
+			var prefix = "/api/submission/"+encodeURIComponent(file.submissionID)+"/html";
+			format(stream, file.type, dir, prefix, function(err) {
+				if(err) return res.sendError(err);
+				fs.writeFile(dir+"/.token", "", "utf8", function(err) {
+					if(err) return res.sendError(err);
+					res.sendFile(path, false);
+				});
+			});
+		});
+	});
+}
+function cacheDirForFile(file, repo) {
+	var hasher = crypto.createHash("sha256");
+	hasher.write(file.internalHash, "utf8");
+	hasher.write(file.type, "utf8");
+	hasher.end();
+	var x = hasher.read().toString("hex");
+	return repo.CACHE+"/"+x.slice(0, 2)+"/"+x;
+}
+function format(stream, type, dir, prefix, callback/* (err) */) {
+	for(var i = 0; i < formatters.length; ++i) {
+		if(!formatters[i].acceptsType(type)) continue;
+		formatters[i].format(stream, type, dir, prefix, function(err) {
+			if(err) return callback(err);
+			callback(null);
+		});
+		return;
+	}
+	stream.destroy();
+	callback(new Error("No available formatter"));
+}
+function submissionIDForName(session, name, algo, hash, callback/* (err, submissionID) */) {
+	var normalizedURI = parseURI(algo, hash);
+	session.submissionsForNormalizedURI(normalizedURI, function(err, submissions) {
+		if(err) return callback(err, null);
+		if(!submissions.length) return callback(null, null);
+		var index;
+		switch(name) {
+			case "first": index = 0; break;
+			case "best": // TODO
+			case "latest": index = submissions.length - 1; break;
+			default: throw new Error("Invalid file name");
+		}
+		callback(null, submissions[index].submissionID);
 	});
 }
 function auth(req, res, url, mode, callback/* (session, done) */) {

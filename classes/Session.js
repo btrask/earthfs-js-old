@@ -61,7 +61,7 @@ function Session(repo, db, userID, mode, cookie) {
 }
 Session.prototype.close = function() {
 	var session = this;
-	session.repo = null;
+	// Don't clear session.repo.
 	session.db.done();
 	session.db = null;
 	session.userID = null;
