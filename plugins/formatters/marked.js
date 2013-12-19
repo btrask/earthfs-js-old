@@ -42,7 +42,7 @@ exports.format = function(stream, type, dir, prefix, callback/* (err) */) {
 		callback(err);
 	});
 	stream.on("end", function() {
-		var output = marked(str);
+		var output = marked(input);
 		fs.writeFile(dir+"/index.html", output, {encoding: "utf8"}, function(err) {
 			callback(err);
 		});
