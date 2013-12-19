@@ -17,19 +17,15 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
 FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE. */
 var fs = require("fs");
-var marked = require("marked");
 
-marked.setOptions({
-	gfm: true,
-	breaks: true,
-	sanitize: true,
-});
+var ometajs = require("ometajs");
+var markup = require("./markup.ometajs").markup;
 
 exports.acceptsType = function(type) {
 	var x = type.toLowerCase();
 	return (
-		"text/markdown" === x ||
-		"text/markdown; charset=utf-8" === x
+		"text/x-bad-markup" === x ||
+		"text/x-bad-markup; charset=utf-8" === x
 	);
 };
 exports.format = function(stream, type, dir, prefix, callback/* (err) */) {
@@ -42,7 +38,7 @@ exports.format = function(stream, type, dir, prefix, callback/* (err) */) {
 		callback(err);
 	});
 	stream.on("end", function() {
-		var output = marked(str);
+		var output = markup.matchAll(input, "content");
 		fs.writeFile(dir+"/index.html", output, {encoding: "utf8"}, function(err) {
 			callback(err);
 		});
