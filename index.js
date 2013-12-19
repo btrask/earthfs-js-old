@@ -24,6 +24,7 @@ var util = require("util");
 var os = require("os");
 var fs = require("fs");
 var https = require("https");
+var util = require("util");
 
 var client = require("efs-client");
 var multiparty = require("multiparty");
@@ -347,7 +348,7 @@ function httpError(statusCode, url) {
 
 var PORT = parseInt(repo.config["port"], 10) || 8001;
 server.listen(PORT, function() {
-	console.log(urlModule.format({
+	util.log(urlModule.format({
 		protocol: server.protocol,
 		hostname: "localhost",
 		port: PORT,
