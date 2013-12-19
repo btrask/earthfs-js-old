@@ -28,9 +28,11 @@ var sqlModule = require("../utilities/sql");
 querystream.ongoing = function(session, ast) {
 	var sql = ast.SQL(2, '\t');
 	var stream = new Stream;
+	var ended = false;
 	session.repo.on("submission", onsubmission);
 	stream.on("end", function() {
 		session.repo.removeListener("submission", onsubmission);
+		ended = true;
 	});
 	return stream;
 
@@ -42,6 +44,7 @@ querystream.ongoing = function(session, ast) {
 			function(err, results) {
 				if(err) console.log(err);
 				if(!results.rows[0].matches) return;
+				if(ended) return;
 				stream.write(client.formatEarthURI({
 					algorithm: "sha1",
 					hash: submission.internalHash,
