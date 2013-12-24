@@ -28,10 +28,13 @@ var sqlModule = require("../utilities/sql");
 querystream.ongoing = function(session, ast) {
 	var sql = ast.SQL(2, '\t');
 	var stream = new Stream;
+	var interval = null;
 	var ended = false;
 	session.repo.on("submission", onsubmission);
+	interval = setInterval(oninterval, 1000 * 30);
 	stream.on("end", function() {
 		session.repo.removeListener("submission", onsubmission);
+		clearInterval(interval);
 		ended = true;
 	});
 	return stream;
@@ -51,6 +54,9 @@ querystream.ongoing = function(session, ast) {
 				})+"\n", "utf8");
 			}
 		);
+	}
+	function oninterval() {
+		stream.write("\n", "utf8");
 	}
 };
 querystream.history = function(session, ast, count) {
@@ -92,6 +98,7 @@ function wrap(results) {
 		results.removeListener("row", onrow);
 		results.removeListener("end", onend);
 		results.removeListener("error", onerror);
+		// TODO: Cancel results request?
 	});
 	return stream;
 
