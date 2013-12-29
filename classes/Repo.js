@@ -186,18 +186,16 @@ function authSession(repo, db, opts, callback) {
 		var sessionID = obj[1];
 		var sessionKey = obj[2];
 		var row = queryF(db,
-			'SELECT "sessionHash", "userID", "modeRead", "modeWrite" FROM "sessions"\n'
-			+'WHERE "sessionID" = $1 AND "timestamp" > NOW() - INTERVAL \'14 days\'',
-			[sessionID]).wait().rows[0];
+			'SELECT "userID", "modeRead", "modeWrite" FROM "sessions"\n'
+			+'WHERE "sessionID" = $1 AND "sessionKey" = $2\n'
+				+'\t'+'AND "timestamp" > NOW() - INTERVAL \'14 days\'',
+			[sessionID, sessionKey]).wait().rows[0];
 		if(!row) throw forbidden();
 		var sessionMode =
 			(row.modeRead ? Session.O_RDONLY : 0) |
 			(row.modeWrite ? Session.O_WRONLY : 0);
 		if((opts.mode & sessionMode) !== opts.mode) throw forbidden();
-		if(bcrypt.compareSync(sessionKey, row.sessionHash)) {
-			return new Session(repo, db, row.userID, sessionMode);
-		}
-		throw forbidden();
+		return new Session(repo, db, row.userID, sessionMode);
 	}, callback);
 };
 function authPublic(repo, db, opts, callback) {
@@ -210,15 +208,14 @@ function authPublic(repo, db, opts, callback) {
 function createSession(repo, db, userID, mode, remember, callback) {
 	run(function() {
 		var sessionKey = randomBytesF(20).wait().toString("base64");
-		var sessionHash = bcrypt.hashSync(sessionKey, 10); // TODO: Use async?
 		var modeRead = Boolean(mode & Session.O_RDONLY);
 		var modeWrite = Boolean(mode & Session.O_WRONLY);
 		var row = queryF(db,
 			'INSERT INTO "sessions"\n'
-				+'\t'+'("sessionHash", "userID", "modeRead", "modeWrite")\n'
+				+'\t'+'("sessionKey", "userID", "modeRead", "modeWrite")\n'
 			+'VALUES ($1, $2, $3, $4)\n'
 			+'RETURNING "sessionID"',
-			[sessionHash, userID, modeRead, modeWrite]).wait().rows[0];
+			[sessionKey, userID, modeRead, modeWrite]).wait().rows[0];
 		if(!row) throw new Error("Unable to create session");
 		var cookie = cookieModule.formatSingle({
 			name: "s",

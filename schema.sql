@@ -253,7 +253,7 @@ ALTER SEQUENCE "pulls_pullID_seq" OWNED BY pulls."pullID";
 
 CREATE TABLE sessions (
     "sessionID" bigint NOT NULL,
-    "sessionHash" text NOT NULL,
+    "sessionKey" text NOT NULL,
     "userID" bigint NOT NULL,
     "modeRead" boolean NOT NULL,
     "modeWrite" boolean NOT NULL,
