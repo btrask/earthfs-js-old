@@ -343,7 +343,7 @@ function Entry(stream, URN) {
 	entry.element = DOM.clone("entry", this.elems);
 	entry.stream = stream;
 	entry.URN = URN;
-	DOM.fill(entry.elems.content, "Loading…");
+	DOM.fill(entry.elems.content, DOM.clone("loading"));
 	entry.addURN(URN);
 }
 Entry.prototype.addURN = function(URN) {
