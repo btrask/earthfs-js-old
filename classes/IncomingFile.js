@@ -159,7 +159,7 @@ function URIsFromHashes(hashes) {
 	var URIs = [];
 	Object.keys(hashes).forEach(function(algorithm) {
 		hashes[algorithm].forEach(function(hash) {
-			URIs.push(client.formatEarthURI({algorithm: algorithm, hash: hash}));
+			URIs.push(client.formatHashURI({algorithm: algorithm, hash: hash}));
 		});
 	});
 	return URIs;

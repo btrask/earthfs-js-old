@@ -54,20 +54,20 @@ http.get = function(opts, callback) {
 };
 
 var client = {}; // TODO: Don't copy-paste from node-efs-client.
-client.parseEarthURI = function(URIString) {
-	var URI = /earth:\/\/([^\/#?]+)\/([^#?]+)/.exec(URIString);
+client.parseHashURI = function(URIString) {
+	var URI = /hash:\/\/([^\/#?]+)\/([^#?]+)/.exec(URIString);
 	if(!URI) return null;
 	return {
 		algorithm: URI[1].toLowerCase(),
 		hash: URI[2],
 	};
 };
-client.formatEarthURI = function(URI) {
-	return "earth://"+URI.algorithm.toLowerCase()+"/"+URI.hash;
+client.formatHashURI = function(URI) {
+	return "hash://"+URI.algorithm.toLowerCase()+"/"+URI.hash;
 };
 
 function URIForAPI(URI) {
-	var obj = client.parseEarthURI(URI);
+	var obj = client.parseHashURI(URI);
 	return encodeURIComponent(obj.algorithm)+"/"+encodeURIComponent(obj.hash);
 };
 
@@ -361,7 +361,7 @@ Entry.prototype.addURN = function(URN) {
 Entry.prototype.load = function(callback) {
 	var entry = this;
 	var stream = entry.stream;
-	var URI = client.parseEarthURI(entry.URN);
+	var URI = client.parseHashURI(entry.URN);
 	var algorithm = encodeURIComponent(URI.algorithm);
 	var hash = encodeURIComponent(URI.hash);
 	var entryReq = http.get({
@@ -415,12 +415,12 @@ Entry.parseHTML = function(html) {
 		for(var i = 0; i < l; ++i) {
 			if(!a[i].getAttribute) continue;
 			x = a[i].getAttribute("href");
-			if(x && /^earth:/.test(x)) {
+			if(x && /^hash:/.test(x)) {
 				a[i].setAttribute("href", "?q="+encodeURIComponent(x));
 				if(a[i].text.trim() === x) DOM.classify(a[i], "URN");
 			}
 			x = a[i].getAttribute("src");
-			if(x && /^earth:/.test(x)) {
+			if(x && /^hash:/.test(x)) {
 				a[i].setAttribute("src", "/api/file/best/"+URIForAPI(x));
 			}
 			convertURNs(a[i]);

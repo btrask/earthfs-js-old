@@ -334,7 +334,7 @@ function auth(req, res, url, mode, callback/* (session, done) */) {
 	});
 }
 function parseURI(encodedAlgorithm, encodedHash) {
-	return client.formatEarthURI({
+	return client.formatHashURI({
 		algorithm: decodeURIComponent(encodedAlgorithm),
 		hash: decodeURIComponent(encodedHash),
 	});

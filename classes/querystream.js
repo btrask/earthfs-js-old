@@ -48,7 +48,7 @@ querystream.ongoing = function(session, ast) {
 				if(err) console.log(err);
 				if(!results.rows[0].matches) return;
 				if(ended) return;
-				stream.write(client.formatEarthURI({
+				stream.write(client.formatHashURI({
 					algorithm: "sha1",
 					hash: submission.internalHash,
 				})+"\n", "utf8");
@@ -103,7 +103,7 @@ function wrap(results) {
 	return stream;
 
 	function onrow(row) {
-		stream.write(client.formatEarthURI({
+		stream.write(client.formatHashURI({
 			algorithm: "sha1",
 			hash: row.internalHash,
 		})+"\n", "utf8");
