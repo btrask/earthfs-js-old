@@ -125,6 +125,7 @@ a:hover {
 
 	margin: 14px;
 	border-radius: 3px;
+	border: 1px solid white;
 	background: #fff;
 	box-shadow: 0 1px 3px #000;
 }
