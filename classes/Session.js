@@ -109,12 +109,8 @@ Session.prototype.addIncomingFile = function(file, callback/* (err, outgoingFile
 			// TODO: Submit patch to node-fibers to preserve original error information. Normally it uses `Object.create(error)` which does not work very well.
 		}
 	}, function(err, outgoingFile) {
-		var repo = session.repo;
 		callback(err, outgoingFile);
-		if(!err) repo.emit("submission", outgoingFile);
-		// Calling `callback` might cause us to close,
-		// so save the repo first. We just want the
-		// original caller to be the first to know.
+		if(!err) session.repo.emit("submission", outgoingFile);
 	});
 };
 Session.prototype.submissionsForNormalizedURI = function(normalizedURI, callback/* (err, submissions) */) {
