@@ -180,7 +180,7 @@ Stream.prototype.pull = function(history) {
 			}, 1000 * 5);
 		}
 	};
-	req.open("GET", "/api/query/latest/?"+url.formatQuery({
+	req.open("GET", "/efs/query/?"+url.formatQuery({
 		"q": stream.query,
 		"count": 50,
 		"t": +new Date,
@@ -256,7 +256,7 @@ Stream.prototype.upload = function(blob, targets) {
 		// TODO
 		console.log("status", req.status);
 	};
-	req.open("POST", "/api/file/?"+url.formatQuery({
+	req.open("POST", "/efs/file/?"+url.formatQuery({
 		"r": stream.repoURL,
 		"u": stream.username,
 		"p": stream.password,
@@ -351,7 +351,7 @@ Entry.prototype.addURN = function(URN) {
 	var elems = {}, e = DOM.clone("entryURN", elems);
 	DOM.fill(elems.URN, entry.URN);
 	elems.URN.href = Stream.location({"q": entry.URN});
-	elems.raw.href = "/api/file/best/"+URIForAPI(URN)+url.formatQuery({
+	elems.raw.href = "/efs/file/"+URIForAPI(URN)+url.formatQuery({
 		"r": stream.repoURL,
 		"u": stream.username,
 		"p": stream.password,
@@ -365,7 +365,7 @@ Entry.prototype.load = function(callback) {
 	var algorithm = encodeURIComponent(URI.algorithm);
 	var hash = encodeURIComponent(URI.hash);
 	var entryReq = http.get({
-		url: "/api/html/best/"+URIForAPI(entry.URN)+"/index.html?"+url.formatQuery({
+		url: "/efs/html/"+URIForAPI(entry.URN)+"/index.html?"+url.formatQuery({
 			"r": stream.repoURL,
 			"u": stream.username,
 			"p": stream.password,
@@ -421,7 +421,7 @@ Entry.parseHTML = function(html) {
 			}
 			x = a[i].getAttribute("src");
 			if(x && /^hash:/.test(x)) {
-				a[i].setAttribute("src", "/api/file/best/"+URIForAPI(x));
+				a[i].setAttribute("src", "/efs/file/"+URIForAPI(x));
 			}
 			convertURNs(a[i]);
 		}

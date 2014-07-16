@@ -106,25 +106,23 @@ function registerExpAuthQuery(method, pathExp, func/* (req, res, url, session, a
 	});
 }
 
-registerExpAuth("GET", /^\/api\/html\/(best)\/([^\/]+)\/([^\/]+)(\/.*)?$/, getFileHTML);
-registerExpAuth("GET", /^\/api\/html\/(latest)\/([^\/]+)\/([^\/]+)(\/.*)?$/, getFileHTML);
-registerExpAuth("GET", /^\/api\/html\/(first)\/([^\/]+)\/([^\/]+)(\/.*)?$/, getFileHTML);
-registerExpAuth("GET", /^\/api\/html\/submission\/(\d+)(\/.*)?$/, getSubmissionHTML);
-registerExpAuth("GET", /^\/api\/file\/(best)\/([^\/]+)\/([^\/]+)\/?$/, getFile);
-registerExpAuth("GET", /^\/api\/file\/(latest)\/([^\/]+)\/([^\/]+)\/?$/, getFile);
-registerExpAuth("GET", /^\/api\/file\/(first)\/([^\/]+)\/([^\/]+)\/?$/, getFile);
-registerExpAuth("GET", /^\/api\/file\/submission\/(\d+)\/?$/, getSubmission);
-registerExpAuth("GET", /^\/api\/file\/list\/([^\/]+)\/([^\/]+)\/?$/, getFileList);
-registerExpAuth("POST", /^\/api\/file\/?$/, postFile);
-registerExpAuthQuery("GET", /^\/api\/query\/latest\/?$/, getQueryLatest);
-registerExpAuthQuery("GET", /^\/api\/query\/history\/?$/, getQueryHistory);
+registerExpAuth("GET", /^\/efs\/html\/([^\/]+)\/([^\/]+)(\/.*)?$/, getFileHTML);
+registerExpAuth("GET", /^\/efs\/html\/([^\/]+)\/([^\/]+)(\/.*)?$/, getFileHTML);
+registerExpAuth("GET", /^\/efs\/html\/([^\/]+)\/([^\/]+)(\/.*)?$/, getFileHTML);
+//registerExpAuth("GET", /^\/efs\/html\/submission\/(\d+)(\/.*)?$/, getSubmissionHTML);
+registerExpAuth("GET", /^\/efs\/file\/([^\/]+)\/([^\/]+)\/?$/, getFile);
+//registerExpAuth("GET", /^\/efs\/file\/submission\/(\d+)\/?$/, getSubmission);
+registerExpAuth("GET", /^\/efs\/file\/list\/([^\/]+)\/([^\/]+)\/?$/, getFileList);
+registerExpAuth("POST", /^\/efs\/file\/?$/, postFile);
+registerExpAuthQuery("GET", /^\/efs\/query\/?$/, getQueryLatest);
+//registerExpAuthQuery("GET", /^\/efs\/query\/history\/?$/, getQueryHistory);
 
 // Last.
 registerExp("GET", /.*/, getClient);
 
 
-function getFileHTML(req, res, url, session, name, algo, hash, subpath, done) {
-	submissionIDForName(session, name, algo, hash, function(err, submissionID) {
+function getFileHTML(req, res, url, session, algo, hash, subpath, done) {
+	submissionIDForFile(session, algo, hash, function(err, submissionID) {
 		if(err) return done(err);
 		getSubmissionHTML(req, res, url, session, submissionID, subpath, done);
 	});
@@ -136,12 +134,12 @@ function getSubmissionHTML(req, res, url, session, submissionID, subpath, done) 
 		sendResource(req, res, url, session.repo, file, subpath);
 	});
 }
-function getFile(req, res, url, session, name, algo, hash, done) {
-	submissionIDForName(session, name, algo, hash, function(err, submissionID) {
+function getFile(req, res, url, session, algo, hash, done) {
+	submissionIDForFile(session, algo, hash, function(err, submissionID) {
 		getSubmission(req, res, url, session, submissionID, done);
 	});
 }
-function getSubmission(req, res, url, session, submissionID, done) {
+/*function getSubmission(req, res, url, session, submissionID, done) {
 	session.fileForSubmissionID(submissionID, function(err, file) {
 		if(err) return done(err);
 		done();
@@ -158,7 +156,7 @@ function getSubmission(req, res, url, session, submissionID, done) {
 		if("HEAD" === req.method) res.end();
 		else fs.createReadStream(file.internalPath).pipe(res);
 	});
-}
+}*/
 function getFileList(req, res, url, session, algo, hash, done) {
 	var normalizedURI = parseArgs(encodedAlgorithm, encodedHash);
 	session.submissionsForNormalizedURI(normalizedURI, function(err, submissions) {
@@ -229,7 +227,7 @@ function getQueryLatest(req, res, url, session, ast, done) {
 		ongoing.end();
 	});
 }
-function getQueryHistory(req, res, url, session, ast, done) {
+/*function getQueryHistory(req, res, url, session, ast, done) {
 	var offset = parseInt(url.query["offset"], 10);
 	var limit = parseInt(url.query["limit"], 10);
 	if(isNaN(offset) || offset < 0) return done(httpError(400)); // TODO: Better errors?
@@ -244,7 +242,7 @@ function getQueryHistory(req, res, url, session, ast, done) {
 	page.on("end", function() {
 		done();
 	});
-}
+}*/
 function getClient(req, res, url) {
 	if(-1 !== url.pathname.indexOf("..")) return res.sendMessage(400, "Bad Request");
 	var path = CLIENT+url.pathname;
@@ -299,19 +297,12 @@ function format(stream, type, dir, prefix, callback/* (err) */) {
 	stream.destroy();
 	callback(new Error("No available formatter"));
 }
-function submissionIDForName(session, name, algo, hash, callback/* (err, submissionID) */) {
+function submissionIDForFile(session, algo, hash, callback/* (err, submissionID) */) {
 	var normalizedURI = parseURI(algo, hash);
 	session.submissionsForNormalizedURI(normalizedURI, function(err, submissions) {
 		if(err) return callback(err, null);
 		if(!submissions.length) return callback(null, null);
-		var index;
-		switch(name) {
-			case "first": index = 0; break;
-			case "best": // TODO
-			case "latest": index = submissions.length - 1; break;
-			default: throw new Error("Invalid file name");
-		}
-		callback(null, submissions[index].submissionID);
+		callback(null, submissions[0].submissionID);
 	});
 }
 function auth(req, res, url, mode, callback/* (session, done) */) {
