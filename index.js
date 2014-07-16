@@ -139,7 +139,7 @@ function getFile(req, res, url, session, algo, hash, done) {
 		getSubmission(req, res, url, session, submissionID, done);
 	});
 }
-/*function getSubmission(req, res, url, session, submissionID, done) {
+function getSubmission(req, res, url, session, submissionID, done) {
 	session.fileForSubmissionID(submissionID, function(err, file) {
 		if(err) return done(err);
 		done();
@@ -156,7 +156,7 @@ function getFile(req, res, url, session, algo, hash, done) {
 		if("HEAD" === req.method) res.end();
 		else fs.createReadStream(file.internalPath).pipe(res);
 	});
-}*/
+}
 function getFileList(req, res, url, session, algo, hash, done) {
 	var normalizedURI = parseArgs(encodedAlgorithm, encodedHash);
 	session.submissionsForNormalizedURI(normalizedURI, function(err, submissions) {
