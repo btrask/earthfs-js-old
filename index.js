@@ -135,9 +135,21 @@ function getSubmissionHTML(req, res, url, session, submissionID, subpath, done) 
 	});
 }
 function getFile(req, res, url, session, algo, hash, done) {
-	submissionIDForFile(session, algo, hash, function(err, submissionID) {
-		getSubmission(req, res, url, session, submissionID, done);
+	session.fastFileInfo(parseURI(algo, hash), function(err, file) {
+		if(err) return done(err);
+		done();
+		res.writeHead(200, {
+			"Content-Type": file.type,
+			"Content-Length": file.size,
+		});
+		if("HEAD" === req.method) return res.end();
+		var path = session.repo.internalPathForHash(file.internalHash);
+		var stream = fs.createReadStream(path);
+		stream.pipe(res);
 	});
+/*	submissionIDForFile(session, algo, hash, function(err, submissionID) {
+		getSubmission(req, res, url, session, submissionID, done);
+	});*/
 }
 function getSubmission(req, res, url, session, submissionID, done) {
 	session.fileForSubmissionID(submissionID, function(err, file) {
@@ -153,8 +165,8 @@ function getSubmission(req, res, url, session, submissionID, done) {
 			"X-Timestamp": file.timestamp,
 			"X-URIs": file.URIs.join(", "),
 		});
-		if("HEAD" === req.method) res.end();
-		else fs.createReadStream(file.internalPath).pipe(res);
+		if("HEAD" === req.method) return res.end();
+		fs.createReadStream(file.internalPath).pipe(res);
 	});
 }
 function getFileList(req, res, url, session, algo, hash, done) {

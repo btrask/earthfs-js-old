@@ -113,6 +113,18 @@ Session.prototype.addIncomingFile = function(file, callback/* (err, outgoingFile
 		if(!err) session.repo.emit("submission", outgoingFile);
 	});
 };
+Session.prototype.fastFileInfo = function(normalizedURI, callback/* (err, file) */) {
+	var session = this;
+	run(function() {
+		if(!(session.mode & Session.O_RDONLY)) throw new Error("No permission");
+		return queryF(session.db,
+			'SELECT f."internalHash", f."type", f."size"\n'+
+			'FROM files AS f\n'+
+			'INNER JOIN "fileURIs" AS f2 ON (f."fileID" = f2."fileID")\n'+
+			'INNER JOIN "URIs" AS u ON (f2."URIID" = u."URIID")\n'+
+			'WHERE u."normalizedURI" = $1 LIMIT 1', [normalizedURI]).wait().rows[0];
+	}, callback);
+};
 Session.prototype.submissionsForNormalizedURI = function(normalizedURI, callback/* (err, submissions) */) {
 	var session = this;
 	run(function() {
