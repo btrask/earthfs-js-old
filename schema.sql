@@ -565,6 +565,13 @@ CREATE UNIQUE INDEX "URIs_normalizedURI_idx" ON "URIs" USING btree ("normalizedU
 
 
 --
+-- Name: fileURIsURIUniqueIndex; Type: INDEX; Schema: public; Owner: -; Tablespace: 
+--
+
+CREATE UNIQUE INDEX "fileURIsURIUniqueIndex" ON "fileURIs" USING btree ("URIID", "fileID");
+
+
+--
 -- Name: URIsOnDuplicateDoNothing; Type: RULE; Schema: public; Owner: -
 --
 
@@ -583,16 +590,6 @@ CREATE RULE "fileURIsOnDuplicateDoNothing" AS ON INSERT TO "fileURIs" WHERE (EXI
 --
 
 CREATE RULE "filesOnDuplicateDoNothing" AS ON INSERT TO files WHERE (EXISTS (SELECT 1 FROM files old WHERE ((old."internalHash" = new."internalHash") AND (old.type = new.type)))) DO INSTEAD NOTHING;
-
-
---
--- Name: public; Type: ACL; Schema: -; Owner: -
---
-
-REVOKE ALL ON SCHEMA public FROM PUBLIC;
-REVOKE ALL ON SCHEMA public FROM postgres;
-GRANT ALL ON SCHEMA public TO postgres;
-GRANT ALL ON SCHEMA public TO PUBLIC;
 
 
 --
