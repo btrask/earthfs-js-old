@@ -32,7 +32,7 @@ querystream.ongoing = function(session, ast) {
 	var ended = false;
 	session.repo.on("submission", onsubmission);
 	interval = setInterval(oninterval, 1000 * 30);
-	stream.on("end", function() {
+	stream.on("finish", function() {
 		session.repo.removeListener("submission", onsubmission);
 		clearInterval(interval);
 		ended = true;
@@ -94,7 +94,7 @@ function wrap(results) {
 	results.on("row", onrow);
 	results.on("end", onend);
 	results.on("error", onerror);
-	stream.on("end", function() {
+	stream.on("finish", function() {
 		results.removeListener("row", onrow);
 		results.removeListener("end", onend);
 		results.removeListener("error", onerror);
