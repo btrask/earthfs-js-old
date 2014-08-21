@@ -291,7 +291,7 @@ function TextEditor(stream) {
 		} else {
 			stream.upload(new Blob(
 				[trimBlankLines(editor.textarea.value)],
-				{"type": "text/markdown"}
+				{"type": "text/markdown; charset=utf-8"}
 			), editor.targets.value.split(/,\s*/g));
 			// TODO: Selectable MIME types.
 			// TODO: Share target code with FileEditor.
